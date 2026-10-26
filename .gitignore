@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+.sites-runtime/
+.openai/
+__pycache__/
+*.tar.gz

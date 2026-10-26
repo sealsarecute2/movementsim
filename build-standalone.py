@@ -4,6 +4,9 @@ import re
 
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
+# Keep the repository root directly usable by static hosts such as GitHub Pages.
+for filename in ('index.html', 'style.css', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
+    (root / filename).write_text((dist / filename).read_text())
 pieces = []
 for filename in ('course.js', 'physics.js', 'renderer.js', 'app.js'):
     source = (dist / filename).read_text()

@@ -11,7 +11,7 @@ export const RULES = Object.freeze({
   bhopHalfWindow: 0.015625, spamDelay: 0.015625, landingRecovery: 0.16,
 });
 export const PRESETS = {
-  classic: { title: 'CS-style', airAccelerate: 12, autoBhop: false, speedLimit: true, landingSlow: true },
+  classic: { title: 'CS-style', airAccelerate: 12, autoBhop: true, speedLimit: true, landingSlow: true },
   practice: { title: 'Bhop practice', airAccelerate: 100, autoBhop: true, speedLimit: false, landingSlow: false },
 };
 const EPS = 0.0001;

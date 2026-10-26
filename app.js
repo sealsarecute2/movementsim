@@ -83,7 +83,7 @@ function choosePreset(value,resetRun=true) {
   preset=value;
   document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===value));
   $('preset-badge').textContent=PRESETS[preset].title.toUpperCase();
-  $('preset-description').textContent=preset==='classic'?'Manual jump timing · capped bhops · landing slowdown':'Hold Space to hop · stronger air control · uncapped speed';
+  $('preset-description').textContent=preset==='classic'?'Hold Space to hop · capped bhops · landing slowdown':'Hold Space to hop · stronger air control · uncapped speed';
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
