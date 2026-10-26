@@ -2,6 +2,7 @@ import { DT, PRESETS, createPlayer, step, speed, support } from './physics.js';
 import { MAPS, MAP_LIST } from './course.js';
 import { createEndless } from './endless.js';
 import { createRenderer } from './renderer.js';
+import { KNIFE_LIST, KNIVES, DEFAULT_KNIFE, knifeIcon } from './knives.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -13,6 +14,7 @@ let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = crea
 let endless = null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
+let selectedKnife=DEFAULT_KNIFE;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
@@ -29,7 +31,7 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov,knife:selectedKnife})); } catch {}
 }
 function toast(message,checkpointNotice=false) {
   $('toast').textContent=message; $('toast').classList.toggle('checkpoint-notice',checkpointNotice);
@@ -42,6 +44,7 @@ function saveEndlessBest() {
 }
 function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
+  renderer.cancelInspect();
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
@@ -126,6 +129,16 @@ function chooseMap(value,resetRun=true) {
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
+function closeKnives(){ $('knife-inventory').classList.add('hidden');$('knife-picker').focus(); }
+function chooseKnife(id,preview=true){
+  if(!Object.hasOwn(KNIVES,id))return false;
+  selectedKnife=id;renderer.setKnife(id);$('knife-name').textContent=KNIVES[id].name;
+  document.querySelectorAll('[data-knife]').forEach(button=>{
+    const selected=button.dataset.knife===id;button.classList.toggle('selected',selected);
+    button.setAttribute('aria-pressed',String(selected));
+  });
+  saveSettings();if(preview)renderer.inspect();return true;
+}
 function finishRun() {
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
   if(document.pointerLockElement===canvas) document.exitPointerLock();
@@ -207,11 +220,22 @@ function frame(now) {
     const spawn=endless?endless.spawn:MAPS[map].spawns[0];
     Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
   }
-  renderer.draw(camera,fov);updateHud();
+  renderer.draw(camera,fov,{time:now/1000,playing});updateHud();
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('knife-grid').innerHTML=KNIFE_LIST.map(k=>`<button type="button" class="knife-card" data-knife="${k.id}" aria-pressed="false">${knifeIcon(k.id)}<span>${k.name}</span></button>`).join('');
+$('knife-picker').addEventListener('click',()=>{
+  if(playing||lockPending)pause();$('knife-inventory').classList.remove('hidden');$('close-knives').focus();
+});
+$('close-knives').addEventListener('click',closeKnives);
+$('knife-inventory').addEventListener('click',event=>{if(event.target===$('knife-inventory'))closeKnives();});
+$('knife-grid').addEventListener('click',event=>{
+  const button=event.target.closest('[data-knife]');
+  if(button&&chooseKnife(button.dataset.knife)){closeKnives();}
+});
+$('inspect-preview').addEventListener('click',()=>renderer.inspect());
 $('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
 $('again').addEventListener('click',()=>{reset();play();});
@@ -229,7 +253,8 @@ for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
   saveSettings();
 });
 document.addEventListener('keydown',e=>{
-  if(e.code==='Escape') {if(playing)pause();return;}
+  if(e.code==='Escape') {if(!$('knife-inventory').classList.contains('hidden'))closeKnives();else if(playing)pause();return;}
+  if(e.code==='KeyF'&&!e.ctrlKey&&!e.metaKey&&!e.altKey) {if(!e.repeat)renderer.inspect();return;}
   if(!playing) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','KeyW','KeyA','KeyS','KeyD','ControlLeft','ControlRight'].includes(e.code)) e.preventDefault();
   if(e.code==='KeyR'&&!e.repeat) {reset();toast('NEW RUN');return;}
@@ -264,4 +289,5 @@ if(Number.isFinite(settings.sensitivity))sensitivity=Math.min(5,Math.max(0.2,set
 if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 $('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);
 $('fov').value=fov;$('fov-value').textContent=fov;
+chooseKnife(Object.hasOwn(KNIVES,settings.knife)?settings.knife:DEFAULT_KNIFE,false);
 reset();requestAnimationFrame(frame);

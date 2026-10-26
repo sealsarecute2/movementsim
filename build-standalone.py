@@ -5,10 +5,10 @@ import re
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-for filename in ('index.html', 'style.css', 'endless.js', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
+for filename in ('index.html', 'style.css', 'endless.js', 'course.js', 'physics.js', 'knives.js', 'viewmodel.js', 'renderer.js', 'app.js'):
     (root / filename).write_text((dist / filename).read_text())
 pieces = []
-for filename in ('endless.js', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
+for filename in ('endless.js', 'course.js', 'physics.js', 'knives.js', 'viewmodel.js', 'renderer.js', 'app.js'):
     source = (dist / filename).read_text()
     source = re.sub(r'^import .*?;\n', '', source, flags=re.MULTILINE)
     source = re.sub(r'^export ', '', source, flags=re.MULTILINE)

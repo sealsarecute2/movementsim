@@ -1,3 +1,4 @@
+import { createKnifeViewmodel } from './viewmodel.js';
 export function createRenderer(canvas, boxes) {
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
@@ -33,10 +34,8 @@ export function createRenderer(canvas, boxes) {
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
   const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24]]) {
-    const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, count, gl.FLOAT, false, 28, offset);
-  }
+  const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24]].map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
+  const maxAttributes=gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
   const eye = gl.getUniformLocation(program, 'uEye'), angles = gl.getUniformLocation(program, 'uAngles');
   const scale = gl.getUniformLocation(program, 'uScale');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
@@ -72,22 +71,27 @@ export function createRenderer(canvas, boxes) {
       }
     }
     count=vertices.length/7;
-    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
   }
   setBoxes(boxes);
+  const viewmodel=createKnifeViewmodel(gl);
   function resize() {
     const ratio=Math.min(window.devicePixelRatio||1,2);
     const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
-  function draw(p,fov=100) {
+  function draw(p,fov=100,view={}) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+    for(let i=0;i<maxAttributes;i++)gl.disableVertexAttribArray(i);
+    for(const a of attributes){gl.enableVertexAttribArray(a.loc);gl.vertexAttribPointer(a.loc,a.count,gl.FLOAT,false,28,a.offset);}
     const height=64-p.duckAmount*18;
     gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
     // CS-style FOV setting is horizontal at 4:3; widescreen adds horizontal view.
     const f=1/(Math.tan(fov*Math.PI/360)*0.75);
     gl.uniform2f(scale,f/(canvas.width/canvas.height),f);
     gl.drawArrays(gl.TRIANGLES,0,count);
+    viewmodel.draw(p,canvas.width,canvas.height,view);
   }
-  return {draw,setBoxes,get boxes(){return currentBoxes;}};
+  return {draw,setBoxes,setKnife:viewmodel.setKnife,inspect:viewmodel.inspect,cancelInspect:viewmodel.cancelInspect,get boxes(){return currentBoxes;}};
 }
