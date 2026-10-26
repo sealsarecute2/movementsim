@@ -5,10 +5,12 @@ import vm from 'node:vm';
 import * as physics from '../dist/physics.js';
 import * as course from '../dist/course.js';
 import * as endlessModule from '../dist/endless.js';
+const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
+const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
 // Exercise the real app event handlers with a browser API test double. Rendering
 // is stubbed here; these checks verify capture, pause and error behavior only.
-function boot(stored = {}) {
+function boot(stored = {}, search = '') {
   function element() {
     const listeners=new Map(),classes=new Set();
     return {textContent:'',innerHTML:'',style:{},disabled:false,
@@ -18,7 +20,9 @@ function boot(stored = {}) {
       fire:(name,event={})=>listeners.get(name)?.(event),focus(){}};
   }
   const elements=new Map(),document=element(),window=element();
+  window.location={search};
   document.getElementById=id=>{
+    if(!elementIds.has(id))return null;
     if(!elements.has(id))elements.set(id,element());
     return elements.get(id);
   };
@@ -28,7 +32,7 @@ function boot(stored = {}) {
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
   const context=vm.createContext({...physics,...course,...endlessModule,document,window,
-    performance:{now:()=>0},localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
+    performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw:p=>lastCamera=p})});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
@@ -156,4 +160,24 @@ test('endless checkpoints save in the bottom right, respawn safely, and retain d
   app.read('reset()');
   assert.equal(app.read('checkpoint'),0);assert.equal(app.read('endless.distance'),0);
   assert.equal(app.read('runTime'),0);
+});
+test('the dedicated Endless button starts play directly and the Endless link overrides the saved course',()=>{
+  const app=boot();app.element('play-endless').fire('click');
+  assert.equal(app.read('map'),'endless');assert.equal(app.requests(),1);
+  app.lock();assert.equal(app.read('playing'),true);
+  app.read('runTime=12;pause()');app.element('play-endless').fire('click');app.lock();
+  assert.equal(app.read('runTime'),12,'the button resumes an existing endless run');
+  const linked=boot({'movement-lab-settings-v1':JSON.stringify({map:'skyline'})},'?course=endless');
+  assert.equal(linked.read('map'),'endless');
+  const invalid=boot({},'?course=invalid');assert.equal(invalid.read('map'),'course');
+});
+test('the published entry page contains the complete build and visible Endless button',()=>{
+  const entry=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const standalone=readFileSync(new URL('../movement-lab.html',import.meta.url),'utf8');
+  assert.equal(entry,standalone);
+  assert.match(entry,/<button id="play-endless"[^>]*>PLAY ENDLESS/);
+  assert.match(entry,/<option value="endless">Endless<\/option>/);
+  assert.ok(!/<script[^>]+src=/.test(entry),'the entry point must not combine separately cached app modules');
+  const script=entry.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+  new vm.Script(script);
 });

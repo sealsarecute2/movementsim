@@ -5,13 +5,24 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="A minimal CS-style movement trainer. Practice bunnyhops, air strafing, and movement control on a greybox course.">
   <title>Movement Lab — CS2 Movement Trainer</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{font-family:'IBM Plex Mono',monospace;color:#e9e9e9;background:#000;font-synthesis:none;--muted:#888;--line:#303030}
+*{box-sizing:border-box}body{margin:0;overflow:hidden}button,input,summary,a{-webkit-tap-highlight-color:transparent}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid #fff;outline-offset:4px}button{border:1px solid var(--line);background:#151515}button:hover{border-color:#aaa;background:#222}#world{position:fixed;inset:0;width:100%;height:100%;display:block}.vignette{pointer-events:none;position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 45%,#0007 100%)}.topbar{position:fixed;top:0;left:0;right:0;padding:28px 34px;display:flex;justify-content:space-between;align-items:center;pointer-events:none}.brand{display:flex;gap:13px;align-items:center;font-size:14px;font-weight:600;letter-spacing:1.4px}.brand small{display:block;font-size:8px;letter-spacing:1.7px;font-weight:400;margin-top:6px;color:#888}.brand-icon{font-family:'Barlow Condensed',Impact,sans-serif;border:1px solid #555;width:39px;height:40px;font-size:30px;line-height:37px;text-align:center;position:relative}.brand-icon span{position:absolute;font-family:monospace;font-size:16px;right:-5px;top:-13px;background:#000;padding:0 2px;line-height:22px}.session{display:flex;align-items:center;gap:13px;font-size:10px;letter-spacing:1px}.session button{pointer-events:auto;padding:9px 11px;margin-left:13px;font-size:10px;background:#0c0c0c}.session button span{font-size:16px;margin-left:12px}.dot{width:5px;height:5px;background:#bbb;border-radius:50%}.divider{color:#444}.run-stats{position:fixed;top:124px;right:34px;text-align:right}.eyebrow{font-size:9px;letter-spacing:1.7px;color:#999}.run-stats #timer{font-size:28px;margin:8px 0 10px;letter-spacing:-1.5px;font-variant-numeric:tabular-nums}.run-stats p{font-size:9px;color:#777;letter-spacing:1px}.run-stats p span{color:#b6b6b6;margin-left:9px}#crosshair{position:fixed;top:50%;left:50%;width:10px;height:10px;transform:translate(-50%,-50%);pointer-events:none}#crosshair i{background:#ddd;position:absolute}#crosshair i:first-child{width:10px;height:1px;top:5px}#crosshair i:last-child{width:1px;height:10px;left:5px}#toast{position:fixed;left:50%;top:39%;transform:translateX(-50%);font-size:11px;letter-spacing:2px;opacity:0;transition:opacity .2s;background:#090909b0;padding:12px 20px;border:1px solid #444;pointer-events:none}#toast.show{opacity:1}.bottom-hud{position:fixed;bottom:30px;left:34px;right:34px;display:flex;justify-content:space-between;align-items:flex-end;gap:25px;pointer-events:none}.input-panel{width:235px}.keys{display:grid;grid-template-columns:32px 32px 32px;gap:4px;margin-top:12px;width:max-content}.keys .w{grid-column:2}.keys kbd:nth-child(2){grid-column:1}kbd{font:10px 'IBM Plex Mono',monospace;border:1px solid #444;background:#111b;display:inline-flex;justify-content:center;align-items:center;padding:6px 8px;color:#aaa;min-height:28px}.keys kbd{width:32px;height:30px}.modifiers{display:flex;gap:4px;margin-top:4px}.modifiers kbd{font-size:8px;min-height:24px;padding:4px 7px}kbd.pressed{background:#eee;color:#000;border-color:#fff}.quick-help{font-size:8px;color:#777;margin-top:15px;letter-spacing:.5px}.quick-help span{color:#ccc;margin-right:4px}.quick-help span:nth-child(2){margin-left:12px}.speed-panel{width:280px;flex-shrink:0;padding-bottom:1px}.speed-readout{display:flex;align-items:baseline;justify-content:center;gap:9px}.speed-readout strong{font-size:67px;font-weight:500;letter-spacing:-5px;line-height:1.1;font-variant-numeric:tabular-nums}.speed-readout>span{font-size:11px;color:#888}.speed-track{height:3px;background:#343434;position:relative;margin-top:13px}.speed-track i{position:absolute;height:3px;left:0;top:0;background:#eee;width:0}.speed-track b{position:absolute;left:50%;top:-3px;height:9px;width:1px;background:#888}.speed-labels{display:flex;justify-content:space-between;font-size:8px;letter-spacing:1px;margin-top:9px;color:#999}.hop-stats{margin-top:21px;display:flex;justify-content:space-between;border-top:1px solid #333;padding-top:13px;font-size:8px;color:#777;letter-spacing:1px}.hop-stats b{font-size:11px;margin-left:4px;color:#ddd;font-weight:400}.course-panel{width:255px}.course-panel .eyebrow{display:flex;justify-content:space-between}.course-panel .eyebrow span{color:#ddd}.course-panel>strong{display:block;font-size:12px;font-weight:400;margin-top:13px}.stages{display:flex;gap:5px;margin-top:14px}.stages i{background:#333;height:2px;flex:1}.stages i.active{background:#ddd}.course-panel p{font-size:9px;line-height:1.8;color:#888;max-width:240px;margin:11px 0 0}.overlay{position:fixed;inset:0;background:linear-gradient(90deg,#080808fa 0%,#080808f0 40%,#0008 68%,#0002 100%);overflow-y:auto}.menu{width:530px;max-width:calc(100% - 64px);margin:115px 0 70px max(5vw,34px);position:relative}.menu-heading{display:flex;justify-content:space-between;align-items:center}.menu-heading .eyebrow{font-size:8px;letter-spacing:1.6px}.version{font-size:8px;color:#777;border:1px solid #363636;padding:5px 7px}h1{font-family:'Barlow Condensed',Impact,'Arial Narrow',sans-serif;font-weight:700;font-size:94px;line-height:.89;letter-spacing:-1px;margin:25px 0 22px}h1 span{color:#777}.intro{font-size:11px;line-height:1.9;color:#aaa;max-width:405px;margin:0 0 26px}.selectors{display:grid;grid-template-columns:1fr 1fr;gap:17px}fieldset{margin:0;padding:0;border:0;min-width:0}legend{font-size:8px;letter-spacing:1.5px;color:#888;margin-bottom:9px;padding:0}.segmented{display:flex;background:#111;border:1px solid #393939;padding:3px}.segmented button{flex:1;font-size:9px;white-space:nowrap;padding:9px 4px;border:0;background:transparent;color:#888}.segmented button.selected{background:#e5e5e5;color:#111}.selectors p{font-size:8px;line-height:1.8;color:#777;margin:9px 0 0;min-height:29px}.controls-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px 12px;border-top:1px solid #303030;padding-top:19px;margin-top:19px}.controls-grid>div{display:flex;flex-direction:column;align-items:flex-start;gap:6px}.controls-grid kbd{font-size:8px;padding:5px 7px;min-height:24px}.controls-grid span{font-size:8px;color:#888}.settings-row{display:flex;gap:22px;margin:22px 0}.settings-row label{flex:1;font-size:8px;color:#999;letter-spacing:1px;display:block}.settings-row output{float:right;color:#ddd}.settings-row input{display:block;width:100%;height:2px;accent-color:#ddd;cursor:pointer;margin:15px 0 0}.play{padding:17px 18px;display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:#e5e5e5;color:#111;font-size:10px;font-weight:600;letter-spacing:1.2px}.play:hover{background:#fff}.play span{font-size:19px;line-height:12px}.input-note{font-size:8px;line-height:1.8;color:#777;text-align:center;margin:10px 0 20px}details{border-top:1px solid #292929;font-size:9px;color:#888}summary{cursor:pointer;list-style:none;padding:13px 0;display:flex;justify-content:space-between}.notes{line-height:1.9;font-size:9px;color:#999}.notes a{color:#ccc}.menu-caption{position:fixed;bottom:29px;right:34px;left:calc(50% + 80px);display:flex;justify-content:space-between;font-size:8px;letter-spacing:1px;color:#aaa}.menu-caption span:last-child{color:#666}.finish{position:fixed;inset:0;background:#000b;backdrop-filter:blur(7px);display:grid;place-items:center}.finish>div{width:420px;max-width:calc(100vw - 40px);padding:35px;background:#111;border:1px solid #444}.finish h2{font-family:'Barlow Condensed',Impact,sans-serif;font-size:62px;margin:10px 0 15px;line-height:1}.finish strong{font-size:35px;letter-spacing:-1px;font-weight:400}.finish p{font-size:10px;color:#aaa;line-height:1.9;margin:16px 0 25px}.text-button{display:block;margin:17px auto 0;border:0;background:none;font-size:10px;color:#999}.hidden{display:none!important}body.playing #menu-button{opacity:.6}body:not(.playing) .bottom-hud,body:not(.playing) .run-stats{opacity:.25}@media(min-height:950px){.menu{margin-top:15vh}h1{font-size:110px}}@media(max-height:820px) and (min-width:760px){.menu{margin-top:100px;width:490px}h1{font-size:74px;margin:19px 0}.intro{margin-bottom:18px}.controls-grid{margin-top:12px;padding-top:12px;gap:10px}.settings-row{margin:17px 0}.menu-caption{display:none}}@media(max-width:760px){.topbar{padding:20px}.brand{font-size:11px}.brand small{font-size:6px}.session{gap:8px;font-size:8px}#map-badge,.divider{display:none}.session button{margin-left:2px;padding:7px}.menu{margin:112px 24px 40px;max-width:calc(100% - 48px)}h1{font-size:84px}.menu-caption{display:none}.bottom-hud{left:20px;right:20px;bottom:20px}.input-panel{width:105px}.modifiers{display:none}.quick-help{line-height:1.8}.course-panel{display:none}.speed-panel{width:190px}.speed-readout strong{font-size:51px}.run-stats{right:20px;top:100px}.run-stats #timer{font-size:22px}.selectors{gap:10px}.segmented button{font-size:8px}.controls-grid{gap:14px 8px}.controls-grid span{font-size:7px}}
+
+#map-select{width:100%;min-height:39px;border:1px solid #393939;background:#151515;color:#eee;font:9px 'IBM Plex Mono',monospace;padding:10px 8px;cursor:pointer;color-scheme:dark}#map-select:focus-visible{outline:2px solid #fff;outline-offset:3px}.map-description{font-size:9px;line-height:1.8;color:#aaa;margin:10px 0 0;min-height:17px}.course-panel #course-title{color:#999;max-width:185px}.course-panel #progress-count{flex-shrink:0;margin-left:10px}#next-course{color:#ddd;border:1px solid #444;padding:10px 16px;width:100%;margin-top:12px}#next-course:hover{border-color:#aaa}
+
+#toast.checkpoint-notice{top:auto;left:auto;right:34px;bottom:185px;transform:none;max-width:calc(100vw - 40px);font-size:9px;letter-spacing:1px;text-align:left;padding:12px 16px} .run-stats p #best-label{color:#777;margin-left:0}@media(max-width:760px){#toast.checkpoint-notice{right:20px;bottom:185px}}
+
+.menu #menu-title{font-size:54px;line-height:1;margin:0 0 24px}.menu .intro:empty{display:none}#play-endless{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:7px;padding:10px 12px;border-color:#777;background:#242424;font-size:9px;letter-spacing:1px}#play-endless:hover{background:#353535;border-color:#ddd}#play-endless span{font-size:17px;line-height:12px}.menu{margin-bottom:35px}.map-description{font-size:8px;color:#888}
+
+</style>
 </head>
 <body>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB<small>CS2-INSPIRED MOVEMENT SANDBOX</small></div></div>
+    <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
     <div class="session"><span class="dot"></span><span id="preset-badge">CS-STYLE</span><span class="divider">/</span><span id="map-badge">COURSE 01</span><button id="menu-button" aria-label="Open settings">ESC <span>≡</span></button></div>
   </header>
   <div id="crosshair" aria-hidden="true"><i></i><i></i></div>
@@ -24,20 +35,844 @@
   </div>
   <div id="overlay" class="overlay">
     <main class="menu">
-      <div class="menu-heading"><span class="eyebrow" id="menu-eyebrow">A GREYBOX MOVEMENT EXPERIMENT</span><span class="version">9 COURSES + ENDLESS</span></div>
-      <h1 id="menu-title">JUST<br>MOVEMENT<span>.</span></h1>
-      <p class="intro" id="menu-description">No skins. No distractions. Find the rhythm of a clean hop, carry your speed, and make the next block.</p>
-      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Hold Space to hop · capped bhops · landing slowdown</p></fieldset><fieldset><legend><label for="map-select">COURSE SELECT · ALL UNLOCKED</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option></select><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
+      <h1 id="menu-title">MOVEMENT LAB</h1>
+      <p class="intro" id="menu-description" role="status"></p>
+      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset><fieldset><legend><label for="map-select">COURSE</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option><option value="endless">Endless</option></select><button id="play-endless" type="button">PLAY ENDLESS <span>∞</span></button><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
       <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>R / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">2.00</output><input id="sensitivity" type="range" min="0.2" max="5" step="0.05" value="2"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
-      <button id="play" class="play">ENTER THE COURSE <span>↗</span></button>
-      <p id="input-note" class="input-note">Click Enter to trap and hide the mouse. Esc releases it and pauses.</p>
-      <details><summary>Movement notes & sources <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left, or D while turning right. Smooth turns build speed; turning too sharply loses it. Counter-strafe to stop quickly.</p><p>CS-style uses 250 u/s running, 130 walking, 85 crouching, gravity 800, ground acceleration 5.5, friction 5.2, air acceleration 12 and a 30 u/s projected air cap. Both modes support hold-Space autojump. Bhop practice uses air acceleration 100 and no bhop speed limit or landing slowdown.</p><p>This is an independent Source-style approximation. It uses 256 Hz fixed steps, swept box collisions, step climbing and an approximate timed landing window. It does not run Source 2 or reproduce CS2’s exact subtick, jump-spam or landing curves. Current-style landing recovery replaces the old jump stamina model.</p><p>References: <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Valve’s Source SDK movement model ↗</a> · <a href="https://store.steampowered.com/news/posts/?appids=730&enddate=1769472539&feed=steam_community_announcements" target="_blank" rel="noopener">Valve’s January 2026 jump updates ↗</a>. Constants above are simulator presets, not a verified dump of the latest CS2 build.</p></div></details>
+      <button id="play" class="play">PLAY <span>↗</span></button>
+      <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
+      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
     </main>
-    <div class="menu-caption"><span>01 — LEARN THE LINE</span><span>RUN → JUMP → STRAFE → REPEAT</span></div>
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
-  <script type="module" src="app.js"></script>
+  <script type="module">
+// Each section ends on the same safe deck, so any two section types connect.
+// x, z, width, depth, height, walk, crouch. Coordinates are relative to a deck.
+const endlessSections = [
+  { name: 'Rhythm', tip: 'Hold Space and keep your turns smooth.', nodes: [
+    [0,-360,240,240], [45,-600,220,190], [-45,-840,200,180], [60,-1080,220,180],
+    [-70,-1320,200,180], [50,-1560,220,180], [0,-1800,200,180] ] },
+  { name: 'Zigzags', tip: 'Match A / D to your mouse turn.', nodes: [
+    [0,-360,240,240], [-125,-600,180,180], [125,-840,180,180], [-125,-1080,180,180],
+    [125,-1320,180,180], [-125,-1560,180,180], [125,-1800,180,180] ] },
+  { name: 'Terraces', tip: 'Take off early enough to clear the raised edges.', nodes: [
+    [0,-360,240,240], [55,-600,200,180,24], [110,-840,200,180,48], [55,-1080,220,200,72],
+    [0,-1320,200,180,48], [-55,-1560,200,180,24], [0,-1800,220,200] ] },
+  { name: 'Pillars', tip: 'Use small corrections and aim for the middle.', nodes: [
+    [0,-360,240,240], [-50,-600,80,110], [50,-840,80,110], [-50,-1080,80,110],
+    [50,-1320,80,110], [-50,-1560,80,110], [50,-1800,80,110] ] },
+  { name: 'Beams', tip: 'Release Space. Hold Shift on the thin beams.', nodes: [
+    [0,-360,240,240], [0,-690,52,420,0,true], [0,-1020,180,240,0,true],
+    [200,-1020,220,52,0,true], [400,-1020,180,180,0,true],
+    [400,-1440,48,660,0,true], [400,-1800,180,180,0,true] ] },
+  { name: 'Tunnels', tip: 'Release Space and hold Ctrl or C under the roofs.', nodes: [
+    [0,-360,240,240], [0,-690,180,420,0,true,true], [0,-1020,240,240,0,true],
+    [100,-1260,160,160], [0,-1460,220,240], [0,-1670,160,180,0,true,true],
+    [0,-1850,240,180,0,true] ] },
+  { name: 'Switchbacks', tip: 'Set your aim for the next straight at each corner.', nodes: [
+    [0,-360,240,240], [240,-360,240,240], [480,-360,240,240], [480,-720,240,240],
+    [240,-1050,260,240], [0,-1380,260,240], [0,-1710,240,240] ] },
+  { name: 'Mixed', tip: 'Jump the terraces, crouch through the tunnel, then land the narrow block.', nodes: [
+    [0,-360,240,240], [-100,-610,120,140,24], [0,-860,120,140,48], [100,-1110,240,220,24],
+    [100,-1380,160,320,24,true,true], [100,-1630,240,180,24,true], [0,-1840,60,120] ] },
+];
+
+// Only nearby geometry is retained. Rebasing keeps long runs precise in WebGL.
+function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
+  seed >>>= 0;
+  let originZ = 0, checkpointIndex = 0, furthestBlock = 0, furthestDistance = 0;
+  let windowIndex = -1, boxes = [], spawn = { x: 0, y: 0, z: 80, yaw: 0 };
+  function random(index, salt) {
+    let h = (seed ^ Math.imul(index, 0x45d9f3b) ^ salt) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+    h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+    return ((h ^ (h >>> 16)) >>> 0) / 0x100000000;
+  }
+  function section(chunk) { return endlessSections[(chunk * 5 + seed % 8) % 8]; }
+  function layout(index) {
+    if(!index) return { x:0,y:0,z:originZ,width:480,depth:480,walk:false,duck:false };
+    const chunk=Math.floor((index-1)/8),local=(index-1)%8;
+    const n=local===7?[0,-2040,400,280]:section(chunk).nodes[local];
+    const mirror=random(chunk,17)<0.5?-1:1;
+    return {x:n[0]*mirror,y:n[4]||0,z:n[1]-chunk*2040+originZ,
+      width:n[2],depth:n[3],walk:!!n[5],duck:!!n[6]};
+  }
+  function platform(index) {
+    const p = layout(index), saved = index % 8 === 0;
+    return { min: [p.x - p.width / 2, p.y - 120, p.z - p.depth / 2],
+      max: [p.x + p.width / 2, p.y, p.z + p.depth / 2], endlessIndex: index,walk:p.walk,duck:p.duck,
+      ...(saved ? { checkpoint: index / 8, label: index ? 'CHECKPOINT' : 'ENDLESS / START' } : {}) };
+  }
+  function geometry(index) {
+    const p=platform(index);
+    if(!p.duck) return [p];
+    return [p,{min:[p.min[0],p.max[1]+58,p.min[2]+40],max:[p.max[0],p.max[1]+84,p.max[2]-40],roof:true}];
+  }
+  function rebuild(index) {
+    const wanted = new Set();
+    for (let i = Math.max(0, index - 6); i <= index + 30; i++) wanted.add(i);
+    // Keep the saved deck and a small runway ahead even after a missed checkpoint.
+    for (let i = Math.max(0, checkpointIndex - 2); i <= checkpointIndex + 6; i++) wanted.add(i);
+    boxes = [...wanted].sort((a, b) => a - b).flatMap(geometry);
+    windowIndex = index;
+  }
+  function update(player, ground = null) {
+    furthestDistance = Math.max(furthestDistance, originZ - player.z);
+    let checkpointSaved = false, shift = 0;
+    if (ground && Number.isInteger(ground.endlessIndex)) {
+      furthestBlock = Math.max(furthestBlock, ground.endlessIndex);
+      if (ground.endlessIndex > checkpointIndex && ground.endlessIndex % 8 === 0) {
+        checkpointIndex = ground.endlessIndex;
+        const p = layout(checkpointIndex), next = layout(checkpointIndex + 1);
+        const yaw = Math.atan2(next.x - p.x, p.z - next.z);
+        spawn = { x: p.x - Math.sin(yaw) * 65, y: p.y, z: p.z + Math.cos(yaw) * 65, yaw };
+        checkpointSaved = true;
+      }
+    }
+    if (Math.abs(player.z) > 8192) {
+      shift = Math.trunc(player.z / 4096) * 4096;
+      player.z -= shift; originZ -= shift; spawn.z -= shift;
+    }
+    // A spatial estimate based only on z skips the horizontal legs of turns.
+    // Use the supported block, or the nearest visible deck while airborne.
+    const nearest=ground&&Number.isInteger(ground.endlessIndex)?ground:
+      boxes.filter(b=>!b.roof).reduce((best,b)=>{
+        const distance=q=>(player.x-(q.min[0]+q.max[0])/2)**2+(player.z-(q.min[2]+q.max[2])/2+shift)**2;
+        return !best||distance(b)<distance(best)?b:best;
+      },null);
+    const index=nearest?.endlessIndex||0;
+    const changed = index !== windowIndex || checkpointSaved || shift !== 0;
+    if (changed) rebuild(index);
+    return { changed, checkpointSaved, shift };
+  }
+  rebuild(0);
+  return { seed, update, platform, geometry,
+    get boxes() { return boxes; }, get spawn() { return { ...spawn }; },
+    get checkpoint() { return checkpointIndex / 8; },
+    get furthestBlock() { return furthestBlock; }, get distance() { return Math.max(0, furthestDistance); },
+    get originZ() { return originZ; },
+    get sectionTitle() { return section(Math.floor(furthestBlock/8)).name; },
+    get tip() { return section(Math.floor(furthestBlock/8)).tip; } };
+}
+
+// All distances and velocities use Source units. y is up; forward is -z.
+const box = (x, z, w, d, top = 0, extra = {}) => ({
+  min: [x - w / 2, top - 120, z - d / 2],
+  max: [x + w / 2, top, z + d / 2], ...extra,
+});
+const COURSE = [
+  box(0, -100, 480, 600, 0, { label: '01 / RUNWAY' }),
+  box(-25, -575, 220, 170, 0),
+  box(65, -845, 220, 170, 0),
+  box(-25, -1110, 220, 180, 0),
+  box(0, -1420, 440, 240, 0, { checkpoint: 1, label: '02 / STRAFE' }),
+  box(140, -1670, 200, 170, 0),
+  box(290, -1920, 220, 170, 0),
+  box(300, -2180, 400, 240, 0, { checkpoint: 2, label: '03 / CONTROL' }),
+  box(300, -2340, 240, 80, 16),
+  box(300, -2420, 240, 80, 32),
+  box(300, -2630, 240, 340, 48),
+  { min: [180, 106, -2730], max: [420, 132, -2520], roof: true },
+  box(300, -2870, 72, 140, 48),
+  box(300, -3115, 400, 290, 48, { finish: true, label: 'FINISH' }),
+];
+const PRACTICE = [
+  box(0, -600, 2200, 2200, 0, { label: 'FREE MOVEMENT' }),
+  box(-500, -700, 160, 160, 32),
+  box(-700, -960, 160, 160, 64),
+  box(-450, -1220, 200, 180, 96),
+  box(540, -600, 80, 600, 32),
+  box(730, -1000, 200, 160, 48),
+];
+const SPAWNS = [
+  { x: 0, y: 0, z: 100, yaw: 0 },
+  { x: 0, y: 0, z: -1390, yaw: -0.28 },
+  { x: 300, y: 0, z: -2160, yaw: 0 },
+];
+
+// Route nodes describe the intended line as well as the visible platforms.
+// Keeping that line with the map lets the geometry checks exercise real gaps,
+// stairs, beams and tunnels with the same controller used in the game.
+const node = (x, z, w = 200, d = 180, top = 0, extra = {}) => ({ x, z, w, d, top, ...extra });
+function makeCourse(id, title, difficulty, description, nodes, stages, obstacles = []) {
+  const platforms = nodes.map((n, i) => box(n.x, n.z, n.w, n.d, n.top, {
+    ...(n.checkpoint ? { checkpoint: n.checkpoint } : {}),
+    ...(i === nodes.length - 1 ? { finish: true, label: 'FINISH' } :
+      i === 0 || n.checkpoint ? { label: title.toUpperCase() } : {}),
+  }));
+  const spawns = nodes.flatMap((n, i) => {
+    if (i !== 0 && !n.checkpoint) return [];
+    const next = nodes[i + 1] || n, dx = next.x - n.x, dz = next.z - n.z;
+    const length = Math.hypot(dx, dz) || 1;
+    const retreat = Math.min(80, (n.w / 2 - 36) / (Math.abs(dx / length) || 1e-6),
+      (n.d / 2 - 36) / (Math.abs(dz / length) || 1e-6));
+    return [{ x: n.x - dx / length * retreat, y: n.top,
+      z: n.z - dz / length * retreat, yaw: Math.atan2(dx, -dz) }];
+  });
+  return { id, title, difficulty, description, timed: true,
+    boxes: [...platforms, ...obstacles], spawns, stages, route: nodes, platforms };
+}
+const stage = (title, tip) => ({ title, tip });
+const momentum = makeCourse('momentum', 'Momentum Mile', 'Easy',
+  'A long rhythm course with generous landings and two recovery decks.',
+  [node(0, 0, 480, 480), ...Array.from({ length: 21 }, (_, i) => {
+    const checkpoint = i === 6 ? 1 : i === 13 ? 2 : 0;
+    return node(i % 2 ? 35 : -35, -420 - i * 280,
+      checkpoint || i === 20 ? 400 : 240, checkpoint ? 240 : 200, 0, { checkpoint });
+  })], [stage('Find a steady rhythm.', 'Wide blocks give you room to line up each takeoff.'),
+    stage('Keep the chain alive.', 'Hold Space and use small, smooth strafes.'),
+    stage('Finish with momentum.', 'Look ahead to the next block instead of at your feet.')]);
+const zigzag = makeCourse('zigzag', 'Zigzag Alley', 'Medium',
+  'Alternating left and right landings for learning deliberate air strafes.',
+  [node(0, 0, 440, 440), ...Array.from({ length: 15 }, (_, i) => {
+    const checkpoint = i === 4 ? 1 : i === 9 ? 2 : 0;
+    return node(checkpoint || i === 14 ? 0 : i % 2 ? 125 : -125,
+      -380 - i * 250, checkpoint || i === 14 ? 380 : 180,
+      checkpoint ? 240 : 180, 0, { checkpoint });
+  })], [stage('Commit to the turn.', 'Release W in the air. Match A / D to your mouse turn.'),
+    stage('Reverse your strafe.', 'Set up the opposite direction before the next takeoff.'),
+    stage('Link the final zigzags.', 'Aim for the middle of each landing to leave room for the next turn.')]);
+const skyline = makeCourse('skyline', 'Skyline Ascent', 'Medium',
+  'Climb floating terraces, gaining 24 units with every jump.',
+  [node(0, 0, 440, 400), ...Array.from({ length: 15 }, (_, i) => {
+    const checkpoint = i === 4 ? 1 : i === 9 ? 2 : 0;
+    return node(Math.round(Math.sin(i * 0.55) * 150), -340 - i * 210,
+      checkpoint || i === 14 ? 360 : 180, checkpoint ? 250 : 150,
+      (i + 1) * 24, { checkpoint });
+  })], [stage('Start the climb.', 'Jump close to the edge. Each landing is one terrace higher.'),
+    stage('Follow the skyline.', 'Keep your turns smooth as the path bends.'),
+    stage('Reach the summit.', 'Preserve your running speed for the final raised platforms.')]);
+const circuit = makeCourse('circuit', 'Broken Circuit', 'Medium',
+  'Four straights joined by sharp right-angle turns over the void.',
+  [node(0, 0, 440, 440), node(0, -380), node(0, -640),
+    node(0, -900, 360, 280, 0, { checkpoint: 1 }),
+    node(300, -900), node(560, -900), node(820, -900),
+    node(1080, -900, 300, 300, 0, { checkpoint: 2 }),
+    node(1080, -1180), node(1080, -1440), node(1080, -1700),
+    node(1080, -1960, 320, 280, 0, { checkpoint: 3 }),
+    node(800, -1960), node(540, -1960), node(280, -1960), node(0, -1960, 400, 280)],
+  [stage('Approach the first corner.', 'Use the wide corner deck to aim down the next straight.'),
+    stage('Turn right.', 'The route now runs to your right. Reset your aim before jumping.'),
+    stage('Turn left into the next lane.', 'Stay centered through the long middle straight.'),
+    stage('Bring it home.', 'Turn left again and follow the blocks to the finish.')]);
+const balance = makeCourse('balance', 'Balance Lab', 'Medium',
+  'Connected beams, small corner pads, and a thin final crossing. Space is optional.',
+  [node(0, 0, 400, 400), node(0, -420, 56, 440, 0, { walk: true }),
+    node(0, -730, 180, 180, 0, { walk: true }),
+    node(60, -960, 52, 280, 0, { walk: true }),
+    node(60, -1190, 180, 180, 0, { walk: true, checkpoint: 1 }),
+    node(360, -1190, 420, 52, 0, { walk: true }),
+    node(660, -1190, 180, 180, 0, { walk: true, checkpoint: 2 }),
+    node(660, -1540, 48, 520, 0, { walk: true }),
+    node(660, -1890, 180, 180, 0, { walk: true }),
+    node(660, -2210, 44, 460, 0, { walk: true }),
+    node(660, -2580, 400, 280, 0, { walk: true })],
+  [stage('Walk the centerline.', 'Hold Shift. Release Space to walk along the beams.'),
+    stage('Make the corner.', 'Use the square pad to line up with the horizontal beam.'),
+    stage('Cross the thin finish.', 'Slow adjustments are enough. Keep your view level.')]);
+const tunnelNodes = [node(0, 0, 420, 360),
+  node(0, -460, 220, 560, 0, { walk: true, duck: true }),
+  node(0, -880, 360, 280, 0, { walk: true }), node(120, -1120, 160, 140),
+  node(-20, -1360, 180, 160), node(0, -1620, 400, 280, 0, { checkpoint: 1 }),
+  node(0, -2060, 160, 600, 0, { walk: true, duck: true }),
+  node(0, -2500, 340, 280, 0, { walk: true, checkpoint: 2 }),
+  node(0, -2840, 64, 400, 0, { walk: true }), node(0, -3190, 400, 300, 0, { walk: true })];
+const underpass = makeCourse('underpass', 'Underpass', 'Medium',
+  'Two low tunnels linked by offset jumps and a beam exit.', tunnelNodes,
+  [stage('Get under the first roof.', 'Release Space and hold Ctrl or C before entering the tunnel.'),
+    stage('Stay low through the passage.', 'The second roof is narrower. Stand only after you clear it.'),
+    stage('Balance on the exit.', 'Release crouch, hold Shift, and follow the beam to the finish.')],
+  [{ min: [-110, 58, -680], max: [110, 84, -240], roof: true },
+    { min: [-80, 58, -2300], max: [80, 84, -1820], roof: true }]);
+const needles = makeCourse('needles', 'Needleworks', 'Hard',
+  'Small pillars demand accurate takeoffs and controlled landings.',
+  [node(0, 0, 400, 380), ...Array.from({ length: 18 }, (_, i) => {
+    const checkpoint = i === 5 ? 1 : i === 11 ? 2 : 0;
+    return node(checkpoint || i === 17 ? 0 : [-65, 15, 95, 15][i % 4],
+      -320 - i * 180, checkpoint || i === 17 ? 320 : 70,
+      checkpoint || i === 17 ? 180 : 88, 0, { checkpoint });
+  })], [stage('Land with precision.', 'Use small strafes. The pillars leave little room for corrections.'),
+    stage('Control each takeoff.', 'A clean landing sets up the next jump.'),
+    stage('Thread the final needles.', 'Keep your turns shallow and aim through the next pillar.')]);
+const gauntlet = makeCourse('gauntlet', 'The Gauntlet', 'Hard',
+  'A full movement test: offset hops, raised terraces, a tunnel, and narrow beams.',
+  [node(0, 0, 420, 400), node(70, -360, 120, 140), node(-50, -570, 120, 140),
+    node(70, -780, 120, 140), node(0, -1030, 360, 260, 0, { checkpoint: 1 }),
+    node(100, -1260, 140, 150, 24), node(210, -1470, 140, 150, 48),
+    node(320, -1680, 140, 150, 72), node(400, -1910, 360, 260, 96, { checkpoint: 2 }),
+    node(400, -2080, 160, 80, 112, { walk: true }),
+    node(400, -2160, 160, 80, 128, { walk: true }),
+    node(400, -2410, 160, 420, 144, { walk: true, duck: true }),
+    node(400, -2760, 320, 280, 144, { walk: true, checkpoint: 3 }),
+    node(400, -3100, 48, 400, 144, { walk: true }), node(470, -3410, 80, 120, 144),
+    node(390, -3630, 80, 120, 144), node(400, -3890, 400, 240, 144)],
+  [stage('Set your line.', 'Link the offset blocks while keeping your speed under control.'),
+    stage('Climb the terraces.', 'Take off near each edge to reach the higher platforms.'),
+    stage('Switch to control.', 'Release Space, climb the steps, and crouch before the roof.'),
+    stage('Finish the gauntlet.', 'Walk the beam, then jump the last two pillars.')],
+  [{ min: [320, 202, -2530], max: [480, 228, -2250], roof: true }]);
+
+const endlessPreview = createEndless(1);
+const MAP_LIST = [
+  { id: 'course', title: 'Starter course', difficulty: 'Easy', timed: true,
+    description: 'The original three-part route: runway, strafes, and movement control.',
+    boxes: COURSE, spawns: SPAWNS,
+    stages: [stage('Find your momentum.', 'Build speed on the runway. Jump at the edge.'),
+      stage('Carry it through the turn.', 'Release W. Match A / D with a smooth mouse turn.'),
+      stage('Slow down. Stay in control.', 'Walk the beam. Crouch under the low ceiling.')] },
+  momentum, zigzag, skyline, circuit, balance, underpass, needles, gauntlet,
+  { id: 'endless', title: 'Endless', difficulty: 'Infinite', endless: true, timed: false,
+    description: 'Mixed sections with checkpoints every 8 blocks.',
+    boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
+    stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. R starts a new route.')] },
+  { id: 'free', title: 'Free roam', difficulty: 'Sandbox', timed: false,
+    description: 'A wide floor for strafing, hops, and stopping practice.', boxes: PRACTICE,
+    spawns: [SPAWNS[0]], stages: [stage('Make your own line.', 'A wide floor for strafing, hops, and stopping practice.')] },
+];
+const MAPS = Object.fromEntries(MAP_LIST.map(map => [map.id, map]));
+
+// Independent Source-style movement recreation. No Valve code or assets included.
+// Projected air acceleration follows the model in Valve's public Source SDK.
+// CS2 subtick timing / landing penalties are approximated, not engine-identical.
+const DT = 1 / 256;
+const RULES = Object.freeze({
+  gravity: 800, jump: 301.993377, accelerate: 5.5, airAccelerate: 12,
+  airCap: 30, friction: 5.2, stopSpeed: 80, maxSpeed: 250,
+  walkScale: 0.52, crouchScale: 0.34, radius: 16,
+  standHeight: 72, duckHeight: 54, stepHeight: 18,
+  // Simulator tuning values; not assertions of exact current CS2 convars.
+  bhopHalfWindow: 0.015625, spamDelay: 0.015625, landingRecovery: 0.16,
+});
+const PRESETS = {
+  classic: { title: 'CS-style', airAccelerate: 12, autoBhop: true, speedLimit: true, landingSlow: true },
+  practice: { title: 'Bhop practice', airAccelerate: 100, autoBhop: true, speedLimit: false, landingSlow: false },
+};
+const EPS = 0.0001;
+const speed = p => Math.hypot(p.vx, p.vz);
+function createPlayer(spawn = { x: 0, y: 0, z: 100, yaw: 0 }) {
+  return { ...spawn, vx: 0, vy: 0, vz: 0, pitch: 0, grounded: true,
+    ducked: false, duckAmount: 0, time: 0, landTime: -10,
+    lastPress: -10, validPress: -10, usedPress: -10,
+    hops: 0, totalJumps: 0, lastJumpSpeed: 0, lastLandSpeed: 0,
+    jumpFeedback: '', landImpact: 0, peakSpeed: 0, groundBox: null };
+}
+function accelerate(p, wx, wz, wishSpeed, acceleration, dt, cap = wishSpeed) {
+  const add = cap - (p.vx * wx + p.vz * wz);
+  if (add <= 0) return;
+  const amount = Math.min(add, acceleration * wishSpeed * dt);
+  p.vx += wx * amount; p.vz += wz * amount;
+}
+function friction(p, dt) {
+  const s = speed(p);
+  if (s < EPS) { p.vx = 0; p.vz = 0; return; }
+  const next = Math.max(0, s - Math.max(s, RULES.stopSpeed) * RULES.friction * dt);
+  p.vx *= next / s; p.vz *= next / s;
+}
+function bounds(p) {
+  return { min: [p.x - 16, p.y, p.z - 16], max: [p.x + 16, p.y + (p.ducked ? 54 : 72), p.z + 16] };
+}
+function overlaps(a, b) {
+  return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
+}
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => overlaps(b, o)); }
+function support(p, boxes, distance = 0.08) {
+  return boxes.find(b => p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
+    p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
+    p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
+}
+// Swept player hull against Minkowski-expanded axis-aligned boxes. Slab traces
+// prevent tunnelling; repeated traces clip velocity to walls and corners.
+function sweep(p, delta, boxes) {
+  let best = { t: 1, normal: [0, 0, 0], box: null };
+  const height = p.ducked ? 54 : 72;
+  for (const b of boxes) {
+    const lo = [b.min[0] - 16, b.min[1] - height, b.min[2] - 16];
+    const hi = [b.max[0] + 16, b.max[1], b.max[2] + 16];
+    const pos = [p.x, p.y, p.z];
+    let enter = -Infinity, leave = Infinity, normal = [0, 0, 0], valid = true;
+    for (let i = 0; i < 3; i++) {
+      if (Math.abs(delta[i]) < 1e-12) {
+        if (pos[i] <= lo[i] + EPS || pos[i] >= hi[i] - EPS) { valid = false; break; }
+      } else {
+        const a = (lo[i] - pos[i]) / delta[i], c = (hi[i] - pos[i]) / delta[i];
+        const near = Math.min(a, c), far = Math.max(a, c);
+        if (near > enter) { enter = near; normal = [0, 0, 0]; normal[i] = delta[i] > 0 ? -1 : 1; }
+        leave = Math.min(leave, far);
+      }
+    }
+    if (valid && enter <= leave && leave >= 0 && enter >= -EPS && enter < best.t && enter <= 1) {
+      best = { t: Math.max(0, enter), normal, box: b };
+    }
+  }
+  return best;
+}
+function slide(p, dt, boxes) {
+  let remaining = dt, groundBox = null, hitWall = false, impact = 0;
+  for (let n = 0; n < 5 && remaining > 1e-8; n++) {
+    const delta = [p.vx * remaining, p.vy * remaining, p.vz * remaining];
+    const hit = sweep(p, delta, boxes);
+    p.x += delta[0] * hit.t; p.y += delta[1] * hit.t; p.z += delta[2] * hit.t;
+    if (!hit.box) break;
+    if (hit.normal[1] === 1) { groundBox = hit.box; impact = Math.max(impact, -p.vy); }
+    if (hit.normal[0] || hit.normal[2]) hitWall = true;
+    const dot = p.vx * hit.normal[0] + p.vy * hit.normal[1] + p.vz * hit.normal[2];
+    p.vx -= dot * hit.normal[0]; p.vy -= dot * hit.normal[1]; p.vz -= dot * hit.normal[2];
+    remaining *= 1 - hit.t;
+  }
+  return { groundBox, hitWall, impact };
+}
+function move(p, dt, boxes, canStep) {
+  const before = { ...p };
+  let result = slide(p, dt, boxes);
+  if (canStep && result.hitWall) {
+    const direct = { ...p }, step = { ...before };
+    const up = sweep(step, [0, RULES.stepHeight, 0], boxes);
+    step.y += RULES.stepHeight * up.t;
+    if (!blocked(step, boxes)) {
+      const stepped = slide(step, dt, boxes);
+      const down = sweep(step, [0, -RULES.stepHeight - 0.1, 0], boxes);
+      if (down.box && down.normal[1] === 1) {
+        step.y -= (RULES.stepHeight + 0.1) * down.t;
+        const distance = q => (q.x - before.x) ** 2 + (q.z - before.z) ** 2;
+        if (distance(step) > distance(direct) + EPS) {
+          Object.assign(p, step); p.vy = 0;
+          result = { ...stepped, groundBox: down.box, impact: 0 };
+        }
+      }
+    }
+  }
+  return result;
+}
+function jump(p, mode, perfect) {
+  if (mode.speedLimit && speed(p) > RULES.maxSpeed * 1.1) {
+    const f = RULES.maxSpeed * 1.1 / speed(p); p.vx *= f; p.vz *= f;
+  }
+  p.vy = RULES.jump; p.grounded = false; p.groundBox = null;
+  p.lastJumpSpeed = speed(p); p.totalJumps++;
+  p.hops = perfect ? p.hops + 1 : 0;
+  p.jumpFeedback = perfect ? 'CLEAN HOP' : 'JUMP';
+  p.usedPress = p.validPress;
+}
+function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
+  p.time += dt;
+  if (input.jumpPressed) {
+    if (p.time - p.lastPress >= RULES.spamDelay) p.validPress = p.time;
+    p.lastPress = p.time;
+  }
+  const wantsDuck = !!input.duck;
+  if (wantsDuck) p.ducked = true;
+  else if (p.ducked) {
+    p.ducked = false;
+    if (blocked(p, boxes)) p.ducked = true;
+  }
+  p.duckAmount += ((p.ducked ? 1 : 0) - p.duckAmount) * Math.min(1, dt * 16);
+  const ground = p.vy <= 0 ? support(p, boxes) : null;
+  if (p.grounded && !ground) p.grounded = false;
+  if (p.grounded) { p.y = ground.max[1]; p.groundBox = ground; }
+  const fresh = p.validPress > p.usedPress && p.time - p.validPress <= RULES.bhopHalfWindow;
+  const heldAuto = mode.autoBhop && input.jumpHeld;
+  if (p.grounded && (fresh || heldAuto)) {
+    const perfect = p.time - p.landTime <= RULES.bhopHalfWindow;
+    jump(p, mode, perfect);
+  }
+  const fwd = (input.forward || 0), side = (input.side || 0);
+  let wx = Math.sin(p.yaw) * fwd + Math.cos(p.yaw) * side;
+  let wz = -Math.cos(p.yaw) * fwd + Math.sin(p.yaw) * side;
+  const length = Math.hypot(wx, wz);
+  if (length > 0) { wx /= length; wz /= length; }
+  let wish = RULES.maxSpeed * Math.min(1, length);
+  if (p.ducked) wish *= RULES.crouchScale;
+  else if (input.walk) wish *= RULES.walkScale;
+  if (p.grounded) {
+    friction(p, dt);
+    // Post-landing slowdown is time/impact based. This curve is a browser approximation.
+    if (mode.landingSlow) {
+      const recovery = Math.max(0, 1 - (p.time - p.landTime) / RULES.landingRecovery);
+      wish *= 1 - Math.min(0.42, p.landImpact / 900) * recovery;
+    }
+    accelerate(p, wx, wz, wish, RULES.accelerate, dt);
+  } else if (length) {
+    accelerate(p, wx, wz, wish, mode.airAccelerate, dt, RULES.airCap);
+  }
+  const wasGrounded = p.grounded;
+  if (!p.grounded) p.vy -= RULES.gravity * dt / 2;
+  const result = move(p, dt, boxes, wasGrounded);
+  if (!wasGrounded) p.vy -= RULES.gravity * dt / 2;
+  const landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
+  if (landed) {
+    p.grounded = true; p.vy = 0; p.y = landed.max[1]; p.groundBox = landed;
+    if (!wasGrounded) {
+      p.landTime = p.time; p.landImpact = result.impact; p.lastLandSpeed = speed(p);
+      const buffered = p.validPress > p.usedPress && p.time - p.validPress <= RULES.bhopHalfWindow;
+      if (buffered || heldAuto) jump(p, mode, true);
+      else { p.jumpFeedback = 'LANDED'; }
+    }
+  } else { p.grounded = false; p.groundBox = null; }
+  if (p.grounded && p.time - p.landTime > RULES.bhopHalfWindow) p.hops = 0;
+  p.peakSpeed = Math.max(p.peakSpeed, speed(p));
+  return p;
+}
+
+function createRenderer(canvas, boxes) {
+  const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+  if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
+  const vertex = `attribute vec3 aPosition; attribute vec3 aColor; attribute float aTop;
+    uniform vec3 uEye; uniform vec2 uAngles; uniform vec2 uScale;
+    varying vec3 vWorld; varying vec3 vColor; varying float vTop; varying float vDistance;
+    void main(){
+      vec3 p=aPosition-uEye;
+      float cy=cos(uAngles.x),sy=sin(uAngles.x),cp=cos(uAngles.y),sp=sin(uAngles.y);
+      float right=p.x*cy+p.z*sy,forward=p.x*sy-p.z*cy;
+      float up=p.y*cp-forward*sp,depth=forward*cp+p.y*sp;
+      gl_Position=vec4(right*uScale.x,up*uScale.y,1.0001*depth-2.0001,depth);
+      vWorld=aPosition;vColor=aColor;vTop=aTop;vDistance=length(p);
+    }`;
+  const fragment = `precision mediump float;
+    varying vec3 vWorld; varying vec3 vColor; varying float vTop; varying float vDistance;
+    void main(){
+      vec2 grid=mod(vWorld.xz+0.6,64.0);
+      float line=(1.0-step(1.2,min(grid.x,grid.y)))*vTop;
+      vec3 color=mix(vColor,vColor*0.76,line);
+      float fade=1.0-smoothstep(1700.0,6500.0,vDistance);
+      gl_FragColor=vec4(color*fade,1.0);
+    }`;
+  function shader(type, source) {
+    const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  const program = gl.createProgram();
+  gl.attachShader(program, shader(gl.VERTEX_SHADER, vertex));
+  gl.attachShader(program, shader(gl.FRAGMENT_SHADER, fragment));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+  const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24]]) {
+    const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, count, gl.FLOAT, false, 28, offset);
+  }
+  const eye = gl.getUniformLocation(program, 'uEye'), angles = gl.getUniformLocation(program, 'uAngles');
+  const scale = gl.getUniformLocation(program, 'uScale');
+  gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
+  let vertices = [], count = 0, currentBoxes = boxes;
+  function addBox(b, base = 0.46) {
+    const [x,y,z]=b.min,[X,Y,Z]=b.max;
+    const faces = [
+      [[[x,Y,z],[x,Y,Z],[X,Y,Z],[X,Y,z]],1.12,1],
+      [[[x,y,z],[X,y,z],[X,y,Z],[x,y,Z]],0.38,0],
+      [[[x,y,z],[x,y,Z],[x,Y,Z],[x,Y,z]],0.65,0],
+      [[[X,y,Z],[X,y,z],[X,Y,z],[X,Y,Z]],0.8,0],
+      [[[X,y,z],[x,y,z],[x,Y,z],[X,Y,z]],0.72,0],
+      [[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]],0.87,0],
+    ];
+    for(const [points,shade,top] of faces) for(const index of [0,1,2,0,2,3]) {
+      const c=base*shade; vertices.push(...points[index],c,c,c,top);
+    }
+  }
+  function setBoxes(next) {
+    currentBoxes = next; vertices=[];
+    for(const b of next) {
+      addBox(b,b.roof?0.35:0.46);
+      if(b.label) {
+        const cx=(b.min[0]+b.max[0])/2, top=b.max[1]+0.12;
+        const start=b.min[2]+20, end=b.max[2]-20;
+        // White threshold strips and lane markings remain ordinary untextured boxes.
+        for(const z of b.finish?[start,end]:[start]) addBox({min:[b.min[0]+8,top,z],max:[b.max[0]-8,top+0.3,z+3]},0.78);
+        if(!b.finish) for(let z=end-30;z>start+30;z-=80)
+          addBox({min:[cx-2,top,z-18],max:[cx+2,top+0.3,z+18]},0.61);
+        const tile=(b.max[0]-b.min[0])/10;
+        if(b.finish) for(let i=0;i<10;i++) for(let j=0;j<2;j++) if((i+j)%2===0)
+          addBox({min:[b.min[0]+i*tile,top,end-24+j*20],max:[b.min[0]+(i+1)*tile,top+0.3,end-4+j*20]},0.82);
+      }
+    }
+    count=vertices.length/7;
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+  }
+  setBoxes(boxes);
+  function resize() {
+    const ratio=Math.min(window.devicePixelRatio||1,2);
+    const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
+    if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
+  }
+  function draw(p,fov=100) {
+    resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    const height=64-p.duckAmount*18;
+    gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
+    // CS-style FOV setting is horizontal at 4:3; widescreen adds horizontal view.
+    const f=1/(Math.tan(fov*Math.PI/360)*0.75);
+    gl.uniform2f(scale,f/(canvas.width/canvas.height),f);
+    gl.drawArrays(gl.TRIANGLES,0,count);
+  }
+  return {draw,setBoxes,get boxes(){return currentBoxes;}};
+}
+
+
+const $ = id => document.getElementById(id);
+const canvas = $('world'), overlay = $('overlay'), keys = new Set();
+const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
+let renderer;
+try { renderer = createRenderer(canvas, MAPS.course.boxes); }
+catch (error) { $('menu-description').textContent=error.message; $('play').disabled=true; throw error; }
+let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
+let endless = null;
+let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
+let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
+let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
+let bests = {}, settings = {};
+try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
+try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
+if(!bests||typeof bests!=='object') bests={};
+if(!settings||typeof settings!=='object') settings={};
+// Preserve records from the original single-course version.
+for(const mode of Object.keys(PRESETS)) {
+  if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
+}
+const recordKey = () => `${map}:${preset}`;
+const format = seconds => {
+  const ms=Math.floor(Math.max(0,seconds)*1000);
+  return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
+};
+function saveSettings() {
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov})); } catch {}
+}
+function toast(message,checkpointNotice=false) {
+  $('toast').textContent=message; $('toast').classList.toggle('checkpoint-notice',checkpointNotice);
+  $('toast').classList.add('show'); toastUntil=performance.now()+2300;
+}
+function saveEndlessBest() {
+  if(!endless||!MAPS[map].endless||endless.distance<=(bests[recordKey()]||0)) return;
+  bests[recordKey()]=Math.floor(endless.distance);
+  try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {}
+}
+function clearInput() { keys.clear(); pendingJump=false; }
+function reset(full=true) {
+  if(full)saveEndlessBest();
+  if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
+  if(MAPS[map].endless&&(full||!endless)) {
+    endless=createEndless();boxes=endless.boxes;renderer.setBoxes(boxes);
+  }
+  const previousPeak=player.peakSpeed;
+  player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
+  if(endless) {
+    endless.update(player);boxes=endless.boxes;renderer.setBoxes(boxes);
+  }
+  if(!full) player.peakSpeed=previousPeak;
+  previousDraw={...player}; accumulator=0; pendingJump=false;
+  completed=false; $('finish').classList.add('hidden');
+  updateHud();
+}
+function pause() {
+  if(completed) return;
+  saveEndlessBest();
+  playing=false; lockPending=false; clearInput(); document.body.classList.remove('playing');
+  $('play').disabled=false;
+  overlay.classList.remove('hidden');
+  if(document.pointerLockElement===canvas) document.exitPointerLock();
+  if(started) {
+    $('play').innerHTML='RESUME <span>↗</span>';
+  }
+}
+function beginSession() {
+  // Start only after the browser confirms pointer lock: the cursor stays hidden
+  // and movementX/movementY keep working beyond the edges of the screen.
+  if(document.pointerLockElement!==canvas) return;
+  lockPending=false; $('play').disabled=false;
+  playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
+  $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
+  overlay.classList.add('hidden'); document.body.classList.add('playing');
+}
+function mouseCaptureFailed() {
+  if(!lockPending) return;
+  lockPending=false; playing=false; clearInput(); $('play').disabled=false;
+  overlay.classList.remove('hidden'); document.body.classList.remove('playing');
+  $('play').innerHTML=(started?'RESUME':'PLAY')+' <span>↗</span>';
+  $('input-note').textContent='Mouse capture was blocked. Open this page directly in a desktop browser, then click Enter again.';
+  toast('Click Enter to capture the mouse. Check that your browser allows pointer lock.');
+}
+function play() {
+  if(lockPending) return;
+  if(completed) reset();
+  if(document.pointerLockElement===canvas) {beginSession();return;}
+  lockPending=true; $('play').disabled=true;
+  $('play').textContent='CAPTURING MOUSE…';
+  $('input-note').textContent='Allow mouse capture if your browser asks. Esc releases the mouse.';
+  if(!canvas.requestPointerLock) {mouseCaptureFailed();return;}
+  try {
+    // Keep this call in the click handler so it retains browser user activation.
+    const request=canvas.requestPointerLock();
+    request?.catch(mouseCaptureFailed);
+  } catch { mouseCaptureFailed(); }
+}
+function choosePreset(value,resetRun=true) {
+  if(!PRESETS[value]) return;
+  saveEndlessBest();
+  // The new preset starts a fresh endless record and route.
+  if(endless)endless=null;
+  preset=value;
+  document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===value));
+  $('preset-badge').textContent=PRESETS[preset].title.toUpperCase();
+  $('preset-description').textContent=preset==='classic'?'Capped speed · standard air control':'Uncapped speed · strong air control';
+  if(resetRun) reset();
+  saveSettings(); updateHud();
+}
+function chooseMap(value,resetRun=true) {
+  if(!Object.hasOwn(MAPS,value)) return;
+  saveEndlessBest();endless=null;
+  map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
+  const selected=MAPS[map], count=selected.spawns.length-1;
+  $('map-select').value=map;
+  $('map-badge').textContent=selected.title.toUpperCase();
+  $('course-title').textContent=selected.title.toUpperCase();
+  $('map-description').textContent=selected.description;
+  $('map-meta').textContent=selected.endless?'Infinite · checkpoint every 8 blocks':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
+  clearInput();
+  if(resetRun) reset();
+  saveSettings(); updateHud();
+}
+function finishRun() {
+  completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
+  if(document.pointerLockElement===canvas) document.exitPointerLock();
+  const key=recordKey(), old=bests[key], clean=respawns===0;
+  const isPB=clean&&(!Number.isFinite(old)||runTime<old);
+  if(isPB) { bests[key]=runTime; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
+  $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
+  $('finish-time').textContent=format(runTime);
+  $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
+  $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
+}
+function updateHud() {
+  const s=speed(player);
+  ui.timer.textContent=format(runTime);
+  $('best-label').textContent=MAPS[map].endless?'BEST DISTANCE':'BEST';
+  ui.best.textContent=MAPS[map].endless?`${Math.floor(Math.max(bests[recordKey()]||0,endless?.distance||0))} u`:MAPS[map].timed&&Number.isFinite(bests[recordKey()])?format(bests[recordKey()]):'—';
+  ui.speed.textContent=Math.round(s);ui['speed-fill'].style.width=`${Math.min(100,s/5)}%`;
+  ui['motion-state'].textContent=player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
+  const gain=Math.round(s-player.lastJumpSpeed);
+  ui.gain.textContent=!player.grounded&&player.lastJumpSpeed>0?`${gain>=0?'+':''}${gain} SINCE TAKEOFF`:'250 MAX RUN';
+  ui.hops.textContent=String(player.hops).padStart(2,'0');
+  ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
+  ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');
+  const selected=MAPS[map], currentStage=selected.stages[selected.endless?0:checkpoint];
+  ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
+  ui['stage-name'].textContent=selected.endless?`${endless?.sectionTitle||'Endless'} · ${Math.floor(endless?.distance||0)} u`:currentStage.title;
+  ui['stage-tip'].textContent=selected.endless?endless?.tip||currentStage.tip:currentStage.tip;
+  document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',i<=checkpoint));
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    const k=el.dataset.key;
+    el.classList.toggle('pressed',keys.has(k)||(k==='ShiftLeft'&&keys.has('ShiftRight'))||(k==='ControlLeft'&&(keys.has('ControlRight')||keys.has('KeyC'))));
+  });
+}
+function tick() {
+  if(keys.has('ArrowLeft')) player.yaw-=1.8*DT;
+  if(keys.has('ArrowRight')) player.yaw+=1.8*DT;
+  const input={
+    forward:Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown')),
+    side:Number(keys.has('KeyD'))-Number(keys.has('KeyA')),
+    walk:keys.has('ShiftLeft')||keys.has('ShiftRight'),
+    duck:keys.has('ControlLeft')||keys.has('ControlRight')||keys.has('KeyC'),
+    jumpHeld:keys.has('Space'),jumpPressed:pendingJump,
+  };
+  if(!runActive&&(input.forward||input.side||input.jumpPressed)) runActive=true;
+  if(runActive) runTime+=DT;
+  previousDraw={...player};
+  step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  if(endless) {
+    const result=endless.update(player,support(player,boxes,1));
+    if(result.shift)previousDraw.z-=result.shift;
+    if(result.changed) {boxes=endless.boxes;renderer.setBoxes(boxes);}
+    if(result.checkpointSaved) {
+      checkpoint=endless.checkpoint;saveEndlessBest();
+      toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+    }
+  }
+  if(MAPS[map].timed) {
+    const ground=support(player,boxes,1);
+    if(ground?.checkpoint===checkpoint+1) {
+      checkpoint=ground.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+    }
+    if(ground?.finish&&checkpoint===MAPS[map].spawns.length-1) finishRun();
+  }
+  if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
+    respawns++;reset(false);
+    toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
+  }
+}
+function frame(now) {
+  const elapsed=Math.min((now-previous)/1000,0.08);previous=now;
+  if(playing) {
+    accumulator+=elapsed;
+    while(accumulator>=DT&&playing) {tick();accumulator-=DT;}
+  }
+  const alpha=playing?Math.max(0,accumulator/DT):1;
+  const camera={...player,x:previousDraw.x+(player.x-previousDraw.x)*alpha,
+    y:previousDraw.y+(player.y-previousDraw.y)*alpha,z:previousDraw.z+(player.z-previousDraw.z)*alpha};
+  if(!started) {
+    const spawn=endless?endless.spawn:MAPS[map].spawns[0];
+    Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
+  }
+  renderer.draw(camera,fov);updateHud();
+  if(now>toastUntil) $('toast').classList.remove('show');
+  requestAnimationFrame(frame);
+}
+$('play').addEventListener('click',play);
+$('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
+$('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
+$('again').addEventListener('click',()=>{reset();play();});
+$('finish-settings').addEventListener('click',()=>{reset();pause();});
+$('next-course').addEventListener('click',()=>{
+  const courses=MAP_LIST.filter(m=>m.timed), index=courses.findIndex(m=>m.id===map);
+  chooseMap(courses[(index+1)%courses.length].id);play();
+});
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
+$('map-select').innerHTML=MAP_LIST.map(m=>`<option value="${m.id}">${m.title} · ${m.difficulty}</option>`).join('');
+$('map-select').addEventListener('change',()=>chooseMap($('map-select').value));
+for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
+  if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2);}
+  else {fov=Number($(name).value);$('fov-value').textContent=fov;}
+  saveSettings();
+});
+document.addEventListener('keydown',e=>{
+  if(e.code==='Escape') {if(playing)pause();return;}
+  if(!playing) return;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','KeyW','KeyA','KeyS','KeyD','ControlLeft','ControlRight'].includes(e.code)) e.preventDefault();
+  if(e.code==='KeyR'&&!e.repeat) {reset();toast('NEW RUN');return;}
+  if(e.code==='KeyE'&&!e.repeat) {respawns++;reset(false);toast('CHECKPOINT RESTORED — TIMER CONTINUES');return;}
+  if(e.code==='Space'&&!e.repeat) pendingJump=true;
+  keys.add(e.code);
+});
+document.addEventListener('keyup',e=>keys.delete(e.code));
+document.addEventListener('pointerlockchange',()=>{
+  if(document.pointerLockElement===canvas) {
+    if(lockPending) beginSession();
+    else if(!playing) document.exitPointerLock();
+  } else if(playing) pause();
+  else if(lockPending) mouseCaptureFailed();
+});
+document.addEventListener('pointerlockerror',mouseCaptureFailed);
+function look(dx,dy) {
+  const scale=sensitivity*0.022*Math.PI/180;
+  player.yaw+=dx*scale;player.pitch=Math.max(-1.5,Math.min(1.5,player.pitch-dy*scale));
+}
+document.addEventListener('mousemove',e=>{
+  if(playing&&document.pointerLockElement===canvas)look(e.movementX,e.movementY);
+});
+document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump=true;}},{passive:false});
+window.addEventListener('blur',()=>{if(playing||lockPending)pause();});
+window.addEventListener('pagehide',saveEndlessBest);
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(playing||lockPending))pause();});
+if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
+const requestedMap=new URLSearchParams(window.location?.search||'').get('course');
+chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
+if(Number.isFinite(settings.sensitivity))sensitivity=Math.min(5,Math.max(0.2,settings.sensitivity));
+if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
+$('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);
+$('fov').value=fov;$('fov-value').textContent=fov;
+reset();requestAnimationFrame(frame);
+
+</script>
 </body>
 </html>

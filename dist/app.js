@@ -65,9 +65,7 @@ function pause() {
   overlay.classList.remove('hidden');
   if(document.pointerLockElement===canvas) document.exitPointerLock();
   if(started) {
-    $('menu-eyebrow').textContent='TAKE A BREATH. FIND YOUR LINE.';
-    $('menu-title').innerHTML='STAY IN<br>MOTION<span>.</span>';
-    $('play').innerHTML='RESUME SESSION <span>↗</span>';
+    $('play').innerHTML='RESUME <span>↗</span>';
   }
 }
 function beginSession() {
@@ -83,7 +81,7 @@ function mouseCaptureFailed() {
   if(!lockPending) return;
   lockPending=false; playing=false; clearInput(); $('play').disabled=false;
   overlay.classList.remove('hidden'); document.body.classList.remove('playing');
-  $('play').innerHTML=(started?'RESUME SESSION':'ENTER THE COURSE')+' <span>↗</span>';
+  $('play').innerHTML=(started?'RESUME':'PLAY')+' <span>↗</span>';
   $('input-note').textContent='Mouse capture was blocked. Open this page directly in a desktop browser, then click Enter again.';
   toast('Click Enter to capture the mouse. Check that your browser allows pointer lock.');
 }
@@ -109,7 +107,7 @@ function choosePreset(value,resetRun=true) {
   preset=value;
   document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===value));
   $('preset-badge').textContent=PRESETS[preset].title.toUpperCase();
-  $('preset-description').textContent=preset==='classic'?'Hold Space to hop · capped bhops · landing slowdown':'Hold Space to hop · stronger air control · uncapped speed';
+  $('preset-description').textContent=preset==='classic'?'Capped speed · standard air control':'Uncapped speed · strong air control';
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
@@ -153,8 +151,8 @@ function updateHud() {
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');
   const selected=MAPS[map], currentStage=selected.stages[selected.endless?0:checkpoint];
   ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
-  ui['stage-name'].textContent=selected.endless?`${Math.floor(endless?.distance||0)} u traveled · CP ${checkpoint}`:currentStage.title;
-  ui['stage-tip'].textContent=currentStage.tip;
+  ui['stage-name'].textContent=selected.endless?`${endless?.sectionTitle||'Endless'} · ${Math.floor(endless?.distance||0)} u`:currentStage.title;
+  ui['stage-tip'].textContent=selected.endless?endless?.tip||currentStage.tip:currentStage.tip;
   document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',i<=checkpoint));
   document.querySelectorAll('[data-key]').forEach(el=>{
     const k=el.dataset.key;
@@ -214,6 +212,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
 $('again').addEventListener('click',()=>{reset();play();});
 $('finish-settings').addEventListener('click',()=>{reset();pause();});
@@ -222,7 +221,7 @@ $('next-course').addEventListener('click',()=>{
   chooseMap(courses[(index+1)%courses.length].id);play();
 });
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
-$('map-select').innerHTML=MAP_LIST.map((m,i)=>`<option value="${m.id}">${m.timed?String(i+1).padStart(2,'0')+' / ':''}${m.title} — ${m.difficulty}</option>`).join('');
+$('map-select').innerHTML=MAP_LIST.map(m=>`<option value="${m.id}">${m.title} · ${m.difficulty}</option>`).join('');
 $('map-select').addEventListener('change',()=>chooseMap($('map-select').value));
 for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
   if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2);}
@@ -259,7 +258,8 @@ window.addEventListener('blur',()=>{if(playing||lockPending)pause();});
 window.addEventListener('pagehide',saveEndlessBest);
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(playing||lockPending))pause();});
 if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
-chooseMap(Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
+const requestedMap=new URLSearchParams(window.location?.search||'').get('course');
+chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
 if(Number.isFinite(settings.sensitivity))sensitivity=Math.min(5,Math.max(0.2,settings.sensitivity));
 if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 $('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);

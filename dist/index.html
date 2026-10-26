@@ -11,7 +11,7 @@
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
-    <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB<small>CS2-INSPIRED MOVEMENT SANDBOX</small></div></div>
+    <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
     <div class="session"><span class="dot"></span><span id="preset-badge">CS-STYLE</span><span class="divider">/</span><span id="map-badge">COURSE 01</span><button id="menu-button" aria-label="Open settings">ESC <span>≡</span></button></div>
   </header>
   <div id="crosshair" aria-hidden="true"><i></i><i></i></div>
@@ -24,18 +24,16 @@
   </div>
   <div id="overlay" class="overlay">
     <main class="menu">
-      <div class="menu-heading"><span class="eyebrow" id="menu-eyebrow">A GREYBOX MOVEMENT EXPERIMENT</span><span class="version">9 COURSES + ENDLESS</span></div>
-      <h1 id="menu-title">JUST<br>MOVEMENT<span>.</span></h1>
-      <p class="intro" id="menu-description">No skins. No distractions. Find the rhythm of a clean hop, carry your speed, and make the next block.</p>
-      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Hold Space to hop · capped bhops · landing slowdown</p></fieldset><fieldset><legend><label for="map-select">COURSE SELECT · ALL UNLOCKED</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option></select><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
+      <h1 id="menu-title">MOVEMENT LAB</h1>
+      <p class="intro" id="menu-description" role="status"></p>
+      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset><fieldset><legend><label for="map-select">COURSE</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option><option value="endless">Endless</option></select><button id="play-endless" type="button">PLAY ENDLESS <span>∞</span></button><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
       <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>R / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">2.00</output><input id="sensitivity" type="range" min="0.2" max="5" step="0.05" value="2"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
-      <button id="play" class="play">ENTER THE COURSE <span>↗</span></button>
-      <p id="input-note" class="input-note">Click Enter to trap and hide the mouse. Esc releases it and pauses.</p>
-      <details><summary>Movement notes & sources <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left, or D while turning right. Smooth turns build speed; turning too sharply loses it. Counter-strafe to stop quickly.</p><p>CS-style uses 250 u/s running, 130 walking, 85 crouching, gravity 800, ground acceleration 5.5, friction 5.2, air acceleration 12 and a 30 u/s projected air cap. Both modes support hold-Space autojump. Bhop practice uses air acceleration 100 and no bhop speed limit or landing slowdown.</p><p>This is an independent Source-style approximation. It uses 256 Hz fixed steps, swept box collisions, step climbing and an approximate timed landing window. It does not run Source 2 or reproduce CS2’s exact subtick, jump-spam or landing curves. Current-style landing recovery replaces the old jump stamina model.</p><p>References: <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Valve’s Source SDK movement model ↗</a> · <a href="https://store.steampowered.com/news/posts/?appids=730&enddate=1769472539&feed=steam_community_announcements" target="_blank" rel="noopener">Valve’s January 2026 jump updates ↗</a>. Constants above are simulator presets, not a verified dump of the latest CS2 build.</p></div></details>
+      <button id="play" class="play">PLAY <span>↗</span></button>
+      <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
+      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
     </main>
-    <div class="menu-caption"><span>01 — LEARN THE LINE</span><span>RUN → JUMP → STRAFE → REPEAT</span></div>
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
   <script type="module" src="app.js"></script>
