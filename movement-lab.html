@@ -16,10 +16,6 @@
 
 .menu #menu-title{font-size:54px;line-height:1;margin:0 0 24px}.menu .intro:empty{display:none}#play-endless{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:7px;padding:10px 12px;border-color:#777;background:#242424;font-size:9px;letter-spacing:1px}#play-endless:hover{background:#353535;border-color:#ddd}#play-endless span{font-size:17px;line-height:12px}.menu{margin-bottom:35px}.map-description{font-size:8px;color:#888}
 
-.knife-loadout{display:flex;gap:8px;margin-top:14px}.knife-loadout>button{min-height:43px;border-color:#414346;background:#181a1b;font-size:9px}.knife-loadout #knife-picker{flex:1;display:flex;align-items:center;gap:14px;padding:9px 12px;text-align:left}.knife-loadout #knife-picker>span:first-child{font-size:8px;color:#999;letter-spacing:1px}.knife-loadout #knife-name{flex:1;font-size:10px;font-weight:400;color:#e4d9b0}.knife-loadout #inspect-preview{display:flex;align-items:center;gap:8px;padding:7px 12px;color:#aaa;font-size:8px;letter-spacing:.5px}.knife-loadout kbd{font-size:8px;min-height:21px;padding:2px 6px}.quick-help span:nth-child(3){margin-left:10px}.knife-inventory{position:fixed;inset:0;z-index:30;background:#000b;display:grid;place-items:center;padding:24px;backdrop-filter:blur(9px)}.knife-inventory>section{width:940px;max-width:100%;max-height:85vh;display:flex;flex-direction:column;background:#15191c;border:1px solid #626568;box-shadow:0 24px 100px #000c}.knife-inventory header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #3e4246}.knife-inventory h2{font:500 14px 'IBM Plex Mono',monospace;letter-spacing:2px;margin:0;color:#d1d4d6}.knife-inventory header button{width:30px;height:30px;border:0;background:transparent;font-size:25px;color:#aaa}.knife-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;padding:18px;overflow-y:auto}.knife-card{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:133px;border:1px solid #444a4e;border-top:2px solid #b49a53;background:radial-gradient(ellipse at 55% 35%,#394044,#21272b 60%,#1a1e21);padding:7px 10px 12px;text-align:left}.knife-card svg{width:100%;height:99px;filter:drop-shadow(0 7px 4px #0008)}.knife-card>span{font-size:9px;line-height:1.4;color:#d8dcde}.knife-card:hover{border-color:#bfc6c9;background:radial-gradient(ellipse at 55% 35%,#4c555b,#2b3237 70%)}.knife-card.selected{outline:2px solid #cbbb82;outline-offset:-2px;background:radial-gradient(ellipse at 55% 35%,#525044,#292d2c 70%)}.knife-card.selected:after{content:'✓';position:absolute;right:8px;top:7px;font-size:12px;color:#e3d59e}@media(max-width:760px){.knife-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:12px}.knife-inventory{padding:15px}.knife-card{min-height:120px;padding:6px 8px 10px}.knife-card svg{height:85px}.knife-card>span{font-size:8px}.knife-loadout{gap:6px}}
-
-.overlay{background:linear-gradient(90deg,#080808fc 0%,#080808f5 42%,#0006 54%,#0000 70%)}
-
 </style>
 </head>
 <body>
@@ -33,7 +29,7 @@
   <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p><span id="best-label">BEST</span> <span id="best">—</span></p></aside>
   <div id="toast" role="status" aria-live="polite"></div>
   <div class="bottom-hud">
-    <div class="input-panel"><span class="eyebrow">INPUT</span><div class="keys"><kbd data-key="KeyW" class="w">W</kbd><kbd data-key="KeyA">A</kbd><kbd data-key="KeyS">S</kbd><kbd data-key="KeyD">D</kbd></div><div class="modifiers"><kbd data-key="ShiftLeft">SHIFT</kbd><kbd data-key="ControlLeft">CTRL</kbd><kbd data-key="Space">SPACE</kbd></div><div class="quick-help"><span>R</span> RESTART <span>E</span> CHECKPOINT <span>F</span> INSPECT</div></div>
+    <div class="input-panel"><span class="eyebrow">INPUT</span><div class="keys"><kbd data-key="KeyW" class="w">W</kbd><kbd data-key="KeyA">A</kbd><kbd data-key="KeyS">S</kbd><kbd data-key="KeyD">D</kbd></div><div class="modifiers"><kbd data-key="ShiftLeft">SHIFT</kbd><kbd data-key="ControlLeft">CTRL</kbd><kbd data-key="Space">SPACE</kbd></div><div class="quick-help"><span>R</span> RESTART <span>E</span> CHECKPOINT</div></div>
     <div class="speed-panel"><div class="speed-readout"><strong id="speed">0</strong><span>u/s</span></div><div class="speed-track"><i id="speed-fill"></i><b></b></div><div class="speed-labels"><span id="motion-state">ON GROUND</span><span id="gain">250 MAX RUN</span></div><div class="hop-stats"><span>HOPS <b id="hops">00</b></span><span>PEAK <b id="peak">000</b></span><span>JUMP <b id="jump-speed">000</b></span></div></div>
     <div class="course-panel"><div class="eyebrow"><span id="course-title">STARTER COURSE</span> <span id="progress-count">01 / 03</span></div><strong id="stage-name">Find your momentum.</strong><div class="stages" id="stage-markers"><i class="active"></i><i></i><i></i></div><p id="stage-tip">Build speed on the runway. Jump at the edge.</p></div>
   </div>
@@ -43,15 +39,13 @@
       <p class="intro" id="menu-description" role="status"></p>
       <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset><fieldset><legend><label for="map-select">COURSE</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option><option value="endless">Endless</option></select><button id="play-endless" type="button">PLAY ENDLESS <span>∞</span></button><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
       <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
-      <div class="knife-loadout"><button id="knife-picker" type="button" aria-haspopup="dialog"><span>KNIFE</span><strong id="knife-name">M9 Bayonet</strong><span>⌄</span></button><button id="inspect-preview" type="button"><kbd>F</kbd> INSPECT</button></div>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>R / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">2.00</output><input id="sensitivity" type="range" min="0.2" max="5" step="0.05" value="2"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <button id="play" class="play">PLAY <span>↗</span></button>
       <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
-      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>Knife models and inspect motions are recreations.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
+      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
     </main>
   </div>
-  <div id="knife-inventory" class="knife-inventory hidden" role="dialog" aria-modal="true" aria-labelledby="knife-inventory-title"><section><header><h2 id="knife-inventory-title">VANILLA KNIVES</h2><button id="close-knives" type="button" aria-label="Close knife selector">×</button></header><div id="knife-grid" class="knife-grid"></div></section></div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
   <script type="module">
 // Each section ends on the same safe deck, so any two section types connect.
@@ -521,330 +515,6 @@ function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   return p;
 }
 
-// Original browser models and animation curves, inspired by the vanilla knives.
-// These are recreations, not Valve meshes or original Source 2 animation clips.
-const steel=[.36,.39,.42],black=[.045,.052,.049],olive=[.10,.13,.075],wood=[.25,.12,.065];
-const knife=(id,name,profile,handle=black,motion='standard',extra={})=>({id,name,profile,handle,motion,blade:steel,...extra});
-const KNIFE_LIST=[
-  knife('default-ct','Default CT',[[-.12,0],[.12,0],[.14,.70],[.02,1.02],[-.12,.77]],olive),
-  knife('default-t','Default T',[[-.13,0],[.13,0],[.19,.63],[.09,1.05],[-.15,.91],[-.20,.55]],black,'standard',{serrated:true}),
-  knife('bayonet','Bayonet',[[-.12,0],[.12,0],[.12,.91],[0,1.27],[-.12,.96]],olive,'standard',{fuller:true,guard:.26}),
-  knife('m9','M9 Bayonet',[[-.15,0],[.15,0],[.15,.37],[.21,.41],[.14,.45],[.21,.49],[.14,.53],[.21,.57],[.14,.61],[.21,.65],[.14,.69],[.21,.73],[.14,.77],[.19,.87],[.05,1.19],[-.13,1.06],[-.18,.68]],olive,'standard',{fuller:true,guard:.31,blade:[.12,.14,.145]}),
-  knife('karambit','Karambit',[[-.08,0],[.09,.03],[.22,.22],[.29,.48],[.24,.72],[.08,.90],[-.12,.95],[-.27,.89],[-.06,.83],[.07,.67],[.10,.48],[.04,.30],[-.08,.16]],black,'ring',{ring:[0,-.70],scale:1.12}),
-  knife('butterfly','Butterfly Knife',[[-.085,0],[.085,0],[.12,.66],[.055,.93],[-.07,1.12],[-.14,.77],[-.12,.30]],black,'butterfly',{handleKind:'butterfly',guard:0}),
-  knife('flip','Flip Knife',[[-.12,0],[.11,0],[.16,.55],[.07,.87],[-.05,1.06],[-.16,.73],[-.19,.27]],black,'flip',{handleKind:'folding'}),
-  knife('gut','Gut Knife',[[-.12,0],[.13,0],[.19,.55],[.24,.61],[.11,.64],[.12,.75],[.22,.78],[.09,.97],[-.12,1.04],[-.23,.79],[-.20,.25]],wood,'standard',{handleKind:'wood'}),
-  knife('huntsman','Huntsman Knife',[[-.18,0],[.16,0],[.18,.43],[.24,.47],[.17,.51],[.24,.55],[.17,.59],[.24,.63],[.17,.67],[.24,.71],[.13,.80],[.12,1.03],[-.16,1.13],[-.29,.82],[-.26,.23]],black,'heavy',{guard:.29,blade:[.15,.17,.18]}),
-  knife('falchion','Falchion Knife',[[-.10,0],[.10,0],[.20,.41],[.24,.73],[.13,1.01],[-.05,1.16],[-.21,.88],[-.25,.47],[-.16,.18]],black,'balance',{handleKind:'folding'}),
-  knife('bowie','Bowie Knife',[[-.17,0],[.17,0],[.20,.78],[.32,1.07],[.12,1.21],[-.06,1.23],[-.28,.91],[-.28,.35]],black,'heavy',{guard:.35,scale:.93,blade:[.16,.18,.19]}),
-  knife('daggers','Shadow Daggers',[[-.14,0],[.14,0],[.13,.50],[0,.86],[-.13,.50]],black,'daggers',{dual:true,handleKind:'push',scale:.94}),
-  knife('ursus','Ursus Knife',[[-.12,0],[.12,0],[.12,.90],[.04,1.13],[-.13,.98]],olive,'flip',{guard:.22}),
-  knife('navaja','Navaja Knife',[[-.10,0],[.09,0],[.13,.54],[.04,.81],[-.14,.96],[-.17,.70],[-.16,.25]],wood,'flip',{handleKind:'wood',scale:1.05}),
-  knife('stiletto','Stiletto Knife',[[-.065,0],[.065,0],[.065,.88],[0,1.22],[-.065,.88]],olive,'flip',{handleKind:'stiletto',guard:.22}),
-  knife('talon','Talon Knife',[[-.09,0],[.12,.04],[.32,.34],[.34,.55],[.25,.80],[.02,.98],[-.22,.98],[-.32,.89],[-.09,.80],[.07,.60],[.05,.37],[-.10,.16]],[.62,.57,.43],'ring',{ring:[0,-.70],scale:1.10}),
-  knife('classic','Classic Knife',[[-.11,0],[.11,0],[.11,.94],[.035,1.20],[-.12,1.01]],black,'standard',{guard:.25,fuller:true}),
-  knife('paracord','Paracord Knife',[[-.13,0],[.13,0],[.14,.87],[.025,1.18],[-.14,.92]],olive,'standard',{handleKind:'cord',guard:.19}),
-  knife('survival','Survival Knife',[[-.14,0],[.14,0],[.18,.70],[.06,1.08],[-.13,1.14],[-.22,.88],[-.20,.32]],olive,'flip',{guard:.23,blade:[.22,.25,.25]}),
-  knife('nomad','Nomad Knife',[[-.13,0],[.12,0],[.19,.56],[.11,.89],[-.04,1.13],[-.18,.91],[-.22,.47]],black,'flip',{handleKind:'folding'}),
-  knife('skeleton','Skeleton Knife',[[-.10,0],[.10,0],[.11,.80],[.015,1.12],[-.11,.93]],steel,'ring',{ring:[0,-.30],handleKind:'skeleton'}),
-  knife('kukri','Kukri Knife',[[-.11,0],[.11,0],[.19,.30],[.34,.64],[.39,.94],[.24,1.18],[.10,1.30],[-.16,1.17],[-.31,.94],[-.20,.67],[-.12,.36]],black,'heavy',{scale:.95,blade:[.07,.085,.09],guard:.20}),
-];
-const curveTips={karambit:7,talon:7,kukri:6,flip:4,falchion:5,gut:8,navaja:4,nomad:4,survival:5};
-for(const k of KNIFE_LIST){
-  if(!Object.hasOwn(curveTips,k.id))continue;
-  const original=k.profile,rounded=[];
-  original.forEach((p,i)=>{
-    if(i<2||i===curveTips[k.id]){rounded.push(p);return;}
-    const previous=original[(i+original.length-1)%original.length],next=original[(i+1)%original.length];
-    const a=p.map((v,j)=>v+(previous[j]-v)*.33),b=p.map((v,j)=>v+(next[j]-v)*.33);
-    for(let step=0;step<=5;step++){const t=step/5;rounded.push(p.map((v,j)=>(1-t)**2*a[j]+2*(1-t)*t*v+t*t*b[j]));}
-  });
-  k.profile=rounded;
-}
-const KNIVES=Object.fromEntries(KNIFE_LIST.map(k=>[k.id,k]));
-const DEFAULT_KNIFE='m9';
-const normalize=v=>{const length=Math.hypot(...v)||1;return v.map(n=>n/length);};
-const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-class KnifeMesh {
-  constructor(){this.vertices=[];}
-  vertex(p,n,color,metal,rough){this.vertices.push(...p,...n,...color,metal,rough);}
-  tri(a,b,c,color,metal=.1,rough=.7,normals=null){
-    const n=normals||normalize(cross(b.map((v,i)=>v-a[i]),c.map((v,i)=>v-a[i])));
-    [a,b,c].forEach((p,i)=>this.vertex(p,Array.isArray(n[0])?n[i]:n,color,metal,rough));
-  }
-  quad(a,b,c,d,color,metal,rough){this.tri(a,b,c,color,metal,rough);this.tri(a,c,d,color,metal,rough);}
-  box(center,size,color,metal=.1,rough=.7){
-    const [x,y,z]=center.map((v,i)=>v-size[i]/2),[X,Y,Z]=center.map((v,i)=>v+size[i]/2);
-    for(const f of [ [[x,Y,z],[x,Y,Z],[X,Y,Z],[X,Y,z]],[[x,y,z],[X,y,z],[X,y,Z],[x,y,Z]],
-      [[x,y,z],[x,y,Z],[x,Y,Z],[x,Y,z]],[[X,y,Z],[X,y,z],[X,Y,z],[X,Y,Z]],
-      [[X,y,z],[x,y,z],[x,Y,z],[X,Y,z]],[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]] ])this.quad(...f,color,metal,rough);
-  }
-  ellipsoid(center,radii,color,metal=.05,rough=.8){
-    const point=(i,j)=>{const a=-Math.PI/2+i*Math.PI/10,b=j*Math.PI*2/16;
-      const q=[Math.cos(a)*Math.cos(b),Math.sin(a),Math.cos(a)*Math.sin(b)];
-      return {p:q.map((v,k)=>center[k]+radii[k]*v),n:normalize(q.map((v,k)=>v/radii[k]))};};
-    for(let i=0;i<10;i++)for(let j=0;j<16;j++){
-      const a=point(i,j),b=point(i+1,j),c=point(i+1,j+1),d=point(i,j+1);
-      if(i)this.tri(a.p,b.p,d.p,color,metal,rough,[a.n,b.n,d.n]);
-      if(i<9)this.tri(b.p,c.p,d.p,color,metal,rough,[b.n,c.n,d.n]);
-    }
-  }
-  tube(a,b,r,color,metal=.2,rough=.6,sides=12){
-    const axis=normalize(b.map((v,i)=>v-a[i]));
-    const u=normalize(cross(axis,Math.abs(axis[1])<.9?[0,1,0]:[1,0,0])),v=cross(axis,u);
-    const point=(p,t)=>p.map((n,i)=>n+r*(u[i]*Math.cos(t)+v[i]*Math.sin(t)));
-    for(let i=0;i<sides;i++){
-      const t=i*2*Math.PI/sides,T=(i+1)*2*Math.PI/sides;
-      this.quad(point(a,T),point(b,T),point(b,t),point(a,t),color,metal,rough);
-      this.tri(a,point(a,T),point(a,t),color,metal,rough);this.tri(b,point(b,t),point(b,T),color,metal,rough);
-    }
-  }
-  torus(center,R,r,color,axis='z',metal=.9){
-    const point=(i,j)=>{const a=i*Math.PI*2/28,b=j*Math.PI*2/8;
-      let n=[Math.cos(a)*Math.cos(b),Math.sin(a)*Math.cos(b),Math.sin(b)];
-      let p=[(R+r*Math.cos(b))*Math.cos(a),(R+r*Math.cos(b))*Math.sin(a),r*Math.sin(b)];
-      if(axis==='y'){p=[p[0],p[2],p[1]];n=[n[0],n[2],n[1]];}
-      return {p:p.map((x,k)=>x+center[k]),n};};
-    for(let i=0;i<28;i++)for(let j=0;j<8;j++){
-      const a=point(i,j),b=point(i+1,j),c=point(i+1,j+1),d=point(i,j+1);
-      this.tri(a.p,b.p,c.p,color,metal,.3,[a.n,b.n,c.n]);this.tri(a.p,c.p,d.p,color,metal,.3,[a.n,c.n,d.n]);
-    }
-  }
-  finish(){return new Float32Array(this.vertices);}
-}
-// Ear clipping preserves the hooked inner edges of curved blades.
-function triangulateBlade(points){
-  const area=points.reduce((sum,p,i)=>{const q=points[(i+1)%points.length];return sum+p[0]*q[1]-q[0]*p[1];},0);
-  const remaining=points.map((_,i)=>i);if(area<0)remaining.reverse();
-  const result=[],side=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
-  while(remaining.length>3){let clipped=false;
-    for(let i=0;i<remaining.length;i++){
-      const ai=remaining[(i+remaining.length-1)%remaining.length],bi=remaining[i],ci=remaining[(i+1)%remaining.length];
-      const a=points[ai],b=points[bi],c=points[ci];if(side(a,b,c)<=1e-10)continue;
-      const inside=remaining.some(k=>k!==ai&&k!==bi&&k!==ci&&side(a,b,points[k])>=-1e-10&&side(b,c,points[k])>=-1e-10&&side(c,a,points[k])>=-1e-10);
-      if(inside)continue;result.push([ai,bi,ci]);remaining.splice(i,1);clipped=true;break;
-    }
-    if(!clipped)throw new Error('Knife blade profile cannot be triangulated.');
-  }
-  result.push([...remaining]);return result;
-}
-function addBlade(mesh,k){
-  const points=k.profile,cx=points.reduce((s,p)=>s+p[0],0)/points.length,cy=points.reduce((s,p)=>s+p[1],0)/points.length;
-  const inner=points.map(p=>[cx+(p[0]-cx)*.79,cy+(p[1]-cy)*.98]);
-  const triangles=triangulateBlade(inner),at=(p,z)=>[p[0],p[1],z];
-  for(const [a,b,c]of triangles){
-    mesh.tri(at(inner[a],.034),at(inner[b],.034),at(inner[c],.034),k.blade,.96,.26,[0,0,1]);
-    mesh.tri(at(inner[c],-.034),at(inner[b],-.034),at(inner[a],-.034),k.blade,.96,.29,[0,0,-1]);
-  }
-  for(let i=0;i<points.length;i++){
-    const j=(i+1)%points.length,edge=[.53,.57,.60];
-    mesh.quad(at(points[i],0),at(points[j],0),at(inner[j],.034),at(inner[i],.034),edge,.98,.20);
-    mesh.quad(at(points[j],0),at(points[i],0),at(inner[i],-.034),at(inner[j],-.034),edge,.98,.22);
-  }
-  if(k.fuller)for(const z of [-.035,.035])mesh.box([-.005,.47,z],[.048,.58,.002],k.blade.map(x=>x*.58),.9,.36);
-}
-function addHandle(mesh,k,x=0){
-  const color=k.handle;
-  if(k.handleKind==='skeleton'){
-    mesh.tube([-.09,-.03,0],[-.08,-.72,0],.036,steel,.96,.3);
-    mesh.tube([.09,-.03,0],[.08,-.72,0],.036,steel,.96,.3);
-    mesh.torus([0,-.62,0],.08,.027,steel);
-  }else if(k.handleKind==='push'){
-    mesh.tube([0,0,0],[0,-.20,0],.043,steel,.9,.3);
-    mesh.ellipsoid([0,-.25,0],[.25,.10,.11],color,.12,.65);
-  }else if(k.handleKind==='butterfly'){
-    mesh.box([x,-.37,0],[.10,.72,.10],color,.65,.35);
-    for(const offset of [-.048,.048])mesh.box([x+offset,-.37,0],[.018,.70,.12],steel,.95,.24);
-    for(let i=0;i<5;i++)mesh.ellipsoid([x,-.15-i*.105,.057],[.026,.035,.006],[.008,.010,.011],.3,.7);
-  }else{
-    const width=k.handleKind==='stiletto'?.085:.12;
-    mesh.ellipsoid([0,-.37,0],[width,.39,.092],color,.07,.66);
-    if(k.handleKind==='cord'){
-      for(let i=0;i<96;i++){
-        const a=i*Math.PI/4,b=(i+1)*Math.PI/4;
-        mesh.tube([.115*Math.cos(a),-.05-i*.007,.094*Math.sin(a)],
-          [.115*Math.cos(b),-.05-(i+1)*.007,.094*Math.sin(b)],.016,color.map(c=>c*1.25),.05,.9,6);
-      }
-    }else if(k.handleKind!=='wood'&&k.handleKind!=='folding'){
-      for(let i=0;i<6;i++)mesh.torus([0,-.13-i*.09,0],width*.91,.008,color.map(c=>c*.65),'y',.08);
-    }
-    for(const y of [-.13,-.61]){
-      mesh.tube([0,y,.085],[0,y,.101],.024,steel,.9,.23,14);
-      mesh.box([0,y,.103],[.029,.005,.003],[.025,.03,.032],.7,.5);
-    }
-    if(k.handleKind==='stiletto')mesh.ellipsoid([0,-.20,.093],[.025,.035,.008],steel,.95,.2);
-  }
-  if(k.ring)mesh.torus([k.ring[0],k.ring[1],0],.115,.028,k.handleKind==='skeleton'?steel:color,'z',.8);
-  const guard=k.guard??(k.handleKind==='folding'||k.ring?0:.17);
-  if(guard)mesh.box([0,-.012,0],[guard*2,.052,.16],steel.map(c=>c*.60),.9,.28);
-}
-let gloveMesh;
-function buildGlove(){
-  if(gloveMesh)return gloveMesh;
-  const m=new KnifeMesh(),fabric=[.022,.029,.024],rubber=[.007,.011,.009],seam=[.075,.085,.068];
-  m.ellipsoid([.03,-.47,.11],[.16,.235,.105],fabric);
-  m.ellipsoid([.05,-.91,.07],[.145,.36,.13],[.020,.027,.033],.05,.9);
-  m.ellipsoid([.08,-1.27,.04],[.165,.30,.14],[.018,.024,.030],.03,.92);
-  m.ellipsoid([.045,-.73,.095],[.158,.10,.13],rubber);
-  m.box([.06,-.72,.205],[.16,.09,.022],fabric,.08,.8);
-  for(let i=0;i<4;i++){
-    const y=-.275-i*.108;
-    m.ellipsoid([-.10,y,.13],[.084,.053,.055],fabric);
-    m.ellipsoid([-.145,y,.048],[.048,.051,.068],fabric);
-    m.ellipsoid([-.105,y,-.017],[.062,.047,.043],rubber);
-    m.ellipsoid([-.042,y,.206],[.067,.045,.020],rubber,.08,.65);
-    m.tube([-.095,y+.045,.177],[-.005,y+.045,.207],.0035,seam,.05,.9,6);
-  }
-  m.ellipsoid([.155,-.29,.105],[.070,.14,.065],fabric);
-  m.ellipsoid([.10,-.20,.045],[.095,.065,.058],rubber);
-  gloveMesh=m.finish();return gloveMesh;
-}
-function buildKnife(id){
-  const k=KNIVES[id]||KNIVES[DEFAULT_KNIFE],main=new KnifeMesh(),free=new KnifeMesh();addBlade(main,k);
-  if(k.handleKind==='butterfly'){
-    addHandle(main,k,-.065);addHandle(free,k,.065);
-    main.tube([-.065,0,-.065],[-.065,0,.065],.035,steel,.98,.2);
-    free.tube([.065,0,-.065],[.065,0,.065],.035,steel,.98,.2);
-  }else addHandle(main,k);
-  return {knife:k,main:main.finish(),free:free.finish(),hand:buildGlove()};
-}
-function knifeIcon(id){
-  const k=KNIVES[id]||KNIVES[DEFAULT_KNIFE];
-  const path=k.profile.map((p,i)=>`${i?'L':'M'}${p[0]} ${-p[1]}`).join(' ')+'Z';
-  const color=`rgb(${k.handle.map(c=>Math.round(c**.454545*255)).join(',')})`;
-  let handle=`<rect x="-.10" y=".02" width=".2" height=".7" rx=".06" fill="${color}"/>`;
-  if(k.handleKind==='butterfly')handle=`<g fill="${color}" stroke="#a3aaab" stroke-width=".017"><rect x="-.125" y=".02" width=".10" height=".73" rx=".025" transform="rotate(7)"/><rect x=".025" y=".02" width=".10" height=".73" rx=".025" transform="rotate(-7)"/></g>`;
-  if(k.handleKind==='push')handle=`<path d="M-.035 0h.07v.18h.22v.14h-.51v-.14h.22Z" fill="${color}"/>`;
-  if(k.handleKind==='skeleton')handle='<path d="M-.09 .02L-.08 .71M.09 .02L.08 .71" fill="none" stroke="#9ba3a6" stroke-width=".055"/>';
-  return `<svg viewBox="-1.28 -1.3 2.6 2.6" aria-hidden="true"><g transform="rotate(-58)"><path d="${path}" fill="#bfc4c6" stroke="#e1e4e5" stroke-width=".014"/>${handle}${k.ring?`<circle cx="0" cy="${-k.ring[1]}" r=".11" fill="none" stroke="#969c9b" stroke-width=".04"/>`:''}${k.dual?`<g transform="translate(.44 .15)"><path d="${path}" fill="#aab1b4"/>${handle}</g>`:''}</g></svg>`;
-}
-const smooth=(a,b,t)=>{const q=Math.max(0,Math.min(1,(t-a)/(b-a)));return q*q*(3-2*q);};
-function inspectDuration(id){return KNIVES[id]?.motion==='butterfly'?4.3:KNIVES[id]?.motion==='balance'?4.0:3.5;}
-function inspectPose(id,elapsed){
-  const k=KNIVES[id]||KNIVES[DEFAULT_KNIFE],t=Math.max(0,Math.min(1,elapsed/inspectDuration(k.id)));
-  const lift=smooth(0,.22,t)*(1-smooth(.78,1,t));
-  let spin=0,hinge=0;
-  if(k.motion==='ring')spin=2*Math.PI*smooth(.04,.42,t);
-  if(k.motion==='butterfly'){spin=2*Math.PI*smooth(.03,.48,t);hinge=Math.PI*2.05*Math.sin(Math.PI*smooth(.02,.48,t))**2;}
-  if(k.motion==='flip')spin=2*Math.PI*smooth(.04,.38,t);
-  if(k.motion==='heavy'&&k.id==='kukri')spin=2*Math.PI*smooth(.08,.48,t);
-  if(k.motion==='balance')spin=(Math.PI*.5*Math.sin(Math.PI*t)+Math.sin(t*20)*.045)*lift;
-  if(k.motion==='daggers')spin=2*Math.PI*smooth(.02,.45,t);
-  return {offset:[-.30*lift,.26*lift,-.13*lift],rotation:[.24*lift,.85*Math.sin(t*Math.PI*3)*lift,-.94*lift],spin,hinge,
-    pivot:k.motion==='ring'?[k.ring?.[0]||0,k.ring?.[1]||-.3,0]:k.motion==='butterfly'?[0,0,0]:[0,-.38,0],active:t>0&&t<1};
-}
-function createInspectController(id=DEFAULT_KNIFE){
-  let selected=Object.hasOwn(KNIVES,id)?id:DEFAULT_KNIFE,start=-Infinity;
-  return {get knife(){return selected;},equip(value){if(!Object.hasOwn(KNIVES,value))return false;selected=value;start=-Infinity;return true;},
-    inspect(now){if(now-start<inspectDuration(selected))return false;start=now;return true;},
-    pose(now){return inspectPose(selected,now-start);},cancel(){start=-Infinity;}};
-}
-
-
-const identity=()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-function multiplyMatrix(a,b){
-  const out=new Array(16).fill(0);
-  for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];
-  return out;
-}
-const translate=(x,y,z)=>{const m=identity();m[12]=x;m[13]=y;m[14]=z;return m;};
-const scale=(x,y=x,z=x)=>[x,0,0,0,0,y,0,0,0,0,z,0,0,0,0,1];
-function rotate(x,y,z){
-  const cx=Math.cos(x),sx=Math.sin(x),cy=Math.cos(y),sy=Math.sin(y),cz=Math.cos(z),sz=Math.sin(z);
-  return multiplyMatrix([cz,sz,0,0,-sz,cz,0,0,0,0,1,0,0,0,0,1],
-    multiplyMatrix([cy,0,-sy,0,0,1,0,0,sy,0,cy,0,0,0,0,1],[1,0,0,0,0,cx,sx,0,0,-sx,cx,0,0,0,0,1]));
-}
-const pivotRotate=(p,z)=>multiplyMatrix(translate(...p),multiplyMatrix(rotate(0,0,z),translate(...p.map(v=>-v))));
-function knifeMatrices(id,pose,motion={}){
-  const k=KNIVES[id]||KNIVES[DEFAULT_KNIFE],time=motion.time||0,speed=motion.speed||0;
-  const moving=motion.playing&&motion.grounded?Math.min(1,speed/250):0;
-  const bobX=Math.sin(time*9)*.012*moving,bobY=Math.cos(time*18)*.010*moving;
-  const swayX=motion.swayX||0,swayY=motion.swayY||0,drop=motion.equipDrop||0;
-  const hands=k.dual?[false,true]:[false];
-  return hands.map(left=>{
-    const sign=left?-1:1;
-    const offset=[sign*(k.dual?.52:.68)+pose.offset[0]*sign+bobX+swayX,
-      -.64+pose.offset[1]+bobY+swayY-drop,1.60+pose.offset[2]];
-    let rig=multiplyMatrix(translate(...offset),multiplyMatrix(scale(sign,1,1),
-      multiplyMatrix(rotate(-.20+pose.rotation[0],Math.PI-.30+pose.rotation[1],.94+pose.rotation[2]),
-        multiplyMatrix(scale(.63*(k.scale||1)),translate(0,.45,0)))));
-    const main=multiplyMatrix(rig,pivotRotate(pose.pivot,pose.spin));
-    const free=multiplyMatrix(main,pivotRotate([.065,0,0],pose.hinge));
-    return {main,free,hand:rig,left};
-  });
-}
-function createKnifeViewmodel(gl){
-  const vertex=`attribute vec3 aPosition;attribute vec3 aNormal;attribute vec3 aColor;
-    attribute float aMetal;attribute float aRough;uniform mat4 uModel;uniform vec2 uScale;
-    varying vec3 vPosition;varying vec3 vNormal;varying vec3 vColor;varying float vMetal;varying float vRough;
-    void main(){vec3 p=(uModel*vec4(aPosition,1.0)).xyz;
-      vPosition=p;vNormal=mat3(uModel)*aNormal;vColor=aColor;vMetal=aMetal;vRough=aRough;
-      gl_Position=vec4(p.x*uScale.x,p.y*uScale.y,1.002002*p.z-.02002002,p.z);}`;
-  const fragment=`precision mediump float;varying vec3 vPosition;varying vec3 vNormal;varying vec3 vColor;
-    varying float vMetal;varying float vRough;
-    void main(){vec3 N=normalize(vNormal),V=normalize(-vPosition);
-      vec3 L=normalize(vec3(-.45,.7,-1.0)),H=normalize(L+V);
-      float diffuse=max(dot(N,L),0.0),hemi=.36+.28*max(N.y,0.0);
-      float exponent=mix(110.0,12.0,vRough);
-      float spec=pow(max(dot(N,H),0.0),exponent)*(1.0-vRough*.65);
-      vec3 R=reflect(-V,N);
-      float strip=pow(max(dot(R,normalize(vec3(.1,.8,-.7))),0.0),18.0);
-      float band=pow(max(0.0,1.0-abs(R.y+.25)*1.7),5.0);
-      float rim=pow(1.0-clamp(dot(N,V),0.0,1.0),4.0);
-      vec3 f0=mix(vec3(.045),vColor,.85*vMetal);
-      vec3 color=vColor*(hemi+diffuse*.75)*(1.0-vMetal*.35);
-      color+=f0*(spec*3.2+strip*1.8+band*.45*vMetal)*(.45+vMetal*.55);
-      color+=vec3(.18,.20,.22)*rim*(.2+.8*vMetal);
-      color*=1.35;color=color/(vec3(1.0)+color);
-      gl_FragColor=vec4(pow(color,vec3(.454545)),1.0);}`;
-  function compile(type,source){
-    const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
-    if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(shader));return shader;
-  }
-  const program=gl.createProgram();gl.attachShader(program,compile(gl.VERTEX_SHADER,vertex));
-  gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);
-  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
-  const attributes=[['aPosition',3,0],['aNormal',3,12],['aColor',3,24],['aMetal',1,36],['aRough',1,40]]
-    .map(([name,count,offset])=>({location:gl.getAttribLocation(program,name),count,offset}));
-  const model=gl.getUniformLocation(program,'uModel'),projection=gl.getUniformLocation(program,'uScale');
-  const maxAttributes=gl.getParameter(gl.MAX_VERTEX_ATTRIBS),cache=new Map(),controller=createInspectController();
-  let current=null,equippedAt=-Infinity,lastTime=0,lastYaw=null,lastPitch=null,swayX=0,swayY=0;
-  function upload(vertices){const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-    gl.bufferData(gl.ARRAY_BUFFER,vertices,gl.STATIC_DRAW);return{buffer,count:vertices.length/11};}
-  const hand=upload(buildGlove());
-  function setKnife(id,now=performance.now()/1000){
-    if(!Object.hasOwn(KNIVES,id))return false;
-    if(!cache.has(id)){const meshes=buildKnife(id);cache.set(id,{main:upload(meshes.main),free:upload(meshes.free)});}
-    current=cache.get(id);controller.equip(id);equippedAt=now;return true;
-  }
-  function drawMesh(mesh,matrix){
-    if(!mesh.count)return;
-    gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);
-    for(const a of attributes){gl.enableVertexAttribArray(a.location);gl.vertexAttribPointer(a.location,a.count,gl.FLOAT,false,44,a.offset);}
-    gl.uniformMatrix4fv(model,false,new Float32Array(matrix));gl.drawArrays(gl.TRIANGLES,0,mesh.count);
-  }
-  function draw(player,width,height,options={}){
-    if(!current)return;
-    const now=options.time??performance.now()/1000,dt=Math.max(0,Math.min(.1,now-lastTime));lastTime=now;
-    const yaw=player.yaw||0,pitch=player.pitch||0;
-    let dy=lastYaw===null?0:yaw-lastYaw;while(dy>Math.PI)dy-=Math.PI*2;while(dy< -Math.PI)dy+=Math.PI*2;
-    const dp=lastPitch===null?0:pitch-lastPitch;lastYaw=yaw;lastPitch=pitch;
-    const blend=1-Math.exp(-dt*12);
-    swayX+=(Math.max(-.035,Math.min(.035,-dy*.9))-swayX)*blend;
-    swayY+=(Math.max(-.025,Math.min(.025,-dp*.7))-swayY)*blend;
-    const t=Math.max(0,Math.min(1,(now-equippedAt)/.38)),equipDrop=.65*(1-t)*(1-t);
-    const poses=knifeMatrices(controller.knife,controller.pose(now),{time:now,speed:Math.hypot(player.vx||0,player.vz||0),
-      grounded:player.grounded,playing:options.playing,swayX,swayY,equipDrop});
-    gl.useProgram(program);for(let i=0;i<maxAttributes;i++)gl.disableVertexAttribArray(i);
-    gl.clear(gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);
-    const f=1/(Math.tan(68*Math.PI/360)*.75);gl.uniform2f(projection,f/(width/height),f);
-    for(const pose of poses){drawMesh(hand,pose.hand);drawMesh(current.main,pose.main);drawMesh(current.free,pose.free);}
-  }
-  setKnife(DEFAULT_KNIFE,-Infinity);
-  return{draw,setKnife,inspect:(now=performance.now()/1000)=>controller.inspect(now),cancelInspect:()=>controller.cancel(),
-    get knife(){return controller.knife;},dispose(){for(const mesh of [hand,...[...cache.values()].flatMap(v=>[v.main,v.free])])gl.deleteBuffer(mesh.buffer);gl.deleteProgram(program);}};
-}
-
 function createRenderer(canvas, boxes) {
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
@@ -880,8 +550,10 @@ function createRenderer(canvas, boxes) {
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
   const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24]].map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
-  const maxAttributes=gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
+  for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24]]) {
+    const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, count, gl.FLOAT, false, 28, offset);
+  }
   const eye = gl.getUniformLocation(program, 'uEye'), angles = gl.getUniformLocation(program, 'uAngles');
   const scale = gl.getUniformLocation(program, 'uScale');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
@@ -917,29 +589,24 @@ function createRenderer(canvas, boxes) {
       }
     }
     count=vertices.length/7;
-    gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
   }
   setBoxes(boxes);
-  const viewmodel=createKnifeViewmodel(gl);
   function resize() {
     const ratio=Math.min(window.devicePixelRatio||1,2);
     const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
-  function draw(p,fov=100,view={}) {
+  function draw(p,fov=100) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-    gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-    for(let i=0;i<maxAttributes;i++)gl.disableVertexAttribArray(i);
-    for(const a of attributes){gl.enableVertexAttribArray(a.loc);gl.vertexAttribPointer(a.loc,a.count,gl.FLOAT,false,28,a.offset);}
     const height=64-p.duckAmount*18;
     gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
     // CS-style FOV setting is horizontal at 4:3; widescreen adds horizontal view.
     const f=1/(Math.tan(fov*Math.PI/360)*0.75);
     gl.uniform2f(scale,f/(canvas.width/canvas.height),f);
     gl.drawArrays(gl.TRIANGLES,0,count);
-    viewmodel.draw(p,canvas.width,canvas.height,view);
   }
-  return {draw,setBoxes,setKnife:viewmodel.setKnife,inspect:viewmodel.inspect,cancelInspect:viewmodel.cancelInspect,get boxes(){return currentBoxes;}};
+  return {draw,setBoxes,get boxes(){return currentBoxes;}};
 }
 
 
@@ -953,7 +620,6 @@ let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = crea
 let endless = null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
-let selectedKnife=DEFAULT_KNIFE;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
@@ -970,7 +636,7 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov,knife:selectedKnife})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov})); } catch {}
 }
 function toast(message,checkpointNotice=false) {
   $('toast').textContent=message; $('toast').classList.toggle('checkpoint-notice',checkpointNotice);
@@ -983,7 +649,6 @@ function saveEndlessBest() {
 }
 function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
-  renderer.cancelInspect();
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
@@ -1068,16 +733,6 @@ function chooseMap(value,resetRun=true) {
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
-function closeKnives(){ $('knife-inventory').classList.add('hidden');$('knife-picker').focus(); }
-function chooseKnife(id,preview=true){
-  if(!Object.hasOwn(KNIVES,id))return false;
-  selectedKnife=id;renderer.setKnife(id);$('knife-name').textContent=KNIVES[id].name;
-  document.querySelectorAll('[data-knife]').forEach(button=>{
-    const selected=button.dataset.knife===id;button.classList.toggle('selected',selected);
-    button.setAttribute('aria-pressed',String(selected));
-  });
-  saveSettings();if(preview)renderer.inspect();return true;
-}
 function finishRun() {
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
   if(document.pointerLockElement===canvas) document.exitPointerLock();
@@ -1159,22 +814,11 @@ function frame(now) {
     const spawn=endless?endless.spawn:MAPS[map].spawns[0];
     Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
   }
-  renderer.draw(camera,fov,{time:now/1000,playing});updateHud();
+  renderer.draw(camera,fov);updateHud();
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
-$('knife-grid').innerHTML=KNIFE_LIST.map(k=>`<button type="button" class="knife-card" data-knife="${k.id}" aria-pressed="false">${knifeIcon(k.id)}<span>${k.name}</span></button>`).join('');
-$('knife-picker').addEventListener('click',()=>{
-  if(playing||lockPending)pause();$('knife-inventory').classList.remove('hidden');$('close-knives').focus();
-});
-$('close-knives').addEventListener('click',closeKnives);
-$('knife-inventory').addEventListener('click',event=>{if(event.target===$('knife-inventory'))closeKnives();});
-$('knife-grid').addEventListener('click',event=>{
-  const button=event.target.closest('[data-knife]');
-  if(button&&chooseKnife(button.dataset.knife)){closeKnives();}
-});
-$('inspect-preview').addEventListener('click',()=>renderer.inspect());
 $('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
 $('again').addEventListener('click',()=>{reset();play();});
@@ -1192,8 +836,7 @@ for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
   saveSettings();
 });
 document.addEventListener('keydown',e=>{
-  if(e.code==='Escape') {if(!$('knife-inventory').classList.contains('hidden'))closeKnives();else if(playing)pause();return;}
-  if(e.code==='KeyF'&&!e.ctrlKey&&!e.metaKey&&!e.altKey) {if(!e.repeat)renderer.inspect();return;}
+  if(e.code==='Escape') {if(playing)pause();return;}
   if(!playing) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','KeyW','KeyA','KeyS','KeyD','ControlLeft','ControlRight'].includes(e.code)) e.preventDefault();
   if(e.code==='KeyR'&&!e.repeat) {reset();toast('NEW RUN');return;}
@@ -1228,7 +871,6 @@ if(Number.isFinite(settings.sensitivity))sensitivity=Math.min(5,Math.max(0.2,set
 if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 $('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);
 $('fov').value=fov;$('fov-value').textContent=fov;
-chooseKnife(Object.hasOwn(KNIVES,settings.knife)?settings.knife:DEFAULT_KNIFE,false);
 reset();requestAnimationFrame(frame);
 
 </script>

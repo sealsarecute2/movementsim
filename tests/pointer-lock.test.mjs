@@ -5,10 +5,8 @@ import vm from 'node:vm';
 import * as physics from '../dist/physics.js';
 import * as course from '../dist/course.js';
 import * as endlessModule from '../dist/endless.js';
-import * as knifeModule from '../dist/knives.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
-const elementClasses=new Map([...markup.matchAll(/<[^>]+\bid="([^"]+)"[^>]*>/g)].map(match=>[match[1],match[0].match(/\bclass="([^"]*)"/)?.[1].split(/\s+/)||[]]));
 
 // Exercise the real app event handlers with a browser API test double. Rendering
 // is stubbed here; these checks verify capture, pause and error behavior only.
@@ -25,22 +23,21 @@ function boot(stored = {}, search = '') {
   window.location={search};
   document.getElementById=id=>{
     if(!elementIds.has(id))return null;
-    if(!elements.has(id)){const el=element();for(const name of elementClasses.get(id)||[])el.classList.add(name);elements.set(id,el);}
+    if(!elements.has(id))elements.set(id,element());
     return elements.get(id);
   };
   document.querySelectorAll=()=>[];document.body=element();document.pointerLockElement=null;
-  const canvas=document.getElementById('world');let requests=0,lastCamera,inspections=0,equipped='';
+  const canvas=document.getElementById('world');let requests=0,lastCamera;
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
-  const context=vm.createContext({...physics,...course,...endlessModule,...knifeModule,document,window,
+  const context=vm.createContext({...physics,...course,...endlessModule,document,window,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
-    requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw:p=>lastCamera=p,
-      setKnife:id=>{equipped=id;},inspect:()=>{inspections++;},cancelInspect(){}})});
+    requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw:p=>lastCamera=p})});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
   return {context,document,window,canvas,element:id=>document.getElementById(id),
-    requests:()=>requests,inspections:()=>inspections,equipped:()=>equipped,camera:()=>lastCamera,read:source=>vm.runInContext(source,context),storage,
+    requests:()=>requests,camera:()=>lastCamera,read:source=>vm.runInContext(source,context),storage,
     lock(){document.pointerLockElement=canvas;document.fire('pointerlockchange');}};
 }
 test('Enter waits for capture, then mouse movement looks without dragging',()=>{
@@ -183,35 +180,4 @@ test('the published entry page contains the complete build and visible Endless b
   assert.ok(!/<script[^>]+src=/.test(entry),'the entry point must not combine separately cached app modules');
   const script=entry.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
   new vm.Script(script);
-});
-test('all 22 vanilla knives can be equipped and the choice is saved and restored',()=>{
-  const app=boot();
-  assert.equal((app.element('knife-grid').innerHTML.match(/data-knife=/g)||[]).length,22);
-  for(const knife of knifeModule.KNIFE_LIST){
-    app.read(`chooseKnife('${knife.id}',false)`);
-    assert.equal(app.equipped(),knife.id);assert.equal(app.element('knife-name').textContent,knife.name);
-    assert.equal(JSON.parse(app.storage.get('movement-lab-settings-v1')).knife,knife.id);
-  }
-  const saved=boot({'movement-lab-settings-v1':JSON.stringify({knife:'butterfly'})});
-  assert.equal(saved.equipped(),'butterfly');assert.equal(saved.inspections(),0);
-});
-test('F inspects once per press and movement continues during inspection',()=>{
-  const app=boot();app.element('play').fire('click');app.lock();
-  app.document.fire('keydown',{code:'KeyF',repeat:false});
-  app.document.fire('keydown',{code:'KeyF',repeat:true});
-  assert.equal(app.inspections(),1);
-  app.read("keys.add('KeyW');for(let i=0;i<64;i++)tick()");
-  assert.ok(app.read('speed(player)')>0);assert.ok(app.read('runTime')>0);
-  app.document.fire('keydown',{code:'KeyF',repeat:false,ctrlKey:true});
-  assert.equal(app.inspections(),1);
-});
-test('knife inventory pauses play, selection previews the knife, and Escape closes it',()=>{
-  const app=boot();app.element('knife-inventory').classList.add('hidden');
-  app.element('play').fire('click');app.lock();app.element('knife-picker').fire('click');
-  assert.equal(app.read('playing'),false);assert.equal(app.element('knife-inventory').classList.contains('hidden'),false);
-  app.element('knife-grid').fire('click',{target:{closest:()=>({dataset:{knife:'karambit'}})}});
-  assert.equal(app.equipped(),'karambit');assert.equal(app.inspections(),1);
-  assert.equal(app.element('knife-inventory').classList.contains('hidden'),true);
-  app.element('knife-picker').fire('click');app.document.fire('keydown',{code:'Escape'});
-  assert.equal(app.element('knife-inventory').classList.contains('hidden'),true);
 });
