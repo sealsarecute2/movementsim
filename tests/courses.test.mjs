@@ -6,10 +6,11 @@ import { createPlayer, step, support, PRESETS, DT, RULES } from '../dist/physics
 test('the course catalog includes nine distinct timed courses and free roam',()=>{
   assert.equal(MAP_LIST.filter(m=>m.timed).length,9);
   assert.equal(new Set(MAP_LIST.map(m=>m.id)).size,MAP_LIST.length);
-  assert.equal(MAP_LIST.find(m=>!m.timed).id,'free');
+  assert.equal(MAP_LIST.find(m=>m.id==='free').timed,false);
+  assert.equal(MAP_LIST.find(m=>m.id==='endless').endless,true);
   assert.equal(new Set(MAP_LIST.filter(m=>m.route).map(m=>JSON.stringify(m.route))).size,8);
 });
-for(const map of MAP_LIST) {
+for(const map of MAP_LIST.filter(m=>!m.endless)) {
   test(`${map.title}: checkpoints spawn with room to stand and face the route`,()=>{
     assert.equal(map.spawns.length,map.stages.length);
     assert.equal(map.boxes.filter(b=>b.finish).length,map.timed?1:0);

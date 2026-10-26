@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import * as physics from '../dist/physics.js';
 import * as course from '../dist/course.js';
+import * as endlessModule from '../dist/endless.js';
 
 // Exercise the real app event handlers with a browser API test double. Rendering
 // is stubbed here; these checks verify capture, pause and error behavior only.
@@ -26,7 +27,7 @@ function boot(stored = {}) {
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
-  const context=vm.createContext({...physics,...course,document,window,
+  const context=vm.createContext({...physics,...course,...endlessModule,document,window,
     performance:{now:()=>0},localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw:p=>lastCamera=p})});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
@@ -124,4 +125,35 @@ test('saved course restores its spawn and next-course button advances and captur
   app.element('next-course').fire('click');
   assert.equal(app.read('map'),'circuit');assert.equal(app.requests(),1);
   app.lock();assert.equal(app.document.body.classList.contains('playing'),true);
+});
+test('every course is selectable and starts without requiring a previous completion',()=>{
+  for(const map of course.MAP_LIST) {
+    const app=boot();
+    assert.ok(app.element('map-select').innerHTML.includes(`value="${map.id}"`));
+    assert.ok(!app.element('map-select').innerHTML.includes('disabled'));
+    app.element('map-select').value=map.id;app.element('map-select').fire('change');
+    app.element('play').fire('click');app.lock();
+    assert.equal(app.read('playing'),true,map.title);
+    app.read("keys.add('KeyW');for(let i=0;i<64;i++)tick()");
+    assert.ok(app.read('runTime')>0,map.title);
+    assert.ok(app.read('speed(player)')>0,map.title);
+  }
+});
+test('endless checkpoints save in the bottom right, respawn safely, and retain distance records',()=>{
+  const app=boot();app.read("chooseMap('endless')");
+  for(const index of [8,16,24,32,40]) {
+    app.read(`{const b=endless.platform(${index});player=createPlayer({x:(b.min[0]+b.max[0])/2,y:b.max[1],z:(b.min[2]+b.max[2])/2,yaw:0});tick()}`);
+    assert.equal(app.read('checkpoint'),index/8);
+    assert.equal(app.element('toast').classList.contains('checkpoint-notice'),true);
+    assert.match(app.element('toast').textContent,/SAVED/);
+    app.read('player.y=-2000;tick()');
+    assert.equal(app.read('player.y'),app.read('endless.spawn.y'));
+    assert.equal(app.read('player.z'),app.read('endless.spawn.z'));
+    assert.equal(app.read('completed'),false);
+  }
+  assert.equal(app.element('best-label').textContent,'BEST DISTANCE');
+  assert.ok(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:classic']>9000);
+  app.read('reset()');
+  assert.equal(app.read('checkpoint'),0);assert.equal(app.read('endless.distance'),0);
+  assert.equal(app.read('runTime'),0);
 });

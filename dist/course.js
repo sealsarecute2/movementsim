@@ -1,3 +1,4 @@
+import { createEndless } from './endless.js';
 // All distances and velocities use Source units. y is up; forward is -z.
 const box = (x, z, w, d, top = 0, extra = {}) => ({
   min: [x - w / 2, top - 120, z - d / 2],
@@ -155,6 +156,7 @@ const gauntlet = makeCourse('gauntlet', 'The Gauntlet', 'Hard',
     stage('Finish the gauntlet.', 'Walk the beam, then jump the last two pillars.')],
   [{ min: [320, 202, -2530], max: [480, 228, -2250], roof: true }]);
 
+const endlessPreview = createEndless(1);
 export const MAP_LIST = [
   { id: 'course', title: 'Starter course', difficulty: 'Easy', timed: true,
     description: 'The original three-part route: runway, strafes, and movement control.',
@@ -163,6 +165,10 @@ export const MAP_LIST = [
       stage('Carry it through the turn.', 'Release W. Match A / D with a smooth mouse turn.'),
       stage('Slow down. Stay in control.', 'Walk the beam. Crouch under the low ceiling.')] },
   momentum, zigzag, skyline, circuit, balance, underpass, needles, gauntlet,
+  { id: 'endless', title: 'Endless', difficulty: 'Infinite', endless: true, timed: false,
+    description: 'A new never-ending route each run. Checkpoints every 8 blocks. Chase your farthest distance.',
+    boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
+    stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. R starts a new route.')] },
   { id: 'free', title: 'Free roam', difficulty: 'Sandbox', timed: false,
     description: 'A wide floor for strafing, hops, and stopping practice.', boxes: PRACTICE,
     spawns: [SPAWNS[0]], stages: [stage('Make your own line.', 'A wide floor for strafing, hops, and stopping practice.')] },

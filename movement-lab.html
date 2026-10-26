@@ -12,6 +12,8 @@
 
 #map-select{width:100%;min-height:39px;border:1px solid #393939;background:#151515;color:#eee;font:9px 'IBM Plex Mono',monospace;padding:10px 8px;cursor:pointer;color-scheme:dark}#map-select:focus-visible{outline:2px solid #fff;outline-offset:3px}.map-description{font-size:9px;line-height:1.8;color:#aaa;margin:10px 0 0;min-height:17px}.course-panel #course-title{color:#999;max-width:185px}.course-panel #progress-count{flex-shrink:0;margin-left:10px}#next-course{color:#ddd;border:1px solid #444;padding:10px 16px;width:100%;margin-top:12px}#next-course:hover{border-color:#aaa}
 
+#toast.checkpoint-notice{top:auto;left:auto;right:34px;bottom:185px;transform:none;max-width:calc(100vw - 40px);font-size:9px;letter-spacing:1px;text-align:left;padding:12px 16px} .run-stats p #best-label{color:#777;margin-left:0}@media(max-width:760px){#toast.checkpoint-notice{right:20px;bottom:185px}}
+
 </style>
 </head>
 <body>
@@ -22,7 +24,7 @@
     <div class="session"><span class="dot"></span><span id="preset-badge">CS-STYLE</span><span class="divider">/</span><span id="map-badge">COURSE 01</span><button id="menu-button" aria-label="Open settings">ESC <span>≡</span></button></div>
   </header>
   <div id="crosshair" aria-hidden="true"><i></i><i></i></div>
-  <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p>BEST <span id="best">—</span></p></aside>
+  <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p><span id="best-label">BEST</span> <span id="best">—</span></p></aside>
   <div id="toast" role="status" aria-live="polite"></div>
   <div class="bottom-hud">
     <div class="input-panel"><span class="eyebrow">INPUT</span><div class="keys"><kbd data-key="KeyW" class="w">W</kbd><kbd data-key="KeyA">A</kbd><kbd data-key="KeyS">S</kbd><kbd data-key="KeyD">D</kbd></div><div class="modifiers"><kbd data-key="ShiftLeft">SHIFT</kbd><kbd data-key="ControlLeft">CTRL</kbd><kbd data-key="Space">SPACE</kbd></div><div class="quick-help"><span>R</span> RESTART <span>E</span> CHECKPOINT</div></div>
@@ -31,10 +33,10 @@
   </div>
   <div id="overlay" class="overlay">
     <main class="menu">
-      <div class="menu-heading"><span class="eyebrow" id="menu-eyebrow">A GREYBOX MOVEMENT EXPERIMENT</span><span class="version">9 COURSES</span></div>
+      <div class="menu-heading"><span class="eyebrow" id="menu-eyebrow">A GREYBOX MOVEMENT EXPERIMENT</span><span class="version">9 COURSES + ENDLESS</span></div>
       <h1 id="menu-title">JUST<br>MOVEMENT<span>.</span></h1>
       <p class="intro" id="menu-description">No skins. No distractions. Find the rhythm of a clean hop, carry your speed, and make the next block.</p>
-      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Hold Space to hop · capped bhops · landing slowdown</p></fieldset><fieldset><legend><label for="map-select">COURSE SELECT</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option></select><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
+      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Hold Space to hop · capped bhops · landing slowdown</p></fieldset><fieldset><legend><label for="map-select">COURSE SELECT · ALL UNLOCKED</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option></select><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
       <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>R / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">2.00</output><input id="sensitivity" type="range" min="0.2" max="5" step="0.05" value="2"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
@@ -46,6 +48,69 @@
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
   <script type="module">
+// A repeatable route with a bounded set of nearby platforms. Coordinates are
+// shifted periodically so long runs keep the renderer and collision hull precise.
+function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
+  seed >>>= 0;
+  let originZ = 0, checkpointIndex = 0, furthestBlock = 0, furthestDistance = 0;
+  let windowIndex = -1, boxes = [], spawn = { x: 0, y: 0, z: 80, yaw: 0 };
+  function random(index, salt) {
+    let h = (seed ^ Math.imul(index, 0x45d9f3b) ^ salt) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+    h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+    return ((h ^ (h >>> 16)) >>> 0) / 0x100000000;
+  }
+  function center(index) {
+    if (!index) return { x: 0, y: 0, z: originZ };
+    return { x: Math.round(Math.sin(index * 0.48 + seed % 31) * 100 + (random(index, 17) - 0.5) * 50),
+      y: 12 * Math.round(Math.sin(index * 0.27) * 2), z: -380 - (index - 1) * 250 + originZ };
+  }
+  function platform(index) {
+    const p = center(index), saved = index % 8 === 0;
+    const width = !index ? 480 : saved ? 400 : 180 + 20 * Math.floor(random(index, 29) * 4);
+    const depth = !index ? 480 : saved ? 280 : 180 + 20 * Math.floor(random(index, 53) * 3);
+    return { min: [p.x - width / 2, p.y - 120, p.z - depth / 2],
+      max: [p.x + width / 2, p.y, p.z + depth / 2], endlessIndex: index,
+      ...(saved ? { checkpoint: index / 8, label: index ? 'CHECKPOINT' : 'ENDLESS / START' } : {}) };
+  }
+  function rebuild(index) {
+    const wanted = new Set();
+    for (let i = Math.max(0, index - 6); i <= index + 30; i++) wanted.add(i);
+    // Keep the saved deck and a small runway ahead even after a missed checkpoint.
+    for (let i = Math.max(0, checkpointIndex - 2); i <= checkpointIndex + 6; i++) wanted.add(i);
+    boxes = [...wanted].sort((a, b) => a - b).map(platform);
+    windowIndex = index;
+  }
+  function update(player, ground = null) {
+    furthestDistance = Math.max(furthestDistance, originZ - player.z);
+    let checkpointSaved = false, shift = 0;
+    if (ground && Number.isInteger(ground.endlessIndex)) {
+      furthestBlock = Math.max(furthestBlock, ground.endlessIndex);
+      if (ground.endlessIndex > checkpointIndex && ground.endlessIndex % 8 === 0) {
+        checkpointIndex = ground.endlessIndex;
+        const p = center(checkpointIndex), next = center(checkpointIndex + 1);
+        const yaw = Math.atan2(next.x - p.x, p.z - next.z);
+        spawn = { x: p.x - Math.sin(yaw) * 65, y: p.y, z: p.z + Math.cos(yaw) * 65, yaw };
+        checkpointSaved = true;
+      }
+    }
+    if (Math.abs(player.z) > 8192) {
+      shift = Math.trunc(player.z / 4096) * 4096;
+      player.z -= shift; originZ -= shift; spawn.z -= shift;
+    }
+    const index = Math.max(0, 1 + Math.round((originZ - player.z - 380) / 250));
+    const changed = index !== windowIndex || checkpointSaved || shift !== 0;
+    if (changed) rebuild(index);
+    return { changed, checkpointSaved, shift };
+  }
+  rebuild(0);
+  return { seed, update, platform,
+    get boxes() { return boxes; }, get spawn() { return { ...spawn }; },
+    get checkpoint() { return checkpointIndex / 8; },
+    get furthestBlock() { return furthestBlock; }, get distance() { return Math.max(0, furthestDistance); },
+    get originZ() { return originZ; } };
+}
+
 // All distances and velocities use Source units. y is up; forward is -z.
 const box = (x, z, w, d, top = 0, extra = {}) => ({
   min: [x - w / 2, top - 120, z - d / 2],
@@ -203,6 +268,7 @@ const gauntlet = makeCourse('gauntlet', 'The Gauntlet', 'Hard',
     stage('Finish the gauntlet.', 'Walk the beam, then jump the last two pillars.')],
   [{ min: [320, 202, -2530], max: [480, 228, -2250], roof: true }]);
 
+const endlessPreview = createEndless(1);
 const MAP_LIST = [
   { id: 'course', title: 'Starter course', difficulty: 'Easy', timed: true,
     description: 'The original three-part route: runway, strafes, and movement control.',
@@ -211,6 +277,10 @@ const MAP_LIST = [
       stage('Carry it through the turn.', 'Release W. Match A / D with a smooth mouse turn.'),
       stage('Slow down. Stay in control.', 'Walk the beam. Crouch under the low ceiling.')] },
   momentum, zigzag, skyline, circuit, balance, underpass, needles, gauntlet,
+  { id: 'endless', title: 'Endless', difficulty: 'Infinite', endless: true, timed: false,
+    description: 'A new never-ending route each run. Checkpoints every 8 blocks. Chase your farthest distance.',
+    boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
+    stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. R starts a new route.')] },
   { id: 'free', title: 'Free roam', difficulty: 'Sandbox', timed: false,
     description: 'A wide floor for strafing, hops, and stopping practice.', boxes: PRACTICE,
     spawns: [SPAWNS[0]], stages: [stage('Make your own line.', 'A wide floor for strafing, hops, and stopping practice.')] },
@@ -501,6 +571,7 @@ let renderer;
 try { renderer = createRenderer(canvas, MAPS.course.boxes); }
 catch (error) { $('menu-description').textContent=error.message; $('play').disabled=true; throw error; }
 let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
+let endless = null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
@@ -521,12 +592,27 @@ const format = seconds => {
 function saveSettings() {
   try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov})); } catch {}
 }
-function toast(message) { $('toast').textContent=message; $('toast').classList.add('show'); toastUntil=performance.now()+2300; }
+function toast(message,checkpointNotice=false) {
+  $('toast').textContent=message; $('toast').classList.toggle('checkpoint-notice',checkpointNotice);
+  $('toast').classList.add('show'); toastUntil=performance.now()+2300;
+}
+function saveEndlessBest() {
+  if(!endless||!MAPS[map].endless||endless.distance<=(bests[recordKey()]||0)) return;
+  bests[recordKey()]=Math.floor(endless.distance);
+  try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {}
+}
 function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
+  if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
+  if(MAPS[map].endless&&(full||!endless)) {
+    endless=createEndless();boxes=endless.boxes;renderer.setBoxes(boxes);
+  }
   const previousPeak=player.peakSpeed;
-  player=createPlayer(MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
+  player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
+  if(endless) {
+    endless.update(player);boxes=endless.boxes;renderer.setBoxes(boxes);
+  }
   if(!full) player.peakSpeed=previousPeak;
   previousDraw={...player}; accumulator=0; pendingJump=false;
   completed=false; $('finish').classList.add('hidden');
@@ -534,6 +620,7 @@ function reset(full=true) {
 }
 function pause() {
   if(completed) return;
+  saveEndlessBest();
   playing=false; lockPending=false; clearInput(); document.body.classList.remove('playing');
   $('play').disabled=false;
   overlay.classList.remove('hidden');
@@ -577,6 +664,9 @@ function play() {
 }
 function choosePreset(value,resetRun=true) {
   if(!PRESETS[value]) return;
+  saveEndlessBest();
+  // The new preset starts a fresh endless record and route.
+  if(endless)endless=null;
   preset=value;
   document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===value));
   $('preset-badge').textContent=PRESETS[preset].title.toUpperCase();
@@ -586,13 +676,14 @@ function choosePreset(value,resetRun=true) {
 }
 function chooseMap(value,resetRun=true) {
   if(!Object.hasOwn(MAPS,value)) return;
+  saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
   const selected=MAPS[map], count=selected.spawns.length-1;
   $('map-select').value=map;
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
-  $('map-meta').textContent=selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('map-meta').textContent=selected.endless?'Infinite · checkpoint every 8 blocks':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
@@ -612,7 +703,8 @@ function finishRun() {
 function updateHud() {
   const s=speed(player);
   ui.timer.textContent=format(runTime);
-  ui.best.textContent=MAPS[map].timed&&Number.isFinite(bests[recordKey()])?format(bests[recordKey()]):'—';
+  $('best-label').textContent=MAPS[map].endless?'BEST DISTANCE':'BEST';
+  ui.best.textContent=MAPS[map].endless?`${Math.floor(Math.max(bests[recordKey()]||0,endless?.distance||0))} u`:MAPS[map].timed&&Number.isFinite(bests[recordKey()])?format(bests[recordKey()]):'—';
   ui.speed.textContent=Math.round(s);ui['speed-fill'].style.width=`${Math.min(100,s/5)}%`;
   ui['motion-state'].textContent=player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
   const gain=Math.round(s-player.lastJumpSpeed);
@@ -620,9 +712,9 @@ function updateHud() {
   ui.hops.textContent=String(player.hops).padStart(2,'0');
   ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');
-  const selected=MAPS[map], currentStage=selected.stages[checkpoint];
-  ui['progress-count'].textContent=selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
-  ui['stage-name'].textContent=currentStage.title;
+  const selected=MAPS[map], currentStage=selected.stages[selected.endless?0:checkpoint];
+  ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
+  ui['stage-name'].textContent=selected.endless?`${Math.floor(endless?.distance||0)} u traveled · CP ${checkpoint}`:currentStage.title;
   ui['stage-tip'].textContent=currentStage.tip;
   document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',i<=checkpoint));
   document.querySelectorAll('[data-key]').forEach(el=>{
@@ -644,16 +736,25 @@ function tick() {
   if(runActive) runTime+=DT;
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  if(endless) {
+    const result=endless.update(player,support(player,boxes,1));
+    if(result.shift)previousDraw.z-=result.shift;
+    if(result.changed) {boxes=endless.boxes;renderer.setBoxes(boxes);}
+    if(result.checkpointSaved) {
+      checkpoint=endless.checkpoint;saveEndlessBest();
+      toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+    }
+  }
   if(MAPS[map].timed) {
     const ground=support(player,boxes,1);
     if(ground?.checkpoint===checkpoint+1) {
-      checkpoint=ground.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`);
+      checkpoint=ground.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
     }
     if(ground?.finish&&checkpoint===MAPS[map].spawns.length-1) finishRun();
   }
   if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
     respawns++;reset(false);
-    toast(MAPS[map].timed?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
+    toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
   }
 }
 function frame(now) {
@@ -665,7 +766,10 @@ function frame(now) {
   const alpha=playing?Math.max(0,accumulator/DT):1;
   const camera={...player,x:previousDraw.x+(player.x-previousDraw.x)*alpha,
     y:previousDraw.y+(player.y-previousDraw.y)*alpha,z:previousDraw.z+(player.z-previousDraw.z)*alpha};
-  if(!started) Object.assign(camera,{...MAPS[map].spawns[0],y:MAPS[map].spawns[0].y+35,pitch:-0.18});
+  if(!started) {
+    const spawn=endless?endless.spawn:MAPS[map].spawns[0];
+    Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
+  }
   renderer.draw(camera,fov);updateHud();
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
@@ -713,6 +817,7 @@ document.addEventListener('mousemove',e=>{
 });
 document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump=true;}},{passive:false});
 window.addEventListener('blur',()=>{if(playing||lockPending)pause();});
+window.addEventListener('pagehide',saveEndlessBest);
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(playing||lockPending))pause();});
 if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
 chooseMap(Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
