@@ -66,8 +66,9 @@ export function createRenderer(canvas, boxes) {
         for(const z of b.finish?[start,end]:[start]) addBox({min:[b.min[0]+8,top,z],max:[b.max[0]-8,top+0.3,z+3]},0.78);
         if(!b.finish) for(let z=end-30;z>start+30;z-=80)
           addBox({min:[cx-2,top,z-18],max:[cx+2,top+0.3,z+18]},0.61);
+        const tile=(b.max[0]-b.min[0])/10;
         if(b.finish) for(let i=0;i<10;i++) for(let j=0;j<2;j++) if((i+j)%2===0)
-          addBox({min:[b.min[0]+i*40,top,end-24+j*20],max:[b.min[0]+(i+1)*40,top+0.3,end-4+j*20]},0.82);
+          addBox({min:[b.min[0]+i*tile,top,end-24+j*20],max:[b.min[0]+(i+1)*tile,top+0.3,end-4+j*20]},0.82);
       }
     }
     count=vertices.length/7;

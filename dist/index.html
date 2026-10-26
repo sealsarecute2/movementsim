@@ -20,14 +20,15 @@
   <div class="bottom-hud">
     <div class="input-panel"><span class="eyebrow">INPUT</span><div class="keys"><kbd data-key="KeyW" class="w">W</kbd><kbd data-key="KeyA">A</kbd><kbd data-key="KeyS">S</kbd><kbd data-key="KeyD">D</kbd></div><div class="modifiers"><kbd data-key="ShiftLeft">SHIFT</kbd><kbd data-key="ControlLeft">CTRL</kbd><kbd data-key="Space">SPACE</kbd></div><div class="quick-help"><span>R</span> RESTART <span>E</span> CHECKPOINT</div></div>
     <div class="speed-panel"><div class="speed-readout"><strong id="speed">0</strong><span>u/s</span></div><div class="speed-track"><i id="speed-fill"></i><b></b></div><div class="speed-labels"><span id="motion-state">ON GROUND</span><span id="gain">250 MAX RUN</span></div><div class="hop-stats"><span>HOPS <b id="hops">00</b></span><span>PEAK <b id="peak">000</b></span><span>JUMP <b id="jump-speed">000</b></span></div></div>
-    <div class="course-panel"><div class="eyebrow">STARTER COURSE <span id="progress-count">01 / 03</span></div><strong id="stage-name">Find your momentum.</strong><div class="stages"><i class="active"></i><i></i><i></i></div><p id="stage-tip">Build speed on the runway. Jump at the edge.</p></div>
+    <div class="course-panel"><div class="eyebrow"><span id="course-title">STARTER COURSE</span> <span id="progress-count">01 / 03</span></div><strong id="stage-name">Find your momentum.</strong><div class="stages" id="stage-markers"><i class="active"></i><i></i><i></i></div><p id="stage-tip">Build speed on the runway. Jump at the edge.</p></div>
   </div>
   <div id="overlay" class="overlay">
     <main class="menu">
-      <div class="menu-heading"><span class="eyebrow" id="menu-eyebrow">A GREYBOX MOVEMENT EXPERIMENT</span><span class="version">BUILD 01</span></div>
+      <div class="menu-heading"><span class="eyebrow" id="menu-eyebrow">A GREYBOX MOVEMENT EXPERIMENT</span><span class="version">9 COURSES</span></div>
       <h1 id="menu-title">JUST<br>MOVEMENT<span>.</span></h1>
       <p class="intro" id="menu-description">No skins. No distractions. Find the rhythm of a clean hop, carry your speed, and make the next block.</p>
-      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Hold Space to hop · capped bhops · landing slowdown</p></fieldset><fieldset><legend>MAP</legend><div class="segmented"><button class="selected" data-map="course">Starter course</button><button data-map="free">Free roam</button></div><p>3 sections · 2 checkpoints · local personal best</p></fieldset></div>
+      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Hold Space to hop · capped bhops · landing slowdown</p></fieldset><fieldset><legend><label for="map-select">COURSE SELECT</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option></select><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
+      <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>R / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">2.00</output><input id="sensitivity" type="range" min="0.2" max="5" step="0.05" value="2"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <button id="play" class="play">ENTER THE COURSE <span>↗</span></button>
@@ -36,7 +37,7 @@
     </main>
     <div class="menu-caption"><span>01 — LEARN THE LINE</span><span>RUN → JUMP → STRAFE → REPEAT</span></div>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-settings" class="text-button">Change settings</button></div></div>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

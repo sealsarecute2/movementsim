@@ -1,14 +1,14 @@
 import { DT, PRESETS, createPlayer, step, speed, support } from './physics.js';
-import { COURSE, PRACTICE, SPAWNS } from './course.js';
+import { MAPS, MAP_LIST } from './course.js';
 import { createRenderer } from './renderer.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
 let renderer;
-try { renderer = createRenderer(canvas, COURSE); }
+try { renderer = createRenderer(canvas, MAPS.course.boxes); }
 catch (error) { $('menu-description').textContent=error.message; $('play').disabled=true; throw error; }
-let preset = 'classic', map = 'course', boxes = COURSE, player = createPlayer(SPAWNS[0]);
+let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
@@ -17,6 +17,11 @@ try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } c
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
+// Preserve records from the original single-course version.
+for(const mode of Object.keys(PRESETS)) {
+  if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
+}
+const recordKey = () => `${map}:${preset}`;
 const format = seconds => {
   const ms=Math.floor(Math.max(0,seconds)*1000);
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
@@ -29,7 +34,7 @@ function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   const previousPeak=player.peakSpeed;
-  player=createPlayer(SPAWNS[map==='course'?checkpoint:0]);
+  player=createPlayer(MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
   if(!full) player.peakSpeed=previousPeak;
   previousDraw={...player}; accumulator=0; pendingJump=false;
   completed=false; $('finish').classList.add('hidden');
@@ -88,19 +93,26 @@ function choosePreset(value,resetRun=true) {
   saveSettings(); updateHud();
 }
 function chooseMap(value,resetRun=true) {
-  if(!['course','free'].includes(value)) return;
-  map=value; boxes=map==='course'?COURSE:PRACTICE; renderer.setBoxes(boxes);
-  document.querySelectorAll('[data-map]').forEach(b=>b.classList.toggle('selected',b.dataset.map===value));
-  $('map-badge').textContent=map==='course'?'COURSE 01':'FREE ROAM';
+  if(!Object.hasOwn(MAPS,value)) return;
+  map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
+  const selected=MAPS[map], count=selected.spawns.length-1;
+  $('map-select').value=map;
+  $('map-badge').textContent=selected.title.toUpperCase();
+  $('course-title').textContent=selected.title.toUpperCase();
+  $('map-description').textContent=selected.description;
+  $('map-meta').textContent=selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
+  clearInput();
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
 function finishRun() {
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
   if(document.pointerLockElement===canvas) document.exitPointerLock();
-  const old=bests[preset], clean=respawns===0;
+  const key=recordKey(), old=bests[key], clean=respawns===0;
   const isPB=clean&&(!Number.isFinite(old)||runTime<old);
-  if(isPB) { bests[preset]=runTime; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
+  if(isPB) { bests[key]=runTime; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
+  $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
   $('finish-time').textContent=format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
@@ -108,7 +120,7 @@ function finishRun() {
 function updateHud() {
   const s=speed(player);
   ui.timer.textContent=format(runTime);
-  ui.best.textContent=map==='course'&&Number.isFinite(bests[preset])?format(bests[preset]):'—';
+  ui.best.textContent=MAPS[map].timed&&Number.isFinite(bests[recordKey()])?format(bests[recordKey()]):'—';
   ui.speed.textContent=Math.round(s);ui['speed-fill'].style.width=`${Math.min(100,s/5)}%`;
   ui['motion-state'].textContent=player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
   const gain=Math.round(s-player.lastJumpSpeed);
@@ -116,10 +128,11 @@ function updateHud() {
   ui.hops.textContent=String(player.hops).padStart(2,'0');
   ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');
-  ui['progress-count'].textContent=map==='course'?`0${checkpoint+1} / 03`:'SANDBOX';
-  ui['stage-name'].textContent=map==='free'?'Make your own line.':['Find your momentum.','Carry it through the turn.','Slow down. Stay in control.'][checkpoint];
-  ui['stage-tip'].textContent=map==='free'?'A wide floor for strafing, hops, and stopping practice.':['Build speed on the runway. Jump at the edge.','Release W. Match A / D with a smooth mouse turn.','Walk the beam. Crouch under the low ceiling.'][checkpoint];
-  document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',map==='free'||i<=checkpoint));
+  const selected=MAPS[map], currentStage=selected.stages[checkpoint];
+  ui['progress-count'].textContent=selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
+  ui['stage-name'].textContent=currentStage.title;
+  ui['stage-tip'].textContent=currentStage.tip;
+  document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',i<=checkpoint));
   document.querySelectorAll('[data-key]').forEach(el=>{
     const k=el.dataset.key;
     el.classList.toggle('pressed',keys.has(k)||(k==='ShiftLeft'&&keys.has('ShiftRight'))||(k==='ControlLeft'&&(keys.has('ControlRight')||keys.has('KeyC'))));
@@ -139,16 +152,16 @@ function tick() {
   if(runActive) runTime+=DT;
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
-  if(map==='course') {
+  if(MAPS[map].timed) {
     const ground=support(player,boxes,1);
-    if(ground?.checkpoint>checkpoint) {
-      checkpoint=ground.checkpoint; toast(`CHECKPOINT 0${checkpoint} SAVED — E TO RETURN`);
+    if(ground?.checkpoint===checkpoint+1) {
+      checkpoint=ground.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`);
     }
-    if(ground?.finish&&checkpoint===2) finishRun();
+    if(ground?.finish&&checkpoint===MAPS[map].spawns.length-1) finishRun();
   }
-  if(player.y<-550) {
+  if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
     respawns++;reset(false);
-    toast(map==='course'?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
+    toast(MAPS[map].timed?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
   }
 }
 function frame(now) {
@@ -160,7 +173,7 @@ function frame(now) {
   const alpha=playing?Math.max(0,accumulator/DT):1;
   const camera={...player,x:previousDraw.x+(player.x-previousDraw.x)*alpha,
     y:previousDraw.y+(player.y-previousDraw.y)*alpha,z:previousDraw.z+(player.z-previousDraw.z)*alpha};
-  if(!started) Object.assign(camera,{x:210,y:80,z:-80,yaw:-0.08,pitch:-0.25});
+  if(!started) Object.assign(camera,{...MAPS[map].spawns[0],y:MAPS[map].spawns[0].y+35,pitch:-0.18});
   renderer.draw(camera,fov);updateHud();
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
@@ -169,8 +182,13 @@ $('play').addEventListener('click',play);
 $('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
 $('again').addEventListener('click',()=>{reset();play();});
 $('finish-settings').addEventListener('click',()=>{reset();pause();});
+$('next-course').addEventListener('click',()=>{
+  const courses=MAP_LIST.filter(m=>m.timed), index=courses.findIndex(m=>m.id===map);
+  chooseMap(courses[(index+1)%courses.length].id);play();
+});
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
-document.querySelectorAll('[data-map]').forEach(b=>b.addEventListener('click',()=>chooseMap(b.dataset.map)));
+$('map-select').innerHTML=MAP_LIST.map((m,i)=>`<option value="${m.id}">${m.timed?String(i+1).padStart(2,'0')+' / ':''}${m.title} — ${m.difficulty}</option>`).join('');
+$('map-select').addEventListener('change',()=>chooseMap($('map-select').value));
 for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
   if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2);}
   else {fov=Number($(name).value);$('fov-value').textContent=fov;}
@@ -205,7 +223,7 @@ document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump
 window.addEventListener('blur',()=>{if(playing||lockPending)pause();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(playing||lockPending))pause();});
 if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
-if(['course','free'].includes(settings.map))chooseMap(settings.map,false);
+chooseMap(Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
 if(Number.isFinite(settings.sensitivity))sensitivity=Math.min(5,Math.max(0.2,settings.sensitivity));
 if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 $('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);
