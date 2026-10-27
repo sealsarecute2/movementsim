@@ -2,4 +2,5 @@
 # One entry per line: player name | time as MM:SS.mmm or seconds | classic or practice
 # The mode is optional and defaults to classic. Lines beginning with # are comments.
 # Example only — remove # and replace the score to publish a real record:
-# Youhong | 00:23.456 | classic
+# seals_are_cute | 00:23.456 | classic
+seals_are_cute | 00:09.314 | practice

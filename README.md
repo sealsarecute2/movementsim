@@ -4,6 +4,8 @@ Play at [sealsarecute2.github.io/movementsim](https://sealsarecute2.github.io/mo
 
 Use WASD to move, the mouse to look, Space or the wheel to jump, Shift to walk, and Ctrl/C to crouch. Q restarts a run, E restores your checkpoint, and Esc pauses. F inspects the knife; hold either mouse button to keep attacking.
 
+The interface scales with your window size and rearranges the HUD on narrow screens. Open **Custom crosshair** in the pause menu to choose **Default**, **Dot**, or **Cross**, adjust the red/green/blue sliders, and set the scale from **0.5× to 3×**. The live preview matches your in-game crosshair, and your settings are saved automatically.
+
 The timer starts after you leave the starting platform's airspace. Checkpoints and finishes activate while passing above them. Follow the blue edges to the next checkpoint or finish. FPS is shown in the top-left corner.
 
 Open **Movement & checkpoint sounds** in the menu to preview **Pulse**, **Glass**, and **Arcade**, then keep your favourite. Your choice, volume, and movement-sound toggle are saved in your browser. Jump, concrete footstep, landing, and falling wind samples come from CS2 game audio; checkpoint chimes are original synthesized sounds. Audio sources, processing details, and sample hashes are recorded in [sounds/sources.json](sounds/sources.json).

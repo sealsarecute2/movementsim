@@ -16,7 +16,7 @@ const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>matc
 function boot(stored = {}, search = '', renderError = null) {
   function element() {
     const listeners=new Map(),classes=new Set();
-    return {textContent:'',innerHTML:'',style:{},disabled:false,
+    return {textContent:'',innerHTML:'',style:{setProperty(name,value){this[name]=value;}},disabled:false,
       classList:{add:k=>classes.add(k),remove:k=>classes.delete(k),
         contains:k=>classes.has(k),toggle:(k,on)=>on?classes.add(k):classes.delete(k)},
       addEventListener:(name,fn)=>listeners.set(name,fn),
@@ -373,4 +373,41 @@ test('entering the finish plays one victory cue after stopping movement sounds, 
   assert.equal(app.read('completed'),true);assert.equal(app.read('finishSounds.join(",")'),'stop,finish');
   app.read('finishRun()');assert.equal(app.read('finishSounds.join(",")'),'stop,finish');
   app.read('reset()');assert.equal(app.read('finishSounds.at(-1)'),'stop');
+});
+test('crosshair starts with the original default style and a matching live preview',()=>{
+  const app=boot();
+  for(const id of ['crosshair','crosshair-preview']) {
+    assert.equal(app.element(id).className,'reticle reticle--default');
+    assert.equal(app.element(id).style.color,'rgb(221, 221, 221)');
+    assert.equal(app.element(id).style['--reticle-scale'],'1');
+  }
+  assert.equal(app.element('crosshair-colour-value').textContent,'#DDDDDD');
+  assert.equal(app.element('crosshair-scale-value').textContent,'1.00×');
+});
+test('all three crosshair styles, RGB sliders and scale update both reticles and persist across reloads',()=>{
+  const app=boot();
+  for(const style of ['dot','cross','default']) {
+    app.element('crosshair-style').value=style;app.element('crosshair-style').fire('change');
+    assert.equal(app.element('crosshair').className,'reticle reticle--'+style);
+    assert.equal(app.element('crosshair-preview').className,'reticle reticle--'+style);
+  }
+  for(const [name,value] of [['red',12],['green',255],['blue',80],['scale',2.25]]) {
+    app.element('crosshair-'+name).value=String(value);app.element('crosshair-'+name).fire('input');
+  }
+  assert.equal(app.element('crosshair').style.color,'rgb(12, 255, 80)');
+  assert.equal(app.element('crosshair-preview').style['--reticle-scale'],'2.25');
+  assert.equal(app.element('crosshair-colour-value').textContent,'#0CFF50');
+  const saved=app.storage.get('movement-lab-settings-v1'),again=boot({'movement-lab-settings-v1':saved});
+  assert.equal(again.element('crosshair').style.color,'rgb(12, 255, 80)');
+  assert.equal(again.element('crosshair').style['--reticle-scale'],'2.25');
+  assert.equal(again.element('crosshair-scale-value').textContent,'2.25×');
+  assert.equal(again.read('fov'),100);assert.equal(again.read('sensitivity'),1);
+});
+test('invalid stored crosshair settings fall back safely and numeric values stay within slider limits',()=>{
+  const app=boot({'movement-lab-settings-v1':JSON.stringify({crosshair:{style:'invalid',red:-20,green:999,blue:'80',scale:9}})});
+  assert.equal(app.element('crosshair').className,'reticle reticle--default');
+  assert.equal(app.element('crosshair').style.color,'rgb(0, 255, 221)');
+  assert.equal(app.element('crosshair').style['--reticle-scale'],'3');
+  const old=boot({'movement-lab-settings-v1':JSON.stringify({crosshair:null})});
+  assert.equal(old.element('crosshair').style.color,'rgb(221, 221, 221)');
 });

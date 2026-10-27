@@ -28,6 +28,7 @@ try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } c
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
+let crosshair = normaliseCrosshair(settings.crosshair);
 knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==false;
 movementSounds=settings.movementSounds!==false;
 if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.checkpointSound))checkpointSound=settings.checkpointSound;
@@ -42,7 +43,27 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair})); } catch {}
+}
+function normaliseCrosshair(value) {
+  const raw=value&&typeof value==='object'?value:{};
+  const bounded=(n,min,max,fallback)=>Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
+  return {style:['default','dot','cross'].includes(raw.style)?raw.style:'default',
+    red:Math.round(bounded(raw.red,0,255,221)),green:Math.round(bounded(raw.green,0,255,221)),
+    blue:Math.round(bounded(raw.blue,0,255,221)),scale:bounded(raw.scale,.5,3,1)};
+}
+function updateCrosshair() {
+  const colour=`rgb(${crosshair.red}, ${crosshair.green}, ${crosshair.blue})`;
+  for(const id of ['crosshair','crosshair-preview']) {
+    $(id).className=`reticle reticle--${crosshair.style}`;
+    $(id).style.color=colour;$(id).style.setProperty('--reticle-scale',String(crosshair.scale));
+  }
+  $('crosshair-style').value=crosshair.style;
+  for(const channel of ['red','green','blue']) {
+    $('crosshair-'+channel).value=crosshair[channel];$('crosshair-'+channel+'-value').textContent=crosshair[channel];
+  }
+  $('crosshair-colour-value').textContent='#'+['red','green','blue'].map(c=>crosshair[c].toString(16).padStart(2,'0')).join('').toUpperCase();
+  $('crosshair-scale').value=crosshair.scale;$('crosshair-scale-value').textContent=crosshair.scale.toFixed(2)+'×';
 }
 async function activateGameAudio() {
   if(!gameAudio) gameAudio=createGameAudio({movementEnabled:movementSounds,checkpointSound,volume:audioVolume,
@@ -312,6 +333,11 @@ $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
 $('leaderboard').addEventListener('close',()=>{leaderboardRequest++;});
+for(const name of ['style','red','green','blue','scale']) $('crosshair-'+name).addEventListener(name==='style'?'change':'input',()=>{
+  crosshair=normaliseCrosshair({...crosshair,[name]:name==='style'?$('crosshair-style').value:Number($('crosshair-'+name).value)});
+  updateCrosshair();saveSettings();
+});
+updateCrosshair();
 $('movement-sounds').checked=movementSounds;
 $('movement-sounds').addEventListener('change',()=>{
   movementSounds=$('movement-sounds').checked;gameAudio?.setMovementEnabled(movementSounds);

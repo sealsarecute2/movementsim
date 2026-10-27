@@ -16,7 +16,7 @@
     <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
     <div class="session"><span class="dot"></span><span id="preset-badge">CS-STYLE</span><span class="divider">/</span><span id="map-badge">COURSE 01</span><button id="menu-button" aria-label="Open settings">ESC <span>≡</span></button></div>
   </header>
-  <div id="crosshair" aria-hidden="true"><i></i><i></i></div>
+  <div id="crosshair" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div>
   <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p><span id="best-label">BEST</span> <span id="best">—</span></p></aside>
   <div id="toast" role="status" aria-live="polite"></div>
   <div class="bottom-hud">
@@ -32,6 +32,11 @@
       <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
+      <details class="crosshair-settings"><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
+        <div class="crosshair-top"><label for="crosshair-style">STYLE<select id="crosshair-style"><option value="default">Default</option><option value="dot">Dot</option><option value="cross">Cross</option></select></label><div class="crosshair-preview-stage" role="img" aria-label="Live crosshair preview"><div id="crosshair-preview" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div></div></div>
+        <fieldset class="crosshair-colour"><legend>COLOUR <output id="crosshair-colour-value">#DDDDDD</output></legend><label class="rgb-row" for="crosshair-red"><span>R</span><input id="crosshair-red" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair red"><output id="crosshair-red-value">221</output></label><label class="rgb-row" for="crosshair-green"><span>G</span><input id="crosshair-green" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair green"><output id="crosshair-green-value">221</output></label><label class="rgb-row" for="crosshair-blue"><span>B</span><input id="crosshair-blue" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair blue"><output id="crosshair-blue-value">221</output></label></fieldset>
+        <label class="crosshair-scale" for="crosshair-scale">SCALE <output id="crosshair-scale-value">1.00×</output><input id="crosshair-scale" type="range" min="0.5" max="3" step="0.05" value="1"></label>
+      </div></details>
       <div class="knife-settings"><label><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
       <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
       <details class="sound-settings"><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
