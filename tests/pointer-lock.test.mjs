@@ -13,7 +13,7 @@ const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>matc
 
 // Exercise the real app event handlers with a browser API test double. Rendering
 // is stubbed here; these checks verify input, run progression and pause behavior.
-function boot(stored = {}, search = '') {
+function boot(stored = {}, search = '', renderError = null) {
   function element() {
     const listeners=new Map(),classes=new Set();
     return {textContent:'',innerHTML:'',style:{},disabled:false,
@@ -37,7 +37,7 @@ function boot(stored = {}, search = '') {
   const storage=new Map(Object.entries(stored));
   const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,document,window,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
-    requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}})});
+    requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
   return {context,document,window,canvas,element:id=>document.getElementById(id),
@@ -356,4 +356,14 @@ test('leaderboard opens for the selected course, safely renders cloud records, a
   assert.equal(app.read('bests[recordKey()]'),undefined);
   app.element('leaderboard-close').fire('click');assert.equal(app.element('leaderboard').open,false);
   app.read("chooseMap('free')");assert.equal(app.element('leaderboard-button').disabled,true);
+});
+test('audio choices and cloud leaderboards remain usable without WebGL while play stays disabled',async()=>{
+  const app=boot({},'','WebGL is unavailable.');
+  assert.equal(app.element('play').disabled,true);assert.equal(app.element('play-endless').disabled,true);
+  assert.match(app.element('menu-description').textContent,/still available/);
+  app.element('checkpoint-sound').value='glass';await app.element('checkpoint-sound').fire('change');
+  assert.equal(app.read('checkpointSound'),'glass');
+  app.read('loadLeaderboard=async()=>[]');app.element('leaderboard-button').fire('click');await app.read('refreshLeaderboard()');
+  assert.equal(app.element('leaderboard').open,true);assert.match(app.element('leaderboard-status').textContent,/No records yet/);
+  app.element('play').fire('click');assert.equal(app.requests(),0);assert.equal(app.read('playing'),false);
 });

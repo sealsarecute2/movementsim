@@ -8,9 +8,13 @@ import { loadLeaderboard, leaderboardRows } from './leaderboard.js';
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
-let renderer;
+let renderer, rendererReady = true;
 try { renderer = createRenderer(canvas, MAPS.course.boxes); }
-catch (error) { $('menu-description').textContent=error.message; $('play').disabled=true; throw error; }
+catch (error) {
+  rendererReady=false;renderer={draw(){},setBoxes(){}};
+  $('menu-description').textContent=error.message+' Sound previews and leaderboards are still available.';
+  $('play').disabled=true;$('play-endless').disabled=true;
+}
 let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
 let endless = null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
@@ -68,7 +72,7 @@ function openLeaderboard() {
   $('leaderboard').showModal();void refreshLeaderboard();
 }
 function loadKnife() {
-  if(!knifeEnabled||knife) return Promise.resolve(knife);
+  if(!rendererReady||!knifeEnabled||knife) return Promise.resolve(knife);
   if(knifeLoad) return knifeLoad;
   $('knife-status').textContent='Loading Butterfly…';
   knifeLoad=import('./butterfly/butterfly-viewmodel.js').then(({createButterflyViewmodel})=>createButterflyViewmodel({
@@ -144,7 +148,7 @@ function mouseCaptureFailed() {
   toast('Click Enter to capture the mouse. Check that your browser allows pointer lock.');
 }
 function play() {
-  if(lockPending) return;
+  if(!rendererReady||lockPending) return;
   void activateGameAudio();
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
@@ -387,4 +391,4 @@ chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,setti
 $('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2)+'×';
 $('fov').value=fov;$('fov-value').textContent=fov;
 reset();requestAnimationFrame(frame);
-if(knifeEnabled) void loadKnife();else $('knife-status').textContent='Knife hidden';
+if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';
