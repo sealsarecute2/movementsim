@@ -3,3 +3,4 @@
 # The mode is optional and defaults to classic. Lines beginning with # are comments.
 # Example only — remove # and replace the score to publish a real record:
 # Youhong | 00:23.456 | classic
+Neteyrar | 00:06.609 | practice
