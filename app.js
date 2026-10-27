@@ -192,6 +192,7 @@ function chooseMap(value,resetRun=true) {
   saveSettings(); updateHud();
 }
 function finishRun() {
+  if(completed)return;
   gameAudio?.stopAll();
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
   knife?.draw(0);
@@ -202,6 +203,7 @@ function finishRun() {
   $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
   $('finish-time').textContent=format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
+  gameAudio?.finish();
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
 }
 function updateHud() {

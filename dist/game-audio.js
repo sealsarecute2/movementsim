@@ -1,7 +1,13 @@
+import { RULES } from './physics.js';
+
 export const CHECKPOINT_CHIMES = Object.freeze({
   pulse: { label: 'Pulse', wave: 'sine', notes: [[880, 0, .13], [1320, .09, .2]], level: .18 },
   glass: { label: 'Glass', wave: 'sine', notes: [[1568, 0, .25], [2093, .065, .3], [3136, .025, .18]], level: .1 },
   arcade: { label: 'Arcade', wave: 'triangle', notes: [[659, 0, .09], [831, .065, .09], [988, .13, .09], [1319, .195, .15]], level: .14 },
+});
+export const FINISH_CHIME = Object.freeze({
+  wave: 'triangle', level: .14,
+  notes: [[523.25, 0, .12], [659.25, .1, .12], [783.99, .2, .12], [1046.5, .32, .42], [1318.51, .32, .42]],
 });
 export const MOVEMENT_SAMPLES = Object.freeze({
   jump: ['jump_launch_01.wav'],
@@ -17,7 +23,7 @@ export class GameAudio {
     this.onReady = onReady;this.onError = onError;this.buffers = new Map();this.voices = new Set();
     this.master = context.createGain();this.master.connect(context.destination);
     this.movementEnabled = !!movementEnabled;this.checkpointSound = checkpointSound;
-    this.stepDistance = 0;this.lastStep = -1;this.loading = null;this.ready = false;
+    this.stepDistance = 0;this.lastStep = -1;this.pendingLanding = null;this.loading = null;this.ready = false;
     this.setVolume(volume);
   }
 
@@ -44,7 +50,7 @@ export class GameAudio {
     this.master.gain.setTargetAtTime(this.volume, this.context.currentTime, .01);
   }
 
-  setMovementEnabled(enabled) { this.movementEnabled = !!enabled;this.stepDistance = 0; }
+  setMovementEnabled(enabled) { this.movementEnabled = !!enabled;this.stepDistance = 0;this.pendingLanding = null; }
 
   voice(source, level, start, duration, decay = false) {
     const gain = this.context.createGain(), end = start + duration;
@@ -77,22 +83,48 @@ export class GameAudio {
 
   movement(before, after, input) {
     if (!this.movementEnabled) return;
-    const landed = after.landTime > before.landTime;
-    if (landed) { this.sample('land', Math.min(.7, .2 + after.landImpact / 1100));this.stepDistance = 0; }
-    if (after.totalJumps > before.totalJumps) { this.sample('jump', .36);this.stepDistance = 0; }
+    const landed = after.landTime > before.landTime, jumped = after.totalJumps > before.totalJumps;
+    const cleanHop = jumped && after.jumpFeedback === 'CLEAN HOP';
+    // Browser mix tuning: soften clean rebounds instead of stacking two full
+    // impacts. Hard falls retain their thud even when the next jump is timed.
+    if (landed) {
+      const level = Math.min(.7, .2 + after.landImpact / 1100);
+      this.pendingLanding = null;this.stepDistance = 0;
+      if (after.landImpact > RULES.jump * 1.4) this.sample('land', level);
+      else if (cleanHop) this.sample('land', level * .16);
+      else this.pendingLanding = { time: after.landTime, level };
+    }
+    if (this.pendingLanding) {
+      const age = after.time - this.pendingLanding.time;
+      // Wait only the existing bhop window so a just-after-landing jump can
+      // soften its landing before a loud sample has already started playing.
+      if (cleanHop && age >= 0 && age <= RULES.bhopHalfWindow + 1e-9) {
+        this.sample('land', this.pendingLanding.level * .16);this.pendingLanding = null;
+      } else if (age > RULES.bhopHalfWindow || age < 0) {
+        this.sample('land', this.pendingLanding.level);this.pendingLanding = null;
+      }
+    }
+    if (jumped) { this.sample('jump', cleanHop ? .09 : .36);this.stepDistance = 0; }
+    if (input.walk || input.duck || after.ducked) { this.stepDistance = 0;return; }
     if (!before.grounded || !after.grounded || landed) return;
     const distance = Math.hypot(after.x - before.x, after.z - before.z);
     if (distance < .01) return;
     this.stepDistance += distance;
-    const stride = after.ducked ? 60 : input.walk ? 70 : 95;
+    const stride = 95;
     if (this.stepDistance >= stride) {
       this.stepDistance %= stride;
-      this.sample('step', after.ducked ? .1 : input.walk ? .2 : .43);
+      this.sample('step', .43);
     }
   }
 
   checkpoint(style = this.checkpointSound) {
     const chime = Object.hasOwn(CHECKPOINT_CHIMES, style) ? CHECKPOINT_CHIMES[style] : null;
+    this.chime(chime);
+  }
+
+  finish() { this.chime(FINISH_CHIME); }
+
+  chime(chime) {
     if (!chime || this.context.state !== 'running') return;
     const now = this.context.currentTime;
     for (const [frequency, delay, duration] of chime.notes) {
@@ -108,7 +140,7 @@ export class GameAudio {
       gain.gain.cancelScheduledValues(now);gain.gain.setTargetAtTime(0, now, .003);
       source.stop(now + .012);
     }
-    this.voices.clear();this.stepDistance = 0;
+    this.voices.clear();this.stepDistance = 0;this.pendingLanding = null;
   }
 }
 

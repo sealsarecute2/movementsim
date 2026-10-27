@@ -3,7 +3,7 @@
 Open a course file below, add one record per line, and commit the change on GitHub. You must be signed in to an account with write access to this repository. Players cannot add records through the game.
 
 ```text
-Youhong | 00:23.456 | classic
+seals_are_cute | 00:23.456 | classic
 Another player | 22.150 | practice
 ```
 

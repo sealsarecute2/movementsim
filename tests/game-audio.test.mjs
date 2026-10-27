@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { GameAudio, CHECKPOINT_CHIMES, MOVEMENT_SAMPLES } from '../dist/game-audio.js';
-import { createPlayer } from '../dist/physics.js';
+import { GameAudio, CHECKPOINT_CHIMES, FINISH_CHIME, MOVEMENT_SAMPLES } from '../dist/game-audio.js';
+import { createPlayer, step, DT, PRESETS, RULES } from '../dist/physics.js';
 
 function fixture(options = {}) {
   const sources=[],requests=[];
@@ -29,22 +29,82 @@ test('jump and landing sounds follow physics events, including both events in an
   const before=createPlayer(),jumped={...before,grounded:false,totalJumps:1};
   f.audio.movement(before,jumped,{});
   assert.ok(f.sources.at(-1).buffer.file.endsWith('jump_launch_01.wav'));
-  const hopped={...jumped,landTime:1,landImpact:500,totalJumps:2};
+  const hopped={...jumped,time:1,landTime:1,landImpact:300,totalJumps:2,jumpFeedback:'CLEAN HOP'};
   f.audio.movement(jumped,hopped,{jumpHeld:true});
   assert.deepEqual(f.sources.slice(-2).map(s=>s.buffer.file.split('/').at(-1)),['land_concrete_01.wav','jump_launch_01.wav']);
+  assert.ok(Math.max(...f.sources.at(-2).output.gain.values)<.1,'clean-hop landings are light taps');
+  assert.equal(Math.max(...f.sources.at(-1).output.gain.values),.09);
   const count=f.sources.length;f.audio.movement(hopped,{...hopped,time:2},{});assert.equal(f.sources.length,count);
 });
-test('footsteps depend on grounded travel, vary samples, and are quieter when walking',async()=>{
+test('running footsteps vary samples, while walking and crouching produce no footsteps',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;
   const before=createPlayer();f.audio.movement(before,{...before,x:100},{});
   const run=f.sources.at(-1);assert.equal(run.kind,'sample');assert.ok(run.output.gain.values.includes(.43));
   f.audio.movement(before,{...before,x:70},{walk:true});
-  const walk=f.sources.at(-1);assert.ok(walk.output.gain.values.includes(.2));assert.notEqual(run.buffer.file,walk.buffer.file);
-  assert.equal(walk.playbackRate.value,1,'original samples retain their pitch');
+  f.audio.movement(before,{...before,x:300,ducked:true},{});
+  f.audio.movement(before,{...before,x:300},{duck:true});
+  assert.equal(f.sources.length,1,'neither slow movement mode may play a footstep');
+  f.audio.movement(before,{...before,x:100},{});
+  assert.notEqual(run.buffer.file,f.sources.at(-1).buffer.file);
+  assert.equal(f.sources.at(-1).playbackRate.value,1,'original samples retain their pitch');
   const count=f.sources.length;
   f.audio.movement({...before,grounded:false},{...before,x:300,grounded:false},{});
   f.audio.movement(before,before,{});assert.equal(f.sources.length,count);
   f.audio.setMovementEnabled(false);f.audio.movement(before,{...before,x:100},{});assert.equal(f.sources.length,count);
+});
+test('silent walking clears accumulated stride distance so releasing Shift does not emit a delayed footstep',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;const p=createPlayer();
+  f.audio.movement(p,{...p,x:90},{});assert.equal(f.sources.length,0);
+  f.audio.movement(p,{...p,x:100},{walk:true});
+  f.audio.movement(p,{...p,x:10},{});assert.equal(f.sources.length,0);
+  f.audio.movement(p,{...p,x:85},{});assert.equal(f.sources.length,1);
+});
+test('a clean hop just after landing softens the pending landing before its full-volume sound starts',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;
+  const air={...createPlayer(),grounded:false,time:.9,totalJumps:1};
+  const landed={...air,grounded:true,time:1,landTime:1,landImpact:300};
+  f.audio.movement(air,landed,{});assert.equal(f.sources.length,0);
+  const hopped={...landed,grounded:false,time:1+DT,totalJumps:2,jumpFeedback:'CLEAN HOP'};
+  f.audio.movement(landed,hopped,{jumpPressed:true});
+  assert.equal(f.sources.length,2);assert.ok(f.sources.every(source=>Math.max(...source.output.gain.values)<.1));
+  f.audio.movement(hopped,{...hopped,time:1.1},{});assert.equal(f.sources.length,2);
+});
+test('ordinary landings remain audible after the hop window and hard falls are not quieted by rebounding',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;
+  const air={...createPlayer(),grounded:false,time:.9},landed={...air,grounded:true,time:1,landTime:1,landImpact:300};
+  f.audio.movement(air,landed,{});f.audio.movement(landed,{...landed,time:1+RULES.bhopHalfWindow+DT},{});
+  assert.equal(f.sources.length,1);assert.ok(Math.max(...f.sources[0].output.gain.values)>.4);
+  f.audio.movement(air,{...landed,grounded:false,landImpact:900,totalJumps:1,jumpFeedback:'CLEAN HOP'},{jumpHeld:true});
+  assert.equal(Math.max(...f.sources.at(-2).output.gain.values),.7);
+});
+test('pausing or disabling movement audio discards a pending landing rather than playing it later',async()=>{
+  for(const stop of [audio=>audio.stopAll(),audio=>{audio.setMovementEnabled(false);audio.setMovementEnabled(true);}]) {
+    const f=fixture();await f.audio.activate();await f.audio.loading;
+    const air={...createPlayer(),grounded:false,time:.9},landed={...air,grounded:true,time:1,landTime:1,landImpact:300};
+    f.audio.movement(air,landed,{});stop(f.audio);
+    f.audio.movement(landed,{...landed,time:1.1},{});assert.equal(f.sources.length,0);
+  }
+});
+test('real held-Space physics uses quiet audio for every clean rebound after the initial jump',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;
+  const player=createPlayer(),floor={min:[-1000,-120,-1000],max:[1000,0,1000]},input={jumpHeld:true};
+  for(let i=0;i<256*3;i++) {
+    const before={...player};step(player,input,[floor],PRESETS.classic);f.audio.movement(before,player,input);
+  }
+  const jumps=f.sources.filter(s=>s.buffer.file.endsWith('jump_launch_01.wav'));
+  const lands=f.sources.filter(s=>s.buffer.file.endsWith('land_concrete_01.wav'));
+  assert.ok(jumps.length>=3);assert.equal(Math.max(...jumps[0].output.gain.values),.36);
+  assert.ok(jumps.slice(1).every(s=>Math.max(...s.output.gain.values)===.09));
+  assert.ok(lands.length>=2);assert.ok(lands.every(s=>Math.max(...s.output.gain.values)<.1));
+});
+test('the finish chime is distinct, lasts longer than a checkpoint, and respects the shared volume',async()=>{
+  const f=fixture({movementEnabled:false,checkpointSound:'off',volume:.3});await f.audio.activate();
+  f.audio.finish();assert.equal(f.sources.length,FINISH_CHIME.notes.length);
+  assert.ok(f.sources.at(-1).stops[0]-f.context.currentTime>.7);
+  const melody=f.sources.map(source=>source.frequency.values[0]).join(',');
+  assert.ok(Object.values(CHECKPOINT_CHIMES).every(chime=>chime.notes.map(note=>note[0]).join(',')!==melody));
+  assert.equal(f.audio.master.gain.values.at(-1),.3);f.audio.setVolume(0);assert.equal(f.audio.master.gain.values.at(-1),0);
+  f.audio.stopAll();assert.equal(f.audio.voices.size,0);
 });
 test('each chime has a distinct melody, Off stays silent, and pausing cancels scheduled voices',async()=>{
   const f=fixture({movementEnabled:false});await f.audio.activate();const melodies=[];

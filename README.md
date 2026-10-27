@@ -8,6 +8,8 @@ The timer starts after you leave the starting platform's airspace. Checkpoints a
 
 Open **Movement & checkpoint sounds** in the menu to preview **Pulse**, **Glass**, and **Arcade**, then keep your favourite. Your choice, volume, and movement-sound toggle are saved in your browser. Jump, concrete footstep, and landing samples are original CS2 game audio; checkpoint chimes are original synthesized sounds. Audio sources and sample hashes are recorded in [sounds/sources.json](sounds/sources.json).
 
+Walking with Shift and crouch movement make no footsteps. Clean bhops use a quieter landing/takeoff mix, while heavy falls remain audible. Finishing a course plays a distinct rising victory chime at your selected movement/chime volume. The hop mix is browser-simulator tuning; it is not an exact reproduction of CS2's audio graph.
+
 ## Owner-managed leaderboards
 
 Each course has a plain text file in [leaderboards](leaderboards). Only people with write access to this repository can publish records; the game has no score-submission endpoint or exposed credentials.

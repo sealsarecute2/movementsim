@@ -367,3 +367,10 @@ test('audio choices and cloud leaderboards remain usable without WebGL while pla
   assert.equal(app.element('leaderboard').open,true);assert.match(app.element('leaderboard-status').textContent,/No records yet/);
   app.element('play').fire('click');assert.equal(app.requests(),0);assert.equal(app.read('playing'),false);
 });
+test('entering the finish plays one victory cue after stopping movement sounds, and reset cancels it',()=>{
+  const app=boot();
+  app.read('var finishSounds=[];gameAudio={movement(){},checkpoint(){},stopAll(){finishSounds.push("stop")},finish(){finishSounds.push("finish")}};checkpoint=MAPS.course.spawns.length-1;runActive=true;{const end=boxes.find(b=>b.finish);player=createPlayer({x:(end.min[0]+end.max[0])/2,y:end.max[1]+80,z:(end.min[2]+end.max[2])/2,yaw:0});tick()}');
+  assert.equal(app.read('completed'),true);assert.equal(app.read('finishSounds.join(",")'),'stop,finish');
+  app.read('finishRun()');assert.equal(app.read('finishSounds.join(",")'),'stop,finish');
+  app.read('reset()');assert.equal(app.read('finishSounds.at(-1)'),'stop');
+});
