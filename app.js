@@ -265,7 +265,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Escape') {if(playing)pause();return;}
   if(!playing) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','KeyW','KeyA','KeyS','KeyD','ControlLeft','ControlRight'].includes(e.code)) e.preventDefault();
-  if(e.code==='KeyR'&&!e.repeat) {reset();toast('NEW RUN');return;}
+  if(e.code==='KeyQ'&&!e.repeat) {reset();toast('NEW RUN');return;}
   if(e.code==='KeyE'&&!e.repeat) {respawns++;reset(false);toast('CHECKPOINT RESTORED — TIMER CONTINUES');return;}
   if(e.code==='Space'&&!e.repeat) pendingJump=true;
   keys.add(e.code);

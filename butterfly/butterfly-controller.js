@@ -167,8 +167,7 @@ export class ButterflyController {
     };
     const contextmenu = event => { if (isActive()) event.preventDefault(); };
     const blur = () => { cancelKeyHeld = false; };
-    // Capture on window so inspect cancellation consumes R before the game's
-    // existing restart listener. R otherwise remains available to the game.
+    // Capture on window so inspect cancellation consumes R before other listeners.
     target.addEventListener('keydown', keydown, true);
     target.addEventListener('keyup', keyup, true);
     target.addEventListener('blur', blur);

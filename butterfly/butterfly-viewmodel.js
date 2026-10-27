@@ -34,6 +34,8 @@ export async function createButterflyViewmodel({
   try { gltf = await new GLTFLoader().loadAsync(assetUrl); }
   catch (error) { environment.dispose();renderer.dispose();canvas.remove();throw error; }
   const root = gltf.scene;
+  // Tuck the arms slightly down and back toward the player to clear the view.
+  root.position.set(0, -0.015, 0.025);
   root.traverse(node => { if (node.isMesh) node.frustumCulled = false; });
   scene.add(root);
   const controller = new ButterflyController(root, gltf.animations, { rareChance });

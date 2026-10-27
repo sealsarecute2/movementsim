@@ -168,7 +168,7 @@ export const MAP_LIST = [
   { id: 'endless', title: 'Endless', difficulty: 'Infinite', endless: true, timed: false,
     description: 'Mixed sections with checkpoints every 8 blocks.',
     boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
-    stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. R starts a new route.')] },
+    stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. Q starts a new route.')] },
   { id: 'free', title: 'Free roam', difficulty: 'Sandbox', timed: false,
     description: 'A wide floor for strafing, hops, and stopping practice.', boxes: PRACTICE,
     spawns: [SPAWNS[0]], stages: [stage('Make your own line.', 'A wide floor for strafing, hops, and stopping practice.')] },
