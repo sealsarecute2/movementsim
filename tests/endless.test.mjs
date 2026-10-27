@@ -61,6 +61,22 @@ test('missed checkpoint decks do not grow memory and the last save can still be 
   assert.ok(support(saved,route.boxes));assert.ok(route.boxes.length<=60);
   assert.ok(route.distance>=2500000);
 });
+test('flying through checkpoint airspace saves a safe respawn, including across coordinate rebases',()=>{
+  const route=createEndless(17);
+  for(let index=8;index<=80;index+=8) {
+    const deck=route.platform(index),x=(deck.min[0]+deck.max[0])/2;
+    const previous={x,y:deck.max[1]+80,z:deck.max[2]+40};
+    const player=createPlayer({x,y:deck.max[1]+80,z:deck.min[2]-40,yaw:0});
+    route.update(player,null,previous);
+    assert.equal(route.checkpoint,index/8);
+    assert.ok(route.furthestBlock>=index);
+    assert.equal(support(createPlayer(route.spawn),route.boxes).endlessIndex,index);
+    assert.equal(support(player,route.boxes),undefined,'checkpoint contact is not required');
+  }
+  const deck=route.platform(88),player=createPlayer({x:(deck.min[0]+deck.max[0])/2,y:deck.max[1]-80,z:(deck.min[2]+deck.max[2])/2,yaw:0});
+  route.update(player);
+  assert.equal(route.checkpoint,10,'passing below the next checkpoint cannot save it');
+});
 test('endless includes all eight section types, real roofs, beams, elevation, and right-angle turns',()=>{
   const route=createEndless(3),names=new Set();let roof=false,beam=false,raised=false,turn=false;
   for(let i=0;i<64;i++) {

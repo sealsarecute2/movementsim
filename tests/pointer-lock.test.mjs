@@ -9,7 +9,7 @@ const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
 // Exercise the real app event handlers with a browser API test double. Rendering
-// is stubbed here; these checks verify capture, pause and error behavior only.
+// is stubbed here; these checks verify input, run progression and pause behavior.
 function boot(stored = {}, search = '') {
   function element() {
     const listeners=new Map(),classes=new Set();
@@ -139,9 +139,59 @@ test('every course is selectable and starts without requiring a previous complet
     app.element('play').fire('click');app.lock();
     assert.equal(app.read('playing'),true,map.title);
     app.read("keys.add('KeyW');for(let i=0;i<64;i++)tick()");
-    assert.ok(app.read('runTime')>0,map.title);
+    assert.equal(app.read('runTime'),0,`${map.title}: moving on the start platform must not start the timer`);
     assert.ok(app.read('speed(player)')>0,map.title);
   }
+});
+test('jumping above the starting platform is untimed; leaving its airspace starts timing at the edge',()=>{
+  for(const map of course.MAP_LIST.filter(m=>m.timed||m.endless)) {
+    const app=boot();app.read(`chooseMap('${map.id}');pendingJump=true;for(let i=0;i<30;i++)tick()`);
+    assert.equal(app.read('runTime'),0,map.title);
+    assert.equal(app.read('runActive'),false,map.title);
+    assert.equal(app.read('player.grounded'),false,map.title);
+    app.read('var startBox=endless?endless.platform(0):boxes[0];player=createPlayer({x:startBox.max[0]+RULES.radius-0.5,y:startBox.max[1]+80,z:(startBox.min[2]+startBox.max[2])/2,yaw:0});player.grounded=false;player.vx=256;tick()');
+    assert.equal(app.read('runActive'),true,map.title);
+    assert.ok(Math.abs(app.read('runTime')-physics.DT/2)<1e-9,map.title);
+    app.read('player.x=(startBox.min[0]+startBox.max[0])/2;player.vx=0;tick()');
+    assert.ok(Math.abs(app.read('runTime')-physics.DT*1.5)<1e-9,'returning to the start cannot reset a running timer');
+    app.read('reset()');assert.equal(app.read('runTime'),0);assert.equal(app.read('runActive'),false);
+  }
+});
+test('every timed course saves checkpoints and finishes while the player is airborne above the platforms',()=>{
+  for(const map of course.MAP_LIST.filter(m=>m.timed)) {
+    const app=boot();app.read(`chooseMap('${map.id}')`);
+    for(let cp=1;cp<map.spawns.length;cp++) {
+      const spawn=map.spawns[cp];
+      app.read(`player=createPlayer({x:${spawn.x},y:${spawn.y+80},z:${spawn.z},yaw:0});tick()`);
+      assert.equal(app.read('player.grounded'),false,map.title);
+      assert.equal(app.read('checkpoint'),cp,`${map.title}: airborne checkpoint ${cp}`);
+      app.read('reset(false)');
+      assert.equal(app.read('player.y'),spawn.y,'the saved respawn is still on the platform');
+    }
+    const end=map.boxes.find(b=>b.finish);
+    app.read(`player=createPlayer({x:${(end.min[0]+end.max[0])/2},y:${end.max[1]+80},z:${(end.min[2]+end.max[2])/2},yaw:0});tick()`);
+    assert.equal(app.read('completed'),true,map.title);
+    assert.equal(app.read('player.grounded'),false,map.title);
+    const time=app.read('runTime');app.context.frame(2000);
+    assert.equal(app.read('runTime'),time,'the finish freezes the timer');
+  }
+});
+test('flying below a checkpoint or skipping airborne checkpoints does not advance the course',()=>{
+  const app=boot();
+  app.read('var first=boxes.find(b=>b.checkpoint===1);player=createPlayer({x:(first.min[0]+first.max[0])/2,y:first.max[1]-80,z:(first.min[2]+first.max[2])/2,yaw:0});tick()');
+  assert.equal(app.read('checkpoint'),0);
+  app.read('var last=boxes.find(b=>b.checkpoint===2);player=createPlayer({x:(last.min[0]+last.max[0])/2,y:last.max[1]+80,z:(last.min[2]+last.max[2])/2,yaw:0});tick()');
+  assert.equal(app.read('checkpoint'),0);
+  app.read('var end=boxes.find(b=>b.finish);player=createPlayer({x:(end.min[0]+end.max[0])/2,y:end.max[1]+80,z:(end.min[2]+end.max[2])/2,yaw:0});tick()');
+  assert.equal(app.read('completed'),false);
+});
+test('a fast airborne pass triggers checkpoints in path order and stops timing at the finish entry',()=>{
+  const app=boot();
+  app.read(`boxes=[boxes[0],{min:[-10,-120,-10],max:[10,0,10],checkpoint:1},{min:[80,-120,-10],max:[100,0,10],checkpoint:2},{min:[180,-120,-10],max:[200,0,10],finish:true}];runActive=true;runTime=10;player=createPlayer({x:-100,y:80,z:0,yaw:0});player.grounded=false;player.vx=102400;tick()`);
+  assert.equal(app.read('checkpoint'),2);
+  assert.equal(app.read('completed'),true);
+  assert.equal(app.read('player.x'),300);
+  assert.ok(Math.abs(app.read('runTime')-(10+physics.DT*(180-physics.RULES.radius+100)/400))<1e-9);
 });
 test('endless checkpoints save in the bottom right, respawn safely, and retain distance records',()=>{
   const app=boot();app.read("chooseMap('endless')");

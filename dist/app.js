@@ -1,4 +1,4 @@
-import { DT, PRESETS, createPlayer, step, speed, support } from './physics.js';
+import { DT, PRESETS, createPlayer, step, speed, support, platformAirspace } from './physics.js';
 import { MAPS, MAP_LIST } from './course.js';
 import { createEndless } from './endless.js';
 import { createRenderer } from './renderer.js';
@@ -193,12 +193,19 @@ function tick() {
     duck:keys.has('ControlLeft')||keys.has('ControlRight')||keys.has('KeyC'),
     jumpHeld:keys.has('Space'),jumpPressed:pendingJump,
   };
-  if(!runActive&&(input.forward||input.side||input.jumpPressed)) runActive=true;
-  if(runActive) runTime+=DT;
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  let timerStart=runActive?0:1, timerEnd=1, finished=false;
+  if(!runActive) {
+    const start=endless?endless.platform(0):boxes[0];
+    const crossing=platformAirspace(previousDraw,player,start);
+    if(!crossing||crossing.enter>0||crossing.exit<1) {
+      runActive=true;
+      timerStart=crossing?.enter===0?crossing.exit:0;
+    }
+  }
   if(endless) {
-    const result=endless.update(player,support(player,boxes,1));
+    const result=endless.update(player,support(player,boxes,1),previousDraw);
     if(result.shift)previousDraw.z-=result.shift;
     if(result.changed) {boxes=endless.boxes;renderer.setBoxes(boxes);}
     if(result.checkpointSaved) {
@@ -207,12 +214,21 @@ function tick() {
     }
   }
   if(MAPS[map].timed) {
-    const ground=support(player,boxes,1);
-    if(ground?.checkpoint===checkpoint+1) {
-      checkpoint=ground.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+    const hits=boxes.filter(b=>b.checkpoint||b.finish).flatMap(box=>{
+      const crossing=platformAirspace(previousDraw,player,box);
+      return crossing?[{box,time:crossing.enter}]:[];
+    }).sort((a,b)=>a.time-b.time);
+    for(const {box,time} of hits) {
+      if(box.checkpoint===checkpoint+1) {
+        checkpoint=box.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+      }
+      if(box.finish&&runActive&&checkpoint===MAPS[map].spawns.length-1) {
+        timerEnd=time;finished=true;break;
+      }
     }
-    if(ground?.finish&&checkpoint===MAPS[map].spawns.length-1) finishRun();
   }
+  if(runActive) runTime+=DT*Math.max(0,timerEnd-timerStart);
+  if(finished) {finishRun();return;}
   if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
     respawns++;reset(false);
     toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');

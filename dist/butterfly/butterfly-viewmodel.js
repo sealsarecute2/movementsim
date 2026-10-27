@@ -47,7 +47,7 @@ export async function createButterflyViewmodel({
   let width = 0, height = 0, ratio = 0;
   function draw(deltaSeconds) {
     const active = !!isActive();canvas.style.display = active ? 'block' : 'none';controller.enabled = active;
-    if (!active) { audio?.update();return; }
+    if (!active) { controller.releaseAttacks();audio?.update();return; }
     const rect = worldCanvas.getBoundingClientRect();
     const nextRatio = Math.min(devicePixelRatio || 1, 2);
     if (rect.width !== width || rect.height !== height || nextRatio !== ratio) {

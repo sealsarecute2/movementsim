@@ -1,3 +1,5 @@
+import { platformAirspace } from './physics.js';
+
 // Each section ends on the same safe deck, so any two section types connect.
 // x, z, width, depth, height, walk, crouch. Coordinates are relative to a deck.
 const endlessSections = [
@@ -68,13 +70,19 @@ export function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
     boxes = [...wanted].sort((a, b) => a - b).flatMap(geometry);
     windowIndex = index;
   }
-  function update(player, ground = null) {
+  function update(player, ground = null, previous = player) {
     furthestDistance = Math.max(furthestDistance, originZ - player.z);
     let checkpointSaved = false, shift = 0;
-    if (ground && Number.isInteger(ground.endlessIndex)) {
-      furthestBlock = Math.max(furthestBlock, ground.endlessIndex);
-      if (ground.endlessIndex > checkpointIndex && ground.endlessIndex % 8 === 0) {
-        checkpointIndex = ground.endlessIndex;
+    const platforms=boxes.filter(b=>!b.roof&&b.endlessIndex!==ground?.endlessIndex);
+    if(ground) platforms.push(ground);
+    const hits=platforms.flatMap(box=>{
+      const crossing=platformAirspace(previous,player,box);
+      return crossing?[{box,time:crossing.enter}]:[];
+    }).sort((a,b)=>a.time-b.time);
+    for (const {box} of hits) {
+      furthestBlock = Math.max(furthestBlock, box.endlessIndex);
+      if (box.endlessIndex > checkpointIndex && box.endlessIndex % 8 === 0) {
+        checkpointIndex = box.endlessIndex;
         const p = layout(checkpointIndex), next = layout(checkpointIndex + 1);
         const yaw = Math.atan2(next.x - p.x, p.z - next.z);
         spawn = { x: p.x - Math.sin(yaw) * 65, y: p.y, z: p.z + Math.cos(yaw) * 65, yaw };

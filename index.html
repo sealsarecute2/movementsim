@@ -44,14 +44,15 @@
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">2.00</output><input id="sensitivity" type="range" min="0.2" max="5" step="0.05" value="2"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="knife-settings"><label><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
-      <p class="knife-controls"><kbd>F</kbd> Inspect · <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
+      <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
       <button id="play" class="play">PLAY <span>↗</span></button>
       <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
-      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
+      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>The timer starts when you leave the starting platform's airspace. Pass over checkpoint and finish platforms to activate them, even while airborne.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
     </main>
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
   <script type="module">
+
 // Each section ends on the same safe deck, so any two section types connect.
 // x, z, width, depth, height, walk, crouch. Coordinates are relative to a deck.
 const endlessSections = [
@@ -122,13 +123,19 @@ function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
     boxes = [...wanted].sort((a, b) => a - b).flatMap(geometry);
     windowIndex = index;
   }
-  function update(player, ground = null) {
+  function update(player, ground = null, previous = player) {
     furthestDistance = Math.max(furthestDistance, originZ - player.z);
     let checkpointSaved = false, shift = 0;
-    if (ground && Number.isInteger(ground.endlessIndex)) {
-      furthestBlock = Math.max(furthestBlock, ground.endlessIndex);
-      if (ground.endlessIndex > checkpointIndex && ground.endlessIndex % 8 === 0) {
-        checkpointIndex = ground.endlessIndex;
+    const platforms=boxes.filter(b=>!b.roof&&b.endlessIndex!==ground?.endlessIndex);
+    if(ground) platforms.push(ground);
+    const hits=platforms.flatMap(box=>{
+      const crossing=platformAirspace(previous,player,box);
+      return crossing?[{box,time:crossing.enter}]:[];
+    }).sort((a,b)=>a.time-b.time);
+    for (const {box} of hits) {
+      furthestBlock = Math.max(furthestBlock, box.endlessIndex);
+      if (box.endlessIndex > checkpointIndex && box.endlessIndex % 8 === 0) {
+        checkpointIndex = box.endlessIndex;
         const p = layout(checkpointIndex), next = layout(checkpointIndex + 1);
         const yaw = Math.atan2(next.x - p.x, p.z - next.z);
         spawn = { x: p.x - Math.sin(yaw) * 65, y: p.y, z: p.z + Math.cos(yaw) * 65, yaw };
@@ -355,6 +362,25 @@ const PRESETS = {
 };
 const EPS = 0.0001;
 const speed = p => Math.hypot(p.vx, p.vz);
+// Intersect the player's path with the column above a platform. Sweeping the
+// hull catches fast passes even when neither endpoint is above the platform.
+function platformAirspace(from, to, platform) {
+  const low = [platform.min[0] - RULES.radius, platform.max[1] - 0.001, platform.min[2] - RULES.radius];
+  const high = [platform.max[0] + RULES.radius, Infinity, platform.max[2] + RULES.radius];
+  let enter = 0, exit = 1;
+  for (const [axis, key] of ['x', 'y', 'z'].entries()) {
+    const origin = from[key], delta = to[key] - origin;
+    if (Math.abs(delta) < 1e-9) {
+      if (origin < low[axis] || origin > high[axis]) return null;
+    } else {
+      const a = (low[axis] - origin) / delta, b = (high[axis] - origin) / delta;
+      enter = Math.max(enter, Math.min(a, b));
+      exit = Math.min(exit, Math.max(a, b));
+      if (enter > exit) return null;
+    }
+  }
+  return { enter, exit };
+}
 function createPlayer(spawn = { x: 0, y: 0, z: 100, yaw: 0 }) {
   return { ...spawn, vx: 0, vy: 0, vz: 0, pitch: 0, grounded: true,
     ducked: false, duckAmount: 0, time: 0, landTime: -10,
@@ -804,12 +830,19 @@ function tick() {
     duck:keys.has('ControlLeft')||keys.has('ControlRight')||keys.has('KeyC'),
     jumpHeld:keys.has('Space'),jumpPressed:pendingJump,
   };
-  if(!runActive&&(input.forward||input.side||input.jumpPressed)) runActive=true;
-  if(runActive) runTime+=DT;
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  let timerStart=runActive?0:1, timerEnd=1, finished=false;
+  if(!runActive) {
+    const start=endless?endless.platform(0):boxes[0];
+    const crossing=platformAirspace(previousDraw,player,start);
+    if(!crossing||crossing.enter>0||crossing.exit<1) {
+      runActive=true;
+      timerStart=crossing?.enter===0?crossing.exit:0;
+    }
+  }
   if(endless) {
-    const result=endless.update(player,support(player,boxes,1));
+    const result=endless.update(player,support(player,boxes,1),previousDraw);
     if(result.shift)previousDraw.z-=result.shift;
     if(result.changed) {boxes=endless.boxes;renderer.setBoxes(boxes);}
     if(result.checkpointSaved) {
@@ -818,12 +851,21 @@ function tick() {
     }
   }
   if(MAPS[map].timed) {
-    const ground=support(player,boxes,1);
-    if(ground?.checkpoint===checkpoint+1) {
-      checkpoint=ground.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+    const hits=boxes.filter(b=>b.checkpoint||b.finish).flatMap(box=>{
+      const crossing=platformAirspace(previousDraw,player,box);
+      return crossing?[{box,time:crossing.enter}]:[];
+    }).sort((a,b)=>a.time-b.time);
+    for(const {box,time} of hits) {
+      if(box.checkpoint===checkpoint+1) {
+        checkpoint=box.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+      }
+      if(box.finish&&runActive&&checkpoint===MAPS[map].spawns.length-1) {
+        timerEnd=time;finished=true;break;
+      }
     }
-    if(ground?.finish&&checkpoint===MAPS[map].spawns.length-1) finishRun();
   }
+  if(runActive) runTime+=DT*Math.max(0,timerEnd-timerStart);
+  if(finished) {finishRun();return;}
   if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
     respawns++;reset(false);
     toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');

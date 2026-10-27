@@ -31,6 +31,7 @@ export class ButterflyController {
     this.fade = null;
     this.pendingFinished = null;
     this.cleanups = new Set();
+    this.heldAttacks = new Set();
     this.onFinished = event => {
       if (event.action === this.activeAction && this.category !== 'idle') {
         this.pendingFinished = { action: event.action, generation: this.generation };
@@ -91,7 +92,12 @@ export class ButterflyController {
   }
 
   equip({ alternate = false } = {}) {
+    this.releaseAttacks();
     return this.transition(alternate && this.clips.has('draw_alt') ? 'draw_alt' : 'draw', 'draw');
+  }
+
+  releaseAttacks() {
+    this.heldAttacks.clear();
   }
 
   inspect({ variant } = {}) {
@@ -128,7 +134,8 @@ export class ButterflyController {
   }
 
   update(deltaSeconds) {
-    if (!this.enabled || !Number.isFinite(deltaSeconds) || deltaSeconds < 0) return;
+    if (!this.enabled) { this.releaseAttacks();return; }
+    if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return;
     const delta = Math.min(deltaSeconds, 0.1);
     this.mixer.update(delta);
     if (this.fade) {
@@ -140,6 +147,8 @@ export class ButterflyController {
     if (finished && finished.action === this.activeAction && finished.generation === this.generation) {
       this.transition('idle', 'idle');
     }
+    const held = [...this.heldAttacks].at(-1);
+    if (held) this.attack(held);
   }
 
   bindControls({ canvas, target = window, isActive = () => document.pointerLockElement === canvas } = {}) {
@@ -160,25 +169,44 @@ export class ButterflyController {
       }
     };
     const keyup = event => { if (event.code === 'KeyR') cancelKeyHeld = false; };
-    const pointerdown = event => {
+    const mousedown = event => {
       if (!isActive() || ![0, 2].includes(event.button)) return;
-      this.attack(event.button === 0 ? 'light' : 'heavy');
+      const kind = event.button === 0 ? 'light' : 'heavy';
+      this.heldAttacks.delete(kind);this.heldAttacks.add(kind);
+      this.attack(kind);
       consume(event);
     };
+    const mouseup = event => {
+      if (event.button === 0) this.heldAttacks.delete('light');
+      if (event.button === 2) this.heldAttacks.delete('heavy');
+    };
     const contextmenu = event => { if (isActive()) event.preventDefault(); };
-    const blur = () => { cancelKeyHeld = false; };
+    const blur = () => { cancelKeyHeld = false;this.releaseAttacks(); };
+    const ownerDocument = canvas.ownerDocument;
+    const captureChanged = () => { if (!isActive()) blur(); };
+    const visibilityChanged = () => { if (ownerDocument.hidden) blur(); };
     // Capture on window so inspect cancellation consumes R before other listeners.
     target.addEventListener('keydown', keydown, true);
     target.addEventListener('keyup', keyup, true);
     target.addEventListener('blur', blur);
-    canvas.addEventListener('pointerdown', pointerdown);
+    // Mouse events report each button transition, including button chords.
+    target.addEventListener('mouseup', mouseup, true);
+    target.addEventListener('pointercancel', blur, true);
+    ownerDocument?.addEventListener('pointerlockchange', captureChanged);
+    ownerDocument?.addEventListener('visibilitychange', visibilityChanged);
+    canvas.addEventListener('mousedown', mousedown);
     canvas.addEventListener('contextmenu', contextmenu);
     const cleanup = () => {
       target.removeEventListener('keydown', keydown, true);
       target.removeEventListener('keyup', keyup, true);
       target.removeEventListener('blur', blur);
-      canvas.removeEventListener('pointerdown', pointerdown);
+      target.removeEventListener('mouseup', mouseup, true);
+      target.removeEventListener('pointercancel', blur, true);
+      ownerDocument?.removeEventListener('pointerlockchange', captureChanged);
+      ownerDocument?.removeEventListener('visibilitychange', visibilityChanged);
+      canvas.removeEventListener('mousedown', mousedown);
       canvas.removeEventListener('contextmenu', contextmenu);
+      blur();
       this.cleanups.delete(cleanup);
     };
     this.cleanups.add(cleanup);

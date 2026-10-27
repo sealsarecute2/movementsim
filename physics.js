@@ -16,6 +16,25 @@ export const PRESETS = {
 };
 const EPS = 0.0001;
 export const speed = p => Math.hypot(p.vx, p.vz);
+// Intersect the player's path with the column above a platform. Sweeping the
+// hull catches fast passes even when neither endpoint is above the platform.
+export function platformAirspace(from, to, platform) {
+  const low = [platform.min[0] - RULES.radius, platform.max[1] - 0.001, platform.min[2] - RULES.radius];
+  const high = [platform.max[0] + RULES.radius, Infinity, platform.max[2] + RULES.radius];
+  let enter = 0, exit = 1;
+  for (const [axis, key] of ['x', 'y', 'z'].entries()) {
+    const origin = from[key], delta = to[key] - origin;
+    if (Math.abs(delta) < 1e-9) {
+      if (origin < low[axis] || origin > high[axis]) return null;
+    } else {
+      const a = (low[axis] - origin) / delta, b = (high[axis] - origin) / delta;
+      enter = Math.max(enter, Math.min(a, b));
+      exit = Math.min(exit, Math.max(a, b));
+      if (enter > exit) return null;
+    }
+  }
+  return { enter, exit };
+}
 export function createPlayer(spawn = { x: 0, y: 0, z: 100, yaw: 0 }) {
   return { ...spawn, vx: 0, vy: 0, vz: 0, pitch: 0, grounded: true,
     ducked: false, duckAmount: 0, time: 0, landTime: -10,
