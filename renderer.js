@@ -1,3 +1,8 @@
+// The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
+export function verticalFov(fov = 100) {
+  return 2 * Math.atan(Math.tan(fov * Math.PI / 360) * 0.75) * 180 / Math.PI;
+}
+
 export function createRenderer(canvas, boxes) {
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
@@ -12,12 +17,26 @@ export function createRenderer(canvas, boxes) {
       gl_Position=vec4(right*uScale.x,up*uScale.y,1.0001*depth-2.0001,depth);
       vWorld=aPosition;vColor=aColor;vTop=aTop;vDistance=length(p);
     }`;
-  const fragment = `precision mediump float;
+  const fragment = `
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    #else
+    precision mediump float;
+    #endif
+    uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
     varying vec3 vWorld; varying vec3 vColor; varying float vTop; varying float vDistance;
     void main(){
       vec2 grid=mod(vWorld.xz+0.6,64.0);
       float line=(1.0-step(1.2,min(grid.x,grid.y)))*vTop;
       vec3 color=mix(vColor,vColor*0.76,line);
+      vec3 bounds=step(uTargetMin-vec3(0.01),vWorld)*step(vWorld,uTargetMax+vec3(0.6));
+      float target=bounds.x*bounds.y*bounds.z*uTargetActive;
+      vec3 d=min(abs(vWorld-uTargetMin),abs(uTargetMax-vWorld));
+      float edge=min(max(d.x,d.y),min(max(d.x,d.z),max(d.y,d.z)));
+      float glow=1.0-smoothstep(0.0,13.0,edge);
+      float core=1.0-smoothstep(0.5,2.5,edge);
+      color=mix(color,vec3(0.07,0.55,1.0),core*target);
+      color+=vec3(0.015,0.22,0.65)*glow*target;
       float fade=1.0-smoothstep(1700.0,6500.0,vDistance);
       gl_FragColor=vec4(color*fade,1.0);
     }`;
@@ -32,15 +51,43 @@ export function createRenderer(canvas, boxes) {
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
-  const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer();
+  const attributes = [];
   for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24]]) {
     const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, count, gl.FLOAT, false, 28, offset);
+    attributes.push({loc,count,offset});
+  }
+  function bindGeometry(targetBuffer) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, targetBuffer);
+    for(const {loc,count,offset} of attributes) gl.vertexAttribPointer(loc,count,gl.FLOAT,false,28,offset);
   }
   const eye = gl.getUniformLocation(program, 'uEye'), angles = gl.getUniformLocation(program, 'uAngles');
   const scale = gl.getUniformLocation(program, 'uScale');
+  const targetMin = gl.getUniformLocation(program, 'uTargetMin'), targetMax = gl.getUniformLocation(program, 'uTargetMax');
+  const targetActive = gl.getUniformLocation(program, 'uTargetActive');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
   let vertices = [], count = 0, currentBoxes = boxes;
+  let glowCount = 0, glowKey = '';
+  function setGlow(target) {
+    const key=target?[...target.min,...target.max].join(','):'';
+    if(key===glowKey) return;
+    glowKey=key;glowCount=0;
+    if(!target) return;
+    const [x,,z]=target.min,[X,Y,Z]=target.max, y=Y+0.8;
+    const data=[],bands=[[-14,0],[-5,0.16],[-1,0.65],[0,1],[1,0.65],[5,0.16],[14,0]];
+    for(const [a,b,n] of [[[x,z],[X,z],[0,1]],[[X,z],[X,Z],[1,0]],[[X,Z],[x,Z],[0,1]],[[x,Z],[x,z],[1,0]]]) {
+      for(let i=1;i<bands.length;i++) {
+        const [d0,c0]=bands[i-1],[d1,c1]=bands[i];
+        const points=[[a,d0,c0],[b,d0,c0],[b,d1,c1],[a,d1,c1]];
+        for(const index of [0,1,2,0,2,3]) {
+          const [p,d,c]=points[index];
+          data.push(p[0]+n[0]*d,y,p[1]+n[1]*d,0.045*c,0.42*c,c,0);
+        }
+      }
+    }
+    glowCount=data.length/7;
+    bindGeometry(glowBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);
+  }
   function addBox(b, base = 0.46) {
     const [x,y,z]=b.min,[X,Y,Z]=b.max;
     const faces = [
@@ -72,7 +119,7 @@ export function createRenderer(canvas, boxes) {
       }
     }
     count=vertices.length/7;
-    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+    bindGeometry(buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
   }
   setBoxes(boxes);
   function resize() {
@@ -80,14 +127,26 @@ export function createRenderer(canvas, boxes) {
     const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
-  function draw(p,fov=100) {
+  function draw(p,fov=100,target=null) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const height=64-p.duckAmount*18;
     gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
     // CS-style FOV setting is horizontal at 4:3; widescreen adds horizontal view.
-    const f=1/(Math.tan(fov*Math.PI/360)*0.75);
+    const f=1/Math.tan(verticalFov(fov)*Math.PI/360);
     gl.uniform2f(scale,f/(canvas.width/canvas.height),f);
+    gl.uniform1f(targetActive,target?1:0);
+    if(target) {
+      gl.uniform3f(targetMin,...target.min);gl.uniform3f(targetMax,...target.max);
+    }
+    bindGeometry(buffer);
     gl.drawArrays(gl.TRIANGLES,0,count);
+    setGlow(target);
+    if(glowCount) {
+      gl.uniform1f(targetActive,0);
+      bindGeometry(glowBuffer);gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
+      gl.drawArrays(gl.TRIANGLES,0,glowCount);
+      gl.disable(gl.BLEND);gl.depthMask(true);
+    }
   }
   return {draw,setBoxes,get boxes(){return currentBoxes;}};
 }

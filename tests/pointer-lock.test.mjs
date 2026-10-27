@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import * as physics from '../dist/physics.js';
 import * as course from '../dist/course.js';
 import * as endlessModule from '../dist/endless.js';
+import { verticalFov } from '../dist/renderer.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -27,17 +28,17 @@ function boot(stored = {}, search = '') {
     return elements.get(id);
   };
   document.querySelectorAll=()=>[];document.body=element();document.pointerLockElement=null;
-  const canvas=document.getElementById('world');let requests=0,lastCamera;
+  const canvas=document.getElementById('world');let requests=0,lastCamera,lastTarget,lastFov;
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
   const context=vm.createContext({...physics,...course,...endlessModule,document,window,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
-    requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw:p=>lastCamera=p})});
+    requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}})});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
   return {context,document,window,canvas,element:id=>document.getElementById(id),
-    requests:()=>requests,camera:()=>lastCamera,read:source=>vm.runInContext(source,context),storage,
+    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,read:source=>vm.runInContext(source,context),storage,
     lock(){document.pointerLockElement=canvas;document.fire('pointerlockchange');}};
 }
 test('Enter waits for capture, then mouse movement looks without dragging',()=>{
@@ -258,4 +259,59 @@ test('knife visibility and sounds save without changing course or movement setti
   assert.equal(stored.map,'endless');assert.equal(stored.knifeEnabled,true);assert.equal(stored.knifeSounds,true);
   app.element('knife-enabled').checked=false;app.element('knife-enabled').fire('change');
   assert.equal(app.element('knife-status').textContent,'Knife hidden');
+});
+test("the new 1x default turns 50% faster, and sensitivity multipliers persist without repeated migration",()=>{
+  const app=boot();app.element('play').fire('click');app.lock();
+  assert.equal(app.element('sensitivity-value').textContent,'1.00×');
+  const initial=app.read('player.yaw');
+  app.document.fire('mousemove',{movementX:100,movementY:0});
+  const delta=app.read('player.yaw')-initial;
+  assert.ok(Math.abs(delta/(100*2*.022*Math.PI/180)-1.5)<1e-9);
+  app.element('sensitivity').value='2';app.element('sensitivity').fire('input');
+  app.document.fire('mousemove',{movementX:100,movementY:0});
+  assert.ok(Math.abs((app.read('player.yaw')-initial)-3*delta)<1e-9);
+  const restored=boot(Object.fromEntries(app.storage));
+  assert.equal(restored.read('sensitivity'),2);assert.equal(restored.element('sensitivity-value').textContent,'2.00×');
+  const legacy=boot({'movement-lab-settings-v1':JSON.stringify({sensitivity:2,fov:110})});
+  assert.equal(legacy.read('sensitivity'),1);assert.equal(legacy.read('fov'),110);
+  const migrated=boot(Object.fromEntries(legacy.storage));
+  assert.equal(migrated.read('sensitivity'),1);assert.equal(migrated.read('fov'),110);
+  assert.equal(JSON.parse(migrated.storage.get('movement-lab-settings-v1')).sensitivityVersion,2);
+});
+test("world and hands receive the selected FOV, with the shared lens shrinking projection as FOV increases",()=>{
+  const app=boot();
+  app.read('var handFovs=[];knife={draw(dt,fov){handFovs.push(fov)},equip(){},audio:{activate(){}}}');
+  for(const fov of [80,100,120]) {
+    app.element('fov').value=String(fov);app.element('fov').fire('input');app.context.frame(0);
+    assert.equal(app.fov(),fov);assert.equal(app.read('handFovs.at(-1)'),fov);
+    const projectedScale=1/Math.tan(verticalFov(fov)*Math.PI/360);
+    assert.ok(Math.abs(projectedScale-1/(Math.tan(fov*Math.PI/360)*.75))<1e-12);
+  }
+  assert.ok(verticalFov(80)<verticalFov(100));assert.ok(verticalFov(100)<verticalFov(120));
+});
+test("the blue target advances through each course checkpoint to the finish and resets for a new run",()=>{
+  const app=boot();
+  for(const map of course.MAP_LIST.filter(m=>m.timed)) {
+    app.read(`chooseMap('${map.id}')`);app.context.frame(0);
+    assert.equal(app.target().checkpoint,1,map.title);
+    for(let cp=1;cp<map.spawns.length;cp++) {
+      const spawn=map.spawns[cp];
+      app.read(`player=createPlayer({x:${spawn.x},y:${spawn.y+80},z:${spawn.z},yaw:0});tick()`);app.context.frame(0);
+      if(cp<map.spawns.length-1)assert.equal(app.target().checkpoint,cp+1,map.title);
+      else assert.equal(app.target().finish,true,map.title);
+    }
+    app.read('finishRun()');app.context.frame(0);assert.equal(app.target(),null);
+    app.read('reset()');app.context.frame(0);assert.equal(app.target().checkpoint,1);
+  }
+  app.read("chooseMap('free')");app.context.frame(0);assert.equal(app.target(),null);
+});
+test("endless highlights the next checkpoint deck even after the world rebases",()=>{
+  const app=boot();app.read("chooseMap('endless')");app.context.frame(0);
+  assert.equal(app.target().endlessIndex,8);
+  for(const index of [8,16,24,32,40]) {
+    app.read(`{const deck=endless.platform(${index});player=createPlayer({x:(deck.min[0]+deck.max[0])/2,y:deck.max[1]+80,z:(deck.min[2]+deck.max[2])/2,yaw:0});tick()}`);
+    app.context.frame(0);
+    assert.equal(app.target().endlessIndex,index+8);
+    assert.equal(app.target().min[2],app.read(`endless.platform(${index+8}).min[2]`));
+  }
 });

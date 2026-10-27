@@ -12,7 +12,7 @@ catch (error) { $('menu-description').textContent=error.message; $('play').disab
 let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
 let endless = null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
-let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
+let runActive = false, respawns = 0, pendingJump = false, sensitivity = 1, fov = 100;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
 let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
@@ -31,7 +31,7 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov,knifeEnabled,knifeSounds})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds})); } catch {}
 }
 function loadKnife() {
   if(!knifeEnabled||knife) return Promise.resolve(knife);
@@ -247,7 +247,9 @@ function frame(now) {
     const spawn=endless?endless.spawn:MAPS[map].spawns[0];
     Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
   }
-  renderer.draw(camera,fov);knife?.draw(elapsed);updateHud();
+  const target=completed?null:endless?endless.platform((checkpoint+1)*8):
+    MAPS[map].timed?boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish):null;
+  renderer.draw(camera,fov,target);knife?.draw(elapsed,fov);updateHud();
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
 }
@@ -273,7 +275,7 @@ $('knife-sounds').addEventListener('change',()=>{
   knifeSounds=$('knife-sounds').checked;knife?.audio?.setMuted(!knifeSounds);saveSettings();
 });
 for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
-  if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2);}
+  if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2)+'×';}
   else {fov=Number($(name).value);$('fov-value').textContent=fov;}
   saveSettings();
 });
@@ -296,7 +298,7 @@ document.addEventListener('pointerlockchange',()=>{
 });
 document.addEventListener('pointerlockerror',mouseCaptureFailed);
 function look(dx,dy) {
-  const scale=sensitivity*0.022*Math.PI/180;
+  const scale=sensitivity*0.066*Math.PI/180;
   player.yaw+=dx*scale;player.pitch=Math.max(-1.5,Math.min(1.5,player.pitch-dy*scale));
 }
 document.addEventListener('mousemove',e=>{
@@ -306,12 +308,15 @@ document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump
 window.addEventListener('blur',()=>{if(playing||lockPending)pause();});
 window.addEventListener('pagehide',saveEndlessBest);
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(playing||lockPending))pause();});
+if(Number.isFinite(settings.sensitivity)) {
+  const multiplier=settings.sensitivityVersion===2?settings.sensitivity:settings.sensitivity/2;
+  sensitivity=Math.min(5,Math.max(0.1,multiplier));
+}
+if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
 const requestedMap=new URLSearchParams(window.location?.search||'').get('course');
 chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
-if(Number.isFinite(settings.sensitivity))sensitivity=Math.min(5,Math.max(0.2,settings.sensitivity));
-if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
-$('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);
+$('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2)+'×';
 $('fov').value=fov;$('fov-value').textContent=fov;
 reset();requestAnimationFrame(frame);
 if(knifeEnabled) void loadKnife();else $('knife-status').textContent='Knife hidden';

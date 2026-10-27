@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ButterflyController } from './butterfly-controller.js';
 import { createButterflyAudio } from './butterfly-audio.js';
+import { verticalFov } from '../renderer.js';
 
 export async function createButterflyViewmodel({
   worldCanvas,
@@ -22,7 +23,9 @@ export async function createButterflyViewmodel({
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(67.380135, 1, 0.001, 10);
+  const camera = new THREE.PerspectiveCamera(verticalFov(100), 1, 0.001, 10);
+  // Retain a readable first-person framing while following the world's FOV.
+  camera.zoom = 1.35;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
   const environment = pmrem.fromScene(room, 0.04);
@@ -34,8 +37,8 @@ export async function createButterflyViewmodel({
   try { gltf = await new GLTFLoader().loadAsync(assetUrl); }
   catch (error) { environment.dispose();renderer.dispose();canvas.remove();throw error; }
   const root = gltf.scene;
-  // Tuck the arms slightly down and back toward the player to clear the view.
-  root.position.set(0, -0.015, 0.025);
+  // Bring the knife closer while keeping the forearms below the centre of view.
+  root.position.set(0, -0.015, 0.12);
   root.traverse(node => { if (node.isMesh) node.frustumCulled = false; });
   scene.add(root);
   const controller = new ButterflyController(root, gltf.animations, { rareChance });
@@ -45,17 +48,21 @@ export async function createButterflyViewmodel({
   controller.bindControls({ canvas: worldCanvas, isActive });
   controller.equip();
   let width = 0, height = 0, ratio = 0;
-  function draw(deltaSeconds) {
+  function draw(deltaSeconds, fov = 100) {
     const active = !!isActive();canvas.style.display = active ? 'block' : 'none';controller.enabled = active;
     if (!active) { controller.releaseAttacks();audio?.update();return; }
     const rect = worldCanvas.getBoundingClientRect();
     const nextRatio = Math.min(devicePixelRatio || 1, 2);
+    let projectionChanged = false;
     if (rect.width !== width || rect.height !== height || nextRatio !== ratio) {
       width = rect.width;height = rect.height;ratio = nextRatio;
       renderer.setPixelRatio(ratio);renderer.setSize(width, height, false);
       canvas.style.width = `${width}px`;canvas.style.height = `${height}px`;
-      camera.aspect = width / Math.max(height, 1);camera.updateProjectionMatrix();
+      camera.aspect = width / Math.max(height, 1);projectionChanged = true;
     }
+    const nextFov = verticalFov(fov);
+    if (camera.fov !== nextFov) { camera.fov = nextFov;projectionChanged = true; }
+    if (projectionChanged) camera.updateProjectionMatrix();
     canvas.style.left = `${rect.left}px`;canvas.style.top = `${rect.top}px`;
     controller.update(deltaSeconds);audio?.update();renderer.render(scene, camera);
   }
