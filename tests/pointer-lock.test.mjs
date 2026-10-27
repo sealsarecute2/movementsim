@@ -6,6 +6,8 @@ import * as physics from '../dist/physics.js';
 import * as course from '../dist/course.js';
 import * as endlessModule from '../dist/endless.js';
 import { verticalFov } from '../dist/renderer.js';
+import * as audioModule from '../dist/game-audio.js';
+import * as leaderboardModule from '../dist/leaderboard.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -18,7 +20,8 @@ function boot(stored = {}, search = '') {
       classList:{add:k=>classes.add(k),remove:k=>classes.delete(k),
         contains:k=>classes.has(k),toggle:(k,on)=>on?classes.add(k):classes.delete(k)},
       addEventListener:(name,fn)=>listeners.set(name,fn),
-      fire:(name,event={})=>listeners.get(name)?.(event),focus(){}};
+      fire:(name,event={})=>listeners.get(name)?.(event),focus(){},
+      showModal(){this.open=true;},close(){this.open=false;this.fire('close');}};
   }
   const elements=new Map(),document=element(),window=element();
   window.location={search};
@@ -32,7 +35,7 @@ function boot(stored = {}, search = '') {
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
-  const context=vm.createContext({...physics,...course,...endlessModule,document,window,
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,document,window,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>({setBoxes(){},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}})});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
@@ -314,4 +317,43 @@ test("endless highlights the next checkpoint deck even after the world rebases",
     assert.equal(app.target().endlessIndex,index+8);
     assert.equal(app.target().min[2],app.read(`endless.platform(${index+8}).min[2]`));
   }
+});
+
+test('FPS uses render frames rather than physics ticks and resets while the page is hidden',()=>{
+  const app=boot();app.context.frame(0);
+  for(let i=1;i<=60;i++)app.context.frame(i*1000/60);
+  assert.equal(Number(app.element('fps').textContent),60);
+  app.document.hidden=true;app.context.frame(2000);assert.equal(app.element('fps').textContent,'—');
+  app.document.hidden=false;
+  for(let i=1;i<=30;i++)app.context.frame(2000+i*1000/60);
+  assert.equal(Number(app.element('fps').textContent),60);
+});
+test('checkpoint sounds fire once on entry, including Endless, and pause/respawn stop active sounds',()=>{
+  const app=boot();
+  app.read('var soundCalls=[];gameAudio={movement(){},checkpoint(){soundCalls.push("checkpoint")},stopAll(){soundCalls.push("stop")}}');
+  app.read('player=createPlayer({...MAPS.course.spawns[1],y:80});tick();tick()');
+  assert.equal(app.read('soundCalls.filter(c=>c==="checkpoint").length'),1);
+  app.read('pause();reset(false)');assert.ok(app.read('soundCalls.filter(c=>c==="stop").length')>=2);
+  app.read("chooseMap('endless');soundCalls=[];{const deck=endless.platform(8);player=createPlayer({x:0,y:80,z:(deck.min[2]+deck.max[2])/2,yaw:0});tick();tick()}");
+  assert.equal(app.read('soundCalls.filter(c=>c==="checkpoint").length'),1);
+});
+test('the chosen checkpoint sound, movement toggle and volume persist independently of knife settings',async()=>{
+  const app=boot();
+  app.element('checkpoint-sound').value='arcade';await app.element('checkpoint-sound').fire('change');
+  app.element('movement-sounds').checked=false;app.element('movement-sounds').fire('change');
+  app.element('audio-volume').value='40';app.element('audio-volume').fire('input');
+  const settings=JSON.parse(app.storage.get('movement-lab-settings-v1'));
+  assert.equal(settings.checkpointSound,'arcade');assert.equal(settings.movementSounds,false);assert.equal(settings.audioVolume,.4);
+  const restored=boot(Object.fromEntries(app.storage));
+  assert.equal(restored.element('checkpoint-sound').value,'arcade');assert.equal(restored.element('movement-sounds').checked,false);
+  assert.equal(restored.element('audio-volume').value,40);assert.equal(restored.element('knife-sounds').checked,true);
+});
+test('leaderboard opens for the selected course, safely renders cloud records, and remains separate from local personal bests',async()=>{
+  const app=boot();app.read('loadLeaderboard=async()=>[{name:"<Seal>",value:12.345}]');
+  app.element('leaderboard-button').fire('click');await app.read('refreshLeaderboard()');
+  assert.equal(app.element('leaderboard').open,true);assert.equal(app.element('leaderboard-title').textContent,'Starter course');
+  assert.match(app.element('leaderboard-rows').innerHTML,/&lt;Seal&gt;/);assert.match(app.element('leaderboard-rows').innerHTML,/00:12.345/);
+  assert.equal(app.read('bests[recordKey()]'),undefined);
+  app.element('leaderboard-close').fire('click');assert.equal(app.element('leaderboard').open,false);
+  app.read("chooseMap('free')");assert.equal(app.element('leaderboard-button').disabled,true);
 });

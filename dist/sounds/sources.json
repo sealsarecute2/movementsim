@@ -1,0 +1,40 @@
+{
+  "game": "Counter-Strike 2",
+  "creator": "Valve Corporation",
+  "source": "https://sounds.spriters-resource.com/pc_computer/counterstrike2/asset/450739/",
+  "archive": "https://sounds.spriters-resource.com/media/assets/448/450739.zip?updated=1755556553",
+  "retrieved": "2026-10-27",
+  "processing": "Original extracted WAV samples copied without editing or re-encoding.",
+  "samples": [
+    {
+      "file": "jump_launch_01.wav",
+      "bytes": 47596,
+      "sha256": "a2374852609dcb2d00ea84f2a8d8ebca3d878b20086e838ae7c11d2461ca410e"
+    },
+    {
+      "file": "concrete_ct_01.wav",
+      "bytes": 49536,
+      "sha256": "753ef74e767c1d2bba0010b246336c3a6d6293893c25b00de7d26f000c546370"
+    },
+    {
+      "file": "concrete_ct_02.wav",
+      "bytes": 49536,
+      "sha256": "f53c2618705474feaa93f147f46cecf54250657dc99779a76e83ca5053884326"
+    },
+    {
+      "file": "concrete_ct_03.wav",
+      "bytes": 49536,
+      "sha256": "6e38981ee39c4778705fdd70cde68a9a7ae4bd4531ca20000ce9dfce92a2dcff"
+    },
+    {
+      "file": "concrete_ct_04.wav",
+      "bytes": 49536,
+      "sha256": "af0c900f93478310b654ec7d0048ecb743b339613baf9c85c9be6687f99e9b4a"
+    },
+    {
+      "file": "land_concrete_01.wav",
+      "bytes": 30052,
+      "sha256": "dd9661df9121bef2eeb9ceef411b219469304be38c23fc1a377a9334cc1848a8"
+    }
+  ]
+}

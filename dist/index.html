@@ -9,6 +9,7 @@
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
+  <div class="fps-counter" aria-label="Frames per second"><span id="fps">—</span> FPS</div>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
@@ -33,12 +34,20 @@
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="knife-settings"><label><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
       <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
+      <details class="sound-settings"><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
+        <label class="sound-toggle"><input id="movement-sounds" type="checkbox" checked> CS2 jump, footsteps &amp; landing</label>
+        <div class="sound-choice"><label for="checkpoint-sound">CHECKPOINT CHIME<select id="checkpoint-sound"><option value="pulse">Pulse · clean two-note chime</option><option value="glass">Glass · soft, bright shimmer</option><option value="arcade">Arcade · short rising melody</option><option value="off">Off</option></select></label><button id="checkpoint-preview" type="button">▶ Preview</button></div>
+        <label class="volume-label" for="audio-volume">MOVEMENT &amp; CHIME VOLUME <output id="audio-volume-value">65%</output><input id="audio-volume" type="range" min="0" max="100" step="1" value="65"></label>
+        <p id="audio-status" role="status">Choose a chime to hear it. Your choice is saved.</p>
+      </div></details>
       <button id="play" class="play">PLAY <span>↗</span></button>
+      <button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button>
       <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
       <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>The timer starts when you leave the starting platform's airspace. Pass over checkpoint and finish platforms to activate them, even while airborne.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
     </main>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
+  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module" src="app.js"></script>
 </body>
 </html>

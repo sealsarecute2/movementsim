@@ -17,10 +17,13 @@
 .menu #menu-title{font-size:54px;line-height:1;margin:0 0 24px}.menu .intro:empty{display:none}#play-endless{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:7px;padding:10px 12px;border-color:#777;background:#242424;font-size:9px;letter-spacing:1px}#play-endless:hover{background:#353535;border-color:#ddd}#play-endless span{font-size:17px;line-height:12px}.menu{margin-bottom:35px}.map-description{font-size:8px;color:#888}
 .knife-settings{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:0 0 10px;font-size:9px;color:#aaa}.knife-settings label{display:flex;align-items:center;gap:6px;cursor:pointer}.knife-settings input{accent-color:#ddd;margin:0}.knife-settings>span{font-size:8px;color:#777;margin-left:auto}.knife-controls{font-size:8px;color:#888;line-height:1.8;margin:0 0 18px}.knife-controls kbd{display:inline;padding:2px 4px;min-height:0;font-size:8px}@media(max-width:760px){.knife-settings{gap:10px}.knife-settings>span{width:100%;margin-left:0}.knife-controls{font-size:7px}}
 
+.fps-counter{position:fixed;top:9px;left:14px;z-index:40;pointer-events:none;padding:3px 5px;background:#0008;color:#aaa;font:9px 'IBM Plex Mono',monospace;letter-spacing:.4px;font-variant-numeric:tabular-nums}.fps-counter span{color:#eee}.sound-settings{margin:0 0 16px}.sound-content{padding:3px 0 15px}.sound-toggle{display:flex;align-items:center;gap:7px;font-size:9px;color:#bbb}.sound-toggle input{accent-color:#ddd;margin:0}.sound-choice{display:flex;align-items:flex-end;gap:9px;margin:17px 0}.sound-choice label{flex:1;font-size:8px;letter-spacing:1px;color:#999}.sound-choice select{display:block;width:100%;min-height:35px;margin-top:8px;padding:8px;border:1px solid #444;background:#171717;color:#eee;font:9px 'IBM Plex Mono',monospace;color-scheme:dark}.sound-choice button{padding:10px 12px;min-height:35px;font-size:9px;white-space:nowrap}.volume-label{font-size:8px;letter-spacing:1px;color:#999;display:block}.volume-label output{float:right;color:#ddd}.volume-label input{display:block;width:100%;height:2px;accent-color:#ddd;margin:14px 0 0;cursor:pointer}#audio-status{font-size:8px;line-height:1.7;color:#888;margin:14px 0 0}.leaderboard-open{display:flex;justify-content:space-between;width:100%;padding:12px 17px;margin-top:8px;font-size:9px;letter-spacing:1px;background:#121212}.leaderboard-open:disabled{opacity:.35;cursor:default}.leaderboard-dialog{width:560px;max-width:calc(100vw - 40px);max-height:85vh;box-sizing:border-box;padding:28px;background:#111;border:1px solid #444;color:#eee;font-family:'IBM Plex Mono',monospace}.leaderboard-dialog::backdrop{background:#000c;backdrop-filter:blur(6px)}.leaderboard-heading{display:flex;align-items:center;justify-content:space-between}.leaderboard-heading button{border:0;background:none;color:#999;padding:5px;font-size:15px}.leaderboard-dialog h2{font-family:'Barlow Condensed',Impact,sans-serif;font-size:48px;line-height:1;margin:17px 0 8px}.leaderboard-dialog #leaderboard-mode{font-size:10px;color:#999;margin:0 0 24px}.leaderboard-table{max-height:40vh;overflow:auto}.leaderboard-dialog table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;text-align:left}.leaderboard-dialog th{font-size:8px;letter-spacing:1px;color:#888;font-weight:400;padding:0 10px 12px;border-bottom:1px solid #444}.leaderboard-dialog td{padding:13px 10px;border-bottom:1px solid #292929;overflow-wrap:anywhere}.leaderboard-dialog th:first-child,.leaderboard-dialog td:first-child{width:45px;color:#777}.leaderboard-dialog th:last-child,.leaderboard-dialog td:last-child{text-align:right;white-space:nowrap}.leaderboard-dialog #leaderboard-status{font-size:10px;line-height:1.8;color:#aaa;margin:18px 0}.leaderboard-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #333;padding-top:17px;color:#777;font-size:8px}.leaderboard-dialog footer button{font-size:9px;padding:8px 12px}.leaderboard-dialog button:disabled{opacity:.5}@media(max-width:500px){.leaderboard-dialog{padding:20px}.sound-choice{gap:6px}.sound-choice button{padding:10px 8px}.leaderboard-dialog h2{font-size:39px}}
+
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
+  <div class="fps-counter" aria-label="Frames per second"><span id="fps">—</span> FPS</div>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
@@ -45,12 +48,20 @@
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="knife-settings"><label><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
       <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
+      <details class="sound-settings"><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
+        <label class="sound-toggle"><input id="movement-sounds" type="checkbox" checked> CS2 jump, footsteps &amp; landing</label>
+        <div class="sound-choice"><label for="checkpoint-sound">CHECKPOINT CHIME<select id="checkpoint-sound"><option value="pulse">Pulse · clean two-note chime</option><option value="glass">Glass · soft, bright shimmer</option><option value="arcade">Arcade · short rising melody</option><option value="off">Off</option></select></label><button id="checkpoint-preview" type="button">▶ Preview</button></div>
+        <label class="volume-label" for="audio-volume">MOVEMENT &amp; CHIME VOLUME <output id="audio-volume-value">65%</output><input id="audio-volume" type="range" min="0" max="100" step="1" value="65"></label>
+        <p id="audio-status" role="status">Choose a chime to hear it. Your choice is saved.</p>
+      </div></details>
       <button id="play" class="play">PLAY <span>↗</span></button>
+      <button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button>
       <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
       <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>The timer starts when you leave the starting platform's airspace. Pass over checkpoint and finish platforms to activate them, even while airborne.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
     </main>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
+  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module">
 
 // Each section ends on the same safe deck, so any two section types connect.
@@ -698,6 +709,173 @@ function createRenderer(canvas, boxes) {
   return {draw,setBoxes,get boxes(){return currentBoxes;}};
 }
 
+const CHECKPOINT_CHIMES = Object.freeze({
+  pulse: { label: 'Pulse', wave: 'sine', notes: [[880, 0, .13], [1320, .09, .2]], level: .18 },
+  glass: { label: 'Glass', wave: 'sine', notes: [[1568, 0, .25], [2093, .065, .3], [3136, .025, .18]], level: .1 },
+  arcade: { label: 'Arcade', wave: 'triangle', notes: [[659, 0, .09], [831, .065, .09], [988, .13, .09], [1319, .195, .15]], level: .14 },
+});
+const MOVEMENT_SAMPLES = Object.freeze({
+  jump: ['jump_launch_01.wav'],
+  step: ['concrete_ct_01.wav', 'concrete_ct_02.wav', 'concrete_ct_03.wav', 'concrete_ct_04.wav'],
+  land: ['land_concrete_01.wav'],
+});
+
+class GameAudio {
+  constructor({ context, fetcher = globalThis.fetch?.bind(globalThis), assetBase = 'sounds/',
+    movementEnabled = true, checkpointSound = 'pulse', volume = .65, random = Math.random,
+    onReady = () => {}, onError = () => {} }) {
+    this.context = context;this.fetcher = fetcher;this.assetBase = assetBase;this.random = random;
+    this.onReady = onReady;this.onError = onError;this.buffers = new Map();this.voices = new Set();
+    this.master = context.createGain();this.master.connect(context.destination);
+    this.movementEnabled = !!movementEnabled;this.checkpointSound = checkpointSound;
+    this.stepDistance = 0;this.lastStep = -1;this.loading = null;this.ready = false;
+    this.setVolume(volume);
+  }
+
+  async activate() {
+    if (this.context.state === 'suspended') await this.context.resume();
+    if (this.movementEnabled && !this.loading) {
+      this.loading = this.load().catch(error => { this.loading = null;this.onError(error); });
+    }
+    return this;
+  }
+
+  async load() {
+    await Promise.all(Object.values(MOVEMENT_SAMPLES).flat().map(async file => {
+      if (this.buffers.has(file)) return;
+      const response = await this.fetcher(this.assetBase + file);
+      if (!response.ok) throw new Error(`Movement sound unavailable: ${file}`);
+      this.buffers.set(file, await this.context.decodeAudioData(await response.arrayBuffer()));
+    }));
+    this.ready = true;this.onReady();
+  }
+
+  setVolume(volume) {
+    this.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : .65;
+    this.master.gain.setTargetAtTime(this.volume, this.context.currentTime, .01);
+  }
+
+  setMovementEnabled(enabled) { this.movementEnabled = !!enabled;this.stepDistance = 0; }
+
+  voice(source, level, start, duration, decay = false) {
+    const gain = this.context.createGain(), end = start + duration;
+    gain.gain.setValueAtTime(.0001, start);
+    gain.gain.linearRampToValueAtTime(level, start + Math.min(.006, duration / 4));
+    if (decay) gain.gain.exponentialRampToValueAtTime(.0001, end);
+    else {
+      gain.gain.setValueAtTime(level, end - Math.min(.012, duration / 4));
+      gain.gain.linearRampToValueAtTime(.0001, end);
+    }
+    source.connect(gain);gain.connect(this.master);
+    const voice = { source, gain };
+    source.onended = () => { this.voices.delete(voice);source.disconnect();gain.disconnect(); };
+    this.voices.add(voice);source.start(start);source.stop(end);
+  }
+
+  sample(kind, level) {
+    if (this.context.state !== 'running') return;
+    const files = MOVEMENT_SAMPLES[kind];
+    let index = 0;
+    if (kind === 'step') {
+      index = (this.lastStep + 1 + Math.floor(this.random() * (files.length - 1))) % files.length;
+      this.lastStep = index;
+    }
+    const buffer = this.buffers.get(files[index]);
+    if (!buffer) return;
+    const source = this.context.createBufferSource();source.buffer = buffer;
+    this.voice(source, level, this.context.currentTime, buffer.duration);
+  }
+
+  movement(before, after, input) {
+    if (!this.movementEnabled) return;
+    const landed = after.landTime > before.landTime;
+    if (landed) { this.sample('land', Math.min(.7, .2 + after.landImpact / 1100));this.stepDistance = 0; }
+    if (after.totalJumps > before.totalJumps) { this.sample('jump', .36);this.stepDistance = 0; }
+    if (!before.grounded || !after.grounded || landed) return;
+    const distance = Math.hypot(after.x - before.x, after.z - before.z);
+    if (distance < .01) return;
+    this.stepDistance += distance;
+    const stride = after.ducked ? 60 : input.walk ? 70 : 95;
+    if (this.stepDistance >= stride) {
+      this.stepDistance %= stride;
+      this.sample('step', after.ducked ? .1 : input.walk ? .2 : .43);
+    }
+  }
+
+  checkpoint(style = this.checkpointSound) {
+    const chime = Object.hasOwn(CHECKPOINT_CHIMES, style) ? CHECKPOINT_CHIMES[style] : null;
+    if (!chime || this.context.state !== 'running') return;
+    const now = this.context.currentTime;
+    for (const [frequency, delay, duration] of chime.notes) {
+      const oscillator = this.context.createOscillator();oscillator.type = chime.wave;
+      oscillator.frequency.setValueAtTime(frequency, now + delay);
+      this.voice(oscillator, chime.level, now + delay, duration, true);
+    }
+  }
+
+  stopAll() {
+    const now = this.context.currentTime;
+    for (const { source, gain } of this.voices) {
+      gain.gain.cancelScheduledValues(now);gain.gain.setTargetAtTime(0, now, .003);
+      source.stop(now + .012);
+    }
+    this.voices.clear();this.stepDistance = 0;
+  }
+}
+
+function createGameAudio(options = {}) {
+  const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!Context) return null;
+  return new GameAudio({ ...options, context: new Context() });
+}
+
+function parseLeaderboard(text, { preset = 'classic', endless = false } = {}) {
+  const best = new Map();
+  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const fields = line.split('|').map(field => field.trim());
+    if (fields.length < 2 || fields.length > 3) continue;
+    const [rawName, score, mode = 'classic'] = fields;
+    if (!rawName || mode.toLowerCase() !== preset) continue;
+    let value;
+    if (endless) {
+      if (!/^\d+$/.test(score)) continue;
+      value = Number(score);
+    } else if (/^\d+(?:\.\d{1,3})?$/.test(score)) value = Number(score);
+    else {
+      const parts = /^(\d+):([0-5]\d)(?:\.(\d{1,3}))?$/.exec(score);
+      if (!parts) continue;
+      value = Number(parts[1]) * 60 + Number(parts[2]) + Number((parts[3] || '').padEnd(3, '0')) / 1000;
+    }
+    if (!Number.isFinite(value) || value <= 0 || (endless && !Number.isSafeInteger(value))) continue;
+    const name = [...rawName.normalize('NFC')].slice(0, 40).join('');
+    const key = name.toLowerCase(), previous = best.get(key);
+    if (!previous || (endless ? value > previous.value : value < previous.value)) best.set(key, { name, value });
+  }
+  return [...best.values()].sort((a, b) => (endless ? b.value - a.value : a.value - b.value) || a.name.localeCompare(b.name));
+}
+
+function formatLeaderboardScore(value, endless = false) {
+  if (endless) return `${value.toLocaleString('en-CA')} u`;
+  const ms = Math.round(value * 1000);
+  return `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+}
+
+function leaderboardRows(records, endless = false) {
+  const escape = text => text.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+  return records.slice(0, 100).map((entry, i) => `<tr><td>${i + 1}</td><td>${escape(entry.name)}</td><td>${formatLeaderboardScore(entry.value, endless)}</td></tr>`).join('');
+}
+
+async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal } = {}) {
+  if (!/^[a-z][a-z0-9-]{0,31}$/.test(courseId) || !['classic', 'practice'].includes(preset)) throw new Error('Invalid leaderboard');
+  const response = await fetcher(`leaderboards/${courseId}.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
+  if (!response.ok) throw new Error('Leaderboard unavailable');
+  const text = await response.text();
+  if (text.length > 200000) throw new Error('Leaderboard file is too large');
+  return parseLeaderboard(text, { preset, endless: courseId === 'endless' });
+}
+
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -712,11 +890,16 @@ let runActive = false, respawns = 0, pendingJump = false, sensitivity = 1, fov =
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
 let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
+let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
+let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0;
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
 knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==false;
+movementSounds=settings.movementSounds!==false;
+if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.checkpointSound))checkpointSound=settings.checkpointSound;
+if(Number.isFinite(settings.audioVolume))audioVolume=Math.max(0,Math.min(1,settings.audioVolume));
 // Preserve records from the original single-course version.
 for(const mode of Object.keys(PRESETS)) {
   if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
@@ -727,7 +910,34 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume})); } catch {}
+}
+async function activateGameAudio() {
+  if(!gameAudio) gameAudio=createGameAudio({movementEnabled:movementSounds,checkpointSound,volume:audioVolume,
+    onReady:()=>{$('audio-status').textContent='CS2 movement sounds ready';},
+    onError:()=>{$('audio-status').textContent='Movement sounds unavailable. Preview retries loading.';},
+  });
+  if(!gameAudio) {$('audio-status').textContent='Audio is unavailable in this browser.';return null;}
+  try {await gameAudio.activate();return gameAudio;}
+  catch {$('audio-status').textContent='Sound was blocked. Press Preview to retry.';return null;}
+}
+async function refreshLeaderboard() {
+  const request=++leaderboardRequest, selected=MAPS[map], mode=preset;
+  $('leaderboard-title').textContent=selected.title;
+  $('leaderboard-mode').textContent=PRESETS[mode].title;
+  $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
+  $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
+  try {
+    const records=await loadLeaderboard(selected.id,mode);
+    if(request!==leaderboardRequest)return;
+    $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
+    $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
+  } catch {if(request===leaderboardRequest)$('leaderboard-status').textContent='Could not load records. Try Refresh.';}
+}
+function openLeaderboard() {
+  if(!MAPS[map].timed&&!MAPS[map].endless)return;
+  if(playing)pause();
+  $('leaderboard').showModal();void refreshLeaderboard();
 }
 function loadKnife() {
   if(!knifeEnabled||knife) return Promise.resolve(knife);
@@ -757,6 +967,7 @@ function saveEndlessBest() {
 }
 function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
+  gameAudio?.stopAll();
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
@@ -777,6 +988,7 @@ function pause() {
   if(completed) return;
   saveEndlessBest();
   playing=false; lockPending=false; clearInput(); document.body.classList.remove('playing');
+  gameAudio?.stopAll();
   knife?.draw(0);
   $('play').disabled=false;
   overlay.classList.remove('hidden');
@@ -805,6 +1017,7 @@ function mouseCaptureFailed() {
 }
 function play() {
   if(lockPending) return;
+  void activateGameAudio();
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
   if(document.pointerLockElement===canvas) {beginSession();return;}
@@ -840,12 +1053,14 @@ function chooseMap(value,resetRun=true) {
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
   $('map-meta').textContent=selected.endless?'Infinite · checkpoint every 8 blocks':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('leaderboard-button').disabled=!selected.timed&&!selected.endless;
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
 function finishRun() {
+  gameAudio?.stopAll();
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
   knife?.draw(0);
   if(document.pointerLockElement===canvas) document.exitPointerLock();
@@ -891,6 +1106,7 @@ function tick() {
   };
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  gameAudio?.movement(previousDraw,player,input);
   let timerStart=runActive?0:1, timerEnd=1, finished=false;
   if(!runActive) {
     const start=endless?endless.platform(0):boxes[0];
@@ -905,6 +1121,7 @@ function tick() {
     if(result.shift)previousDraw.z-=result.shift;
     if(result.changed) {boxes=endless.boxes;renderer.setBoxes(boxes);}
     if(result.checkpointSaved) {
+      gameAudio?.checkpoint();
       checkpoint=endless.checkpoint;saveEndlessBest();
       toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
     }
@@ -916,6 +1133,7 @@ function tick() {
     }).sort((a,b)=>a.time-b.time);
     for(const {box,time} of hits) {
       if(box.checkpoint===checkpoint+1) {
+        gameAudio?.checkpoint();
         checkpoint=box.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
       }
       if(box.finish&&runActive&&checkpoint===MAPS[map].spawns.length-1) {
@@ -931,6 +1149,11 @@ function tick() {
   }
 }
 function frame(now) {
+  if(document.hidden||fpsWindowStart===null||now-fpsWindowStart>2000||now<fpsWindowStart) {
+    fpsWindowStart=now;fpsFrames=0;if(document.hidden)$('fps').textContent='—';
+  } else if(++fpsFrames&&now-fpsWindowStart>=500) {
+    $('fps').textContent=Math.round(fpsFrames*1000/(now-fpsWindowStart));fpsWindowStart=now;fpsFrames=0;
+  }
   const elapsed=Math.min((now-previous)/1000,0.08);previous=now;
   if(playing) {
     accumulator+=elapsed;
@@ -950,6 +1173,27 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('leaderboard-button').addEventListener('click',openLeaderboard);
+$('finish-leaderboard').addEventListener('click',openLeaderboard);
+$('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
+$('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
+$('leaderboard').addEventListener('close',()=>{leaderboardRequest++;});
+$('movement-sounds').checked=movementSounds;
+$('movement-sounds').addEventListener('change',()=>{
+  movementSounds=$('movement-sounds').checked;gameAudio?.setMovementEnabled(movementSounds);
+  if(movementSounds)void activateGameAudio();saveSettings();
+});
+$('checkpoint-sound').value=checkpointSound;$('checkpoint-preview').disabled=checkpointSound==='off';
+$('checkpoint-sound').addEventListener('change',async()=>{
+  checkpointSound=$('checkpoint-sound').value;saveSettings();$('checkpoint-preview').disabled=checkpointSound==='off';
+  const audio=await activateGameAudio();if(audio){audio.checkpointSound=checkpointSound;audio.checkpoint();}
+});
+$('checkpoint-preview').addEventListener('click',async()=>{const audio=await activateGameAudio();audio?.checkpoint(checkpointSound);});
+$('audio-volume').value=Math.round(audioVolume*100);$('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;
+$('audio-volume').addEventListener('input',()=>{
+  audioVolume=Number($('audio-volume').value)/100;gameAudio?.setVolume(audioVolume);
+  $('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;saveSettings();
+});
 $('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
 $('again').addEventListener('click',()=>{reset();play();});

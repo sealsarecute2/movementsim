@@ -2,6 +2,8 @@ import { DT, PRESETS, createPlayer, step, speed, support, platformAirspace } fro
 import { MAPS, MAP_LIST } from './course.js';
 import { createEndless } from './endless.js';
 import { createRenderer } from './renderer.js';
+import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
+import { loadLeaderboard, leaderboardRows } from './leaderboard.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -16,11 +18,16 @@ let runActive = false, respawns = 0, pendingJump = false, sensitivity = 1, fov =
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
 let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
+let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
+let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0;
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
 knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==false;
+movementSounds=settings.movementSounds!==false;
+if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.checkpointSound))checkpointSound=settings.checkpointSound;
+if(Number.isFinite(settings.audioVolume))audioVolume=Math.max(0,Math.min(1,settings.audioVolume));
 // Preserve records from the original single-course version.
 for(const mode of Object.keys(PRESETS)) {
   if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
@@ -31,7 +38,34 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume})); } catch {}
+}
+async function activateGameAudio() {
+  if(!gameAudio) gameAudio=createGameAudio({movementEnabled:movementSounds,checkpointSound,volume:audioVolume,
+    onReady:()=>{$('audio-status').textContent='CS2 movement sounds ready';},
+    onError:()=>{$('audio-status').textContent='Movement sounds unavailable. Preview retries loading.';},
+  });
+  if(!gameAudio) {$('audio-status').textContent='Audio is unavailable in this browser.';return null;}
+  try {await gameAudio.activate();return gameAudio;}
+  catch {$('audio-status').textContent='Sound was blocked. Press Preview to retry.';return null;}
+}
+async function refreshLeaderboard() {
+  const request=++leaderboardRequest, selected=MAPS[map], mode=preset;
+  $('leaderboard-title').textContent=selected.title;
+  $('leaderboard-mode').textContent=PRESETS[mode].title;
+  $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
+  $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
+  try {
+    const records=await loadLeaderboard(selected.id,mode);
+    if(request!==leaderboardRequest)return;
+    $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
+    $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
+  } catch {if(request===leaderboardRequest)$('leaderboard-status').textContent='Could not load records. Try Refresh.';}
+}
+function openLeaderboard() {
+  if(!MAPS[map].timed&&!MAPS[map].endless)return;
+  if(playing)pause();
+  $('leaderboard').showModal();void refreshLeaderboard();
 }
 function loadKnife() {
   if(!knifeEnabled||knife) return Promise.resolve(knife);
@@ -61,6 +95,7 @@ function saveEndlessBest() {
 }
 function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
+  gameAudio?.stopAll();
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
@@ -81,6 +116,7 @@ function pause() {
   if(completed) return;
   saveEndlessBest();
   playing=false; lockPending=false; clearInput(); document.body.classList.remove('playing');
+  gameAudio?.stopAll();
   knife?.draw(0);
   $('play').disabled=false;
   overlay.classList.remove('hidden');
@@ -109,6 +145,7 @@ function mouseCaptureFailed() {
 }
 function play() {
   if(lockPending) return;
+  void activateGameAudio();
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
   if(document.pointerLockElement===canvas) {beginSession();return;}
@@ -144,12 +181,14 @@ function chooseMap(value,resetRun=true) {
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
   $('map-meta').textContent=selected.endless?'Infinite · checkpoint every 8 blocks':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('leaderboard-button').disabled=!selected.timed&&!selected.endless;
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
 function finishRun() {
+  gameAudio?.stopAll();
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
   knife?.draw(0);
   if(document.pointerLockElement===canvas) document.exitPointerLock();
@@ -195,6 +234,7 @@ function tick() {
   };
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  gameAudio?.movement(previousDraw,player,input);
   let timerStart=runActive?0:1, timerEnd=1, finished=false;
   if(!runActive) {
     const start=endless?endless.platform(0):boxes[0];
@@ -209,6 +249,7 @@ function tick() {
     if(result.shift)previousDraw.z-=result.shift;
     if(result.changed) {boxes=endless.boxes;renderer.setBoxes(boxes);}
     if(result.checkpointSaved) {
+      gameAudio?.checkpoint();
       checkpoint=endless.checkpoint;saveEndlessBest();
       toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
     }
@@ -220,6 +261,7 @@ function tick() {
     }).sort((a,b)=>a.time-b.time);
     for(const {box,time} of hits) {
       if(box.checkpoint===checkpoint+1) {
+        gameAudio?.checkpoint();
         checkpoint=box.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
       }
       if(box.finish&&runActive&&checkpoint===MAPS[map].spawns.length-1) {
@@ -235,6 +277,11 @@ function tick() {
   }
 }
 function frame(now) {
+  if(document.hidden||fpsWindowStart===null||now-fpsWindowStart>2000||now<fpsWindowStart) {
+    fpsWindowStart=now;fpsFrames=0;if(document.hidden)$('fps').textContent='—';
+  } else if(++fpsFrames&&now-fpsWindowStart>=500) {
+    $('fps').textContent=Math.round(fpsFrames*1000/(now-fpsWindowStart));fpsWindowStart=now;fpsFrames=0;
+  }
   const elapsed=Math.min((now-previous)/1000,0.08);previous=now;
   if(playing) {
     accumulator+=elapsed;
@@ -254,6 +301,27 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('leaderboard-button').addEventListener('click',openLeaderboard);
+$('finish-leaderboard').addEventListener('click',openLeaderboard);
+$('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
+$('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
+$('leaderboard').addEventListener('close',()=>{leaderboardRequest++;});
+$('movement-sounds').checked=movementSounds;
+$('movement-sounds').addEventListener('change',()=>{
+  movementSounds=$('movement-sounds').checked;gameAudio?.setMovementEnabled(movementSounds);
+  if(movementSounds)void activateGameAudio();saveSettings();
+});
+$('checkpoint-sound').value=checkpointSound;$('checkpoint-preview').disabled=checkpointSound==='off';
+$('checkpoint-sound').addEventListener('change',async()=>{
+  checkpointSound=$('checkpoint-sound').value;saveSettings();$('checkpoint-preview').disabled=checkpointSound==='off';
+  const audio=await activateGameAudio();if(audio){audio.checkpointSound=checkpointSound;audio.checkpoint();}
+});
+$('checkpoint-preview').addEventListener('click',async()=>{const audio=await activateGameAudio();audio?.checkpoint(checkpointSound);});
+$('audio-volume').value=Math.round(audioVolume*100);$('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;
+$('audio-volume').addEventListener('input',()=>{
+  audioVolume=Number($('audio-volume').value)/100;gameAudio?.setVolume(audioVolume);
+  $('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;saveSettings();
+});
 $('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
 $('again').addEventListener('click',()=>{reset();play();});

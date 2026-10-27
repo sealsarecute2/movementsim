@@ -6,12 +6,12 @@ import shutil
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-for filename in ('index.html', 'style.css', 'endless.js', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
+for filename in ('index.html', 'style.css', 'endless.js', 'course.js', 'physics.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'app.js'):
     (root / filename).write_text((dist / filename).read_text())
-for directory in ('butterfly', 'vendor'):
+for directory in ('butterfly', 'vendor', 'sounds'):
     shutil.copytree(dist / directory, root / directory, dirs_exist_ok=True)
 pieces = []
-for filename in ('endless.js', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
+for filename in ('endless.js', 'course.js', 'physics.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'app.js'):
     source = (dist / filename).read_text()
     source = re.sub(r'^import .*?;\n', '', source, flags=re.MULTILINE)
     source = re.sub(r'^export ', '', source, flags=re.MULTILINE)
@@ -22,6 +22,9 @@ html = html.replace('<link rel="stylesheet" href="style.css">', '<style>\n' + cs
 html = html.replace('<script type="module" src="app.js"></script>', '<script type="module">\n' + '\n'.join(pieces) + '\n</script>')
 target = root / 'movement-lab.html'
 target.write_text(html)
+# Owner-edited leaderboard text files are authoritative at the repository root.
+# A code rebuild must never replace published records with an older dist copy.
+shutil.copytree(root / 'leaderboards', dist / 'leaderboards', dirs_exist_ok=True)
 # Serve the same complete build at the public entry point. Course code cannot
 # come from an older cached module while the menu comes from a newer HTML file.
 (root / 'index.html').write_text(html)
