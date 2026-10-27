@@ -4,7 +4,7 @@
   "source": "https://sounds.spriters-resource.com/pc_computer/counterstrike2/asset/450739/",
   "archive": "https://sounds.spriters-resource.com/media/assets/448/450739.zip?updated=1755556553",
   "retrieved": "2026-10-27",
-  "processing": "Original extracted WAV samples copied without editing or re-encoding.",
+  "processing": "The existing jump, footstep and landing WAV samples are unchanged. The falling wind is an excerpt of Valve's CS2 in-air surf wind, with a 40 ms loop crossfade as detailed below.",
   "samples": [
     {
       "file": "jump_launch_01.wav",
@@ -35,6 +35,18 @@
       "file": "land_concrete_01.wav",
       "bytes": 30052,
       "sha256": "dd9661df9121bef2eeb9ceef411b219469304be38c23fc1a377a9334cc1848a8"
+    },
+    {
+      "file": "fall_wind.wav",
+      "bytes": 705644,
+      "sha256": "0bbd188bd48026ab8159d0fa98f41a3347ffd95346ad77c52f0ed2163050a125",
+      "source": "https://store.steampowered.com/app/730/CounterStrike_2/",
+      "source_path": "game/csgo/pak01_dir.vpk!sounds/player/surf/med_wind_lp_a_01.vsnd_c",
+      "sound_event": "Player.Surf.Wind.Slow",
+      "depot": 2347770,
+      "manifest": "67499503218971311",
+      "resource_sha256": "777249ede8f96dddbeaabf69b009dec34ba6d34e58504076454c14d14e6a3af7",
+      "processing": "PCM16 stereo 44100 Hz extracted from Valve's compiled resource; a four-second excerpt beginning at 12 s with a 40 ms loop crossfade."
     }
   ]
 }

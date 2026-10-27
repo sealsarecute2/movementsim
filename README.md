@@ -6,9 +6,9 @@ Use WASD to move, the mouse to look, Space or the wheel to jump, Shift to walk, 
 
 The timer starts after you leave the starting platform's airspace. Checkpoints and finishes activate while passing above them. Follow the blue edges to the next checkpoint or finish. FPS is shown in the top-left corner.
 
-Open **Movement & checkpoint sounds** in the menu to preview **Pulse**, **Glass**, and **Arcade**, then keep your favourite. Your choice, volume, and movement-sound toggle are saved in your browser. Jump, concrete footstep, and landing samples are original CS2 game audio; checkpoint chimes are original synthesized sounds. Audio sources and sample hashes are recorded in [sounds/sources.json](sounds/sources.json).
+Open **Movement & checkpoint sounds** in the menu to preview **Pulse**, **Glass**, and **Arcade**, then keep your favourite. Your choice, volume, and movement-sound toggle are saved in your browser. Jump, concrete footstep, landing, and falling wind samples come from CS2 game audio; checkpoint chimes are original synthesized sounds. Audio sources, processing details, and sample hashes are recorded in [sounds/sources.json](sounds/sources.json).
 
-Normal WASD movement has footsteps; holding Shift or crouching makes footsteps silent. When the engine detects a clean bhop, only the jump sound plays. Ordinary landings and heavy falls keep their impact sound. Jumps in place stay at full volume; moving bhop takeoffs are modestly quieter. Finishing a course plays a distinct rising victory chime at your selected movement/chime volume. The hop mix is browser-simulator tuning; it is not an exact reproduction of CS2's audio graph.
+Normal WASD movement has footsteps; holding Shift or crouching makes footsteps silent. When the engine detects a clean bhop, only the jump sound plays. Ordinary landings and heavy falls keep their impact sound. Jumps in place stay at full volume; moving bhop takeoffs are modestly quieter. On longer downward falls, CS2's in-air wind fades in and grows with falling speed. It stops when you land, rebound, pause, finish, or reset, and follows the movement sound toggle and volume. Finishing a course plays a distinct rising victory chime at your selected movement/chime volume. The audio mix is browser-simulator tuning; it is not an exact reproduction of CS2's audio graph.
 
 ## Owner-managed leaderboards
 

@@ -20,7 +20,7 @@ function fixture(options = {}) {
 }
 test('CS2 samples preload once, while checkpoint previews work without movement downloads',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;await f.audio.activate();
-  assert.equal(f.requests.length,6);assert.equal(f.audio.ready,true);assert.equal(f.context.state,'running');
+  assert.equal(f.requests.length,7);assert.equal(f.audio.ready,true);assert.equal(f.context.state,'running');
   const preview=fixture({movementEnabled:false});await preview.audio.activate();preview.audio.checkpoint();
   assert.equal(preview.requests.length,0);assert.equal(preview.sources.length,CHECKPOINT_CHIMES.pulse.notes.length);
 });
@@ -141,6 +141,54 @@ test('real normal movement has footsteps, and silent movement modifiers do not m
     assert.ok(land);assert.ok(Math.max(...land.output.gain.values)>.45);
   }
 });
+test('fall wind loops once on longer downward falls and grows with falling speed',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;
+  const air={...createPlayer(),grounded:false,vy:-400};
+  f.audio.movement(air,air,{walk:true,duck:true});
+  const wind=f.sources[0];assert.ok(wind.buffer.file.endsWith('fall_wind.wav'));
+  assert.equal(wind.loop,true);assert.equal(wind.playbackRate.value,1);assert.equal(wind.stops.length,0);
+  const initial=wind.output.gain.values.at(-1);
+  for(let i=0;i<100;i++)f.audio.movement(air,{...air,vy:-900},{});
+  assert.equal(f.sources.length,1,'a sustained fall must not stack copies of the loop');
+  assert.ok(wind.output.gain.values.at(-1)>initial);assert.ok(wind.output.gain.values.at(-1)<=.5);
+  assert.equal(f.audio.voices.size,1);
+});
+test('fall wind stays silent while grounded, rising, near the apex, or making an ordinary jump',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;const p=createPlayer();
+  for(const state of [{grounded:true,vy:-900},{grounded:false,vy:300},{grounded:false,vy:0},{grounded:false,vy:-RULES.jump}]) {
+    f.audio.movement(p,{...p,...state,vx:2000},{});
+  }
+  assert.equal(f.sources.length,0);
+});
+test('landing, rebounding, muting movement and resetting all stop the wind and allow a clean restart',async()=>{
+  for(const stop of [
+    (f,p)=>f.audio.movement(p,{...p,grounded:true,vy:0},{}),
+    (f,p)=>f.audio.movement(p,{...p,vy:RULES.jump,totalJumps:1,jumpFeedback:'CLEAN HOP'},{}),
+    f=>f.audio.setMovementEnabled(false),
+    f=>f.audio.stopAll(),
+  ]) {
+    const f=fixture();await f.audio.activate();await f.audio.loading;
+    const p={...createPlayer(),grounded:false,vy:-600};f.audio.movement(p,p,{});
+    const old=f.audio.fallVoice;stop(f,p);
+    assert.equal(f.audio.fallVoice,null);assert.equal(old.source.stops.length,1);
+    f.audio.setMovementEnabled(true);f.audio.movement(p,p,{});
+    const next=f.audio.fallVoice;assert.ok(next);assert.notEqual(next,old);
+    old.source.onended();assert.equal(f.audio.fallVoice,next,'the previous fade-out cannot clear a newer loop');
+    f.audio.stopAll();assert.equal(f.audio.voices.size,0);
+  }
+});
+test('real physics starts one wind loop during a long fall and stops it on the landing tick',async()=>{
+  const f=fixture();await f.audio.activate();await f.audio.loading;
+  const player=createPlayer({x:0,y:1000,z:0,yaw:0}),floor={min:[-1000,-120,-1000],max:[1000,0,1000]};
+  player.grounded=false;let landed=false;
+  for(let i=0;i<256*3;i++) {
+    const before={...player};step(player,{},[floor],PRESETS.classic);f.audio.movement(before,player,{});
+    if(player.grounded){landed=true;assert.equal(f.audio.fallVoice,null);break;}
+  }
+  assert.equal(landed,true);
+  const winds=f.sources.filter(s=>s.buffer.file.endsWith('fall_wind.wav'));
+  assert.equal(winds.length,1);assert.equal(winds[0].stops.length,1);
+});
 test('the finish chime is distinct, lasts longer than a checkpoint, and respects the shared volume',async()=>{
   const f=fixture({movementEnabled:false,checkpointSound:'off',volume:.3});await f.audio.activate();
   f.audio.finish();assert.equal(f.sources.length,FINISH_CHIME.notes.length);
@@ -167,7 +215,7 @@ test('sample failures are reported and a later user activation can retry',async(
   await f.audio.activate();await f.audio.loading;assert.equal(errors,1);assert.equal(f.audio.loading,null);
   fail=false;await f.audio.activate();await f.audio.loading;assert.equal(f.audio.ready,true);
 });
-test('bundled movement files are the unchanged CS2 samples recorded in the source manifest',()=>{
+test('bundled movement WAVs match the CS2 sources and processing hashes recorded in the manifest',()=>{
   const manifest=JSON.parse(readFileSync(new URL('../dist/sounds/sources.json',import.meta.url),'utf8'));
   assert.equal(manifest.creator,'Valve Corporation');
   assert.deepEqual(manifest.samples.map(s=>s.file).sort(),Object.values(MOVEMENT_SAMPLES).flat().sort());

@@ -13,6 +13,7 @@ export const MOVEMENT_SAMPLES = Object.freeze({
   jump: ['jump_launch_01.wav'],
   step: ['concrete_ct_01.wav', 'concrete_ct_02.wav', 'concrete_ct_03.wav', 'concrete_ct_04.wav'],
   land: ['land_concrete_01.wav'],
+  fall: ['fall_wind.wav'],
 });
 
 export class GameAudio {
@@ -24,6 +25,7 @@ export class GameAudio {
     this.master = context.createGain();this.master.connect(context.destination);
     this.movementEnabled = !!movementEnabled;this.checkpointSound = checkpointSound;
     this.stepDistance = 0;this.lastStep = -1;this.pendingLanding = null;this.loading = null;this.ready = false;
+    this.fallVoice = null;
     this.setVolume(volume);
   }
 
@@ -50,7 +52,10 @@ export class GameAudio {
     this.master.gain.setTargetAtTime(this.volume, this.context.currentTime, .01);
   }
 
-  setMovementEnabled(enabled) { this.movementEnabled = !!enabled;this.stepDistance = 0;this.pendingLanding = null; }
+  setMovementEnabled(enabled) {
+    this.movementEnabled = !!enabled;this.stepDistance = 0;this.pendingLanding = null;
+    if (!this.movementEnabled) this.stopFall();
+  }
 
   voice(source, level, start, duration, decay = false) {
     const gain = this.context.createGain(), end = start + duration;
@@ -81,8 +86,39 @@ export class GameAudio {
     this.voice(source, level, this.context.currentTime, buffer.duration);
   }
 
+  stopFall() {
+    if (!this.fallVoice) return;
+    const { source, gain } = this.fallVoice, now = this.context.currentTime;
+    this.fallVoice = null;
+    gain.gain.cancelScheduledValues(now);gain.gain.setTargetAtTime(0, now, .01);
+    source.stop(now + .04);
+  }
+
+  updateFall(player) {
+    // Let regular jumps stay clean; the wind comes in on longer downward falls.
+    const fallSpeed = player.grounded ? 0 : -player.vy;
+    if (fallSpeed <= RULES.jump || this.context.state !== 'running') { this.stopFall();return; }
+    const now = this.context.currentTime;
+    const level = Math.min(.5, .12 + (fallSpeed - RULES.jump) / 900 * .38);
+    if (!this.fallVoice) {
+      const buffer = this.buffers.get(MOVEMENT_SAMPLES.fall[0]);
+      if (!buffer) return;
+      const source = this.context.createBufferSource(), gain = this.context.createGain();
+      source.buffer = buffer;source.loop = true;
+      source.connect(gain);gain.connect(this.master);gain.gain.setValueAtTime(0, now);
+      const voice = { source, gain };
+      source.onended = () => {
+        this.voices.delete(voice);source.disconnect();gain.disconnect();
+        if (this.fallVoice === voice) this.fallVoice = null;
+      };
+      this.fallVoice = voice;this.voices.add(voice);source.start(now);
+    }
+    this.fallVoice.gain.gain.setTargetAtTime(level, now, .05);
+  }
+
   movement(before, after, input) {
     if (!this.movementEnabled) return;
+    this.updateFall(after);
     const landed = after.landTime > before.landTime, jumped = after.totalJumps > before.totalJumps;
     const moving = Math.hypot(after.vx, after.vz) >= RULES.maxSpeed * RULES.walkScale;
     const cleanHop = jumped && after.jumpFeedback === 'CLEAN HOP';
@@ -139,7 +175,7 @@ export class GameAudio {
       gain.gain.cancelScheduledValues(now);gain.gain.setTargetAtTime(0, now, .003);
       source.stop(now + .012);
     }
-    this.voices.clear();this.stepDistance = 0;this.pendingLanding = null;
+    this.voices.clear();this.stepDistance = 0;this.pendingLanding = null;this.fallVoice = null;
   }
 }
 
