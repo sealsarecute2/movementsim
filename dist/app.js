@@ -15,10 +15,12 @@ let playing = false, started = false, completed = false, lockPending = false, ch
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 2, fov = 100;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
+let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
+knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==false;
 // Preserve records from the original single-course version.
 for(const mode of Object.keys(PRESETS)) {
   if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
@@ -29,7 +31,24 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,fov,knifeEnabled,knifeSounds})); } catch {}
+}
+function loadKnife() {
+  if(!knifeEnabled||knife) return Promise.resolve(knife);
+  if(knifeLoad) return knifeLoad;
+  $('knife-status').textContent='Loading Butterfly…';
+  knifeLoad=import('./butterfly/butterfly-viewmodel.js').then(({createButterflyViewmodel})=>createButterflyViewmodel({
+    worldCanvas:canvas,isActive:()=>knifeEnabled&&playing&&document.pointerLockElement===canvas,rareChance:0.15,
+  })).then(viewmodel=>{
+    knife=viewmodel;knife.audio?.setMuted(!knifeSounds);
+    $('knife-status').textContent=knifeEnabled?'Butterfly ready':'Knife hidden';
+    return knife;
+  }).catch(error=>{
+    console.warn('Butterfly could not load',error);knifeLoad=null;
+    $('knife-status').textContent=knifeEnabled?'Knife unavailable. Toggle it to retry.':'Knife hidden';
+    return null;
+  });
+  return knifeLoad;
 }
 function toast(message,checkpointNotice=false) {
   $('toast').textContent=message; $('toast').classList.toggle('checkpoint-notice',checkpointNotice);
@@ -55,12 +74,14 @@ function reset(full=true) {
   if(!full) player.peakSpeed=previousPeak;
   previousDraw={...player}; accumulator=0; pendingJump=false;
   completed=false; $('finish').classList.add('hidden');
+  knife?.equip();
   updateHud();
 }
 function pause() {
   if(completed) return;
   saveEndlessBest();
   playing=false; lockPending=false; clearInput(); document.body.classList.remove('playing');
+  knife?.draw(0);
   $('play').disabled=false;
   overlay.classList.remove('hidden');
   if(document.pointerLockElement===canvas) document.exitPointerLock();
@@ -72,6 +93,7 @@ function beginSession() {
   // Start only after the browser confirms pointer lock: the cursor stays hidden
   // and movementX/movementY keep working beyond the edges of the screen.
   if(document.pointerLockElement!==canvas) return;
+  if(!started) knife?.equip();
   lockPending=false; $('play').disabled=false;
   playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
   $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
@@ -87,6 +109,7 @@ function mouseCaptureFailed() {
 }
 function play() {
   if(lockPending) return;
+  void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
   if(document.pointerLockElement===canvas) {beginSession();return;}
   lockPending=true; $('play').disabled=true;
@@ -128,6 +151,7 @@ function chooseMap(value,resetRun=true) {
 }
 function finishRun() {
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
+  knife?.draw(0);
   if(document.pointerLockElement===canvas) document.exitPointerLock();
   const key=recordKey(), old=bests[key], clean=respawns===0;
   const isPB=clean&&(!Number.isFinite(old)||runTime<old);
@@ -207,7 +231,7 @@ function frame(now) {
     const spawn=endless?endless.spawn:MAPS[map].spawns[0];
     Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
   }
-  renderer.draw(camera,fov);updateHud();
+  renderer.draw(camera,fov);knife?.draw(elapsed);updateHud();
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
 }
@@ -223,6 +247,15 @@ $('next-course').addEventListener('click',()=>{
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
 $('map-select').innerHTML=MAP_LIST.map(m=>`<option value="${m.id}">${m.title} · ${m.difficulty}</option>`).join('');
 $('map-select').addEventListener('change',()=>chooseMap($('map-select').value));
+$('knife-enabled').checked=knifeEnabled;$('knife-sounds').checked=knifeSounds;
+$('knife-enabled').addEventListener('change',()=>{
+  knifeEnabled=$('knife-enabled').checked;saveSettings();
+  if(knifeEnabled) { if(knife) {knife.equip();$('knife-status').textContent='Butterfly ready';} else void loadKnife(); }
+  else {$('knife-status').textContent='Knife hidden';knife?.draw(0);}
+});
+$('knife-sounds').addEventListener('change',()=>{
+  knifeSounds=$('knife-sounds').checked;knife?.audio?.setMuted(!knifeSounds);saveSettings();
+});
 for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
   if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2);}
   else {fov=Number($(name).value);$('fov-value').textContent=fov;}
@@ -265,3 +298,4 @@ if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 $('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2);
 $('fov').value=fov;$('fov-value').textContent=fov;
 reset();requestAnimationFrame(frame);
+if(knifeEnabled) void loadKnife();else $('knife-status').textContent='Knife hidden';

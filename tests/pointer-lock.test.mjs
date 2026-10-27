@@ -181,3 +181,31 @@ test('the published entry page contains the complete build and visible Endless b
   const script=entry.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
   new vm.Script(script);
 });
+
+test('the knife draws during play, hides on pause, and equips again on restart',()=>{
+  const app=boot();
+  app.read('var knifeCalls=[];knife={equip(){knifeCalls.push("equip")},draw(dt){knifeCalls.push(dt)},audio:{activate(){},setMuted(){}}}');
+  app.element('play').fire('click');app.lock();app.context.frame(16);
+  assert.equal(app.read('knifeCalls.filter(x=>x==="equip").length'),1);
+  assert.ok(app.read('knifeCalls.some(x=>typeof x==="number"&&x>0)'));
+  app.read('reset()');
+  assert.equal(app.read('knifeCalls.filter(x=>x==="equip").length'),2);
+  app.read('pause()');assert.equal(app.read('knifeCalls.at(-1)'),0);
+  app.element('play').fire('click');app.lock();
+  assert.equal(app.read('knifeCalls.filter(x=>x==="equip").length'),2,'resuming preserves the paused animation');
+});
+
+test('knife visibility and sounds save without changing course or movement settings',()=>{
+  const app=boot({'movement-lab-settings-v1':JSON.stringify({map:'endless',knifeEnabled:false,knifeSounds:false})});
+  assert.equal(app.element('knife-enabled').checked,false);
+  assert.equal(app.element('knife-sounds').checked,false);
+  assert.equal(app.element('knife-status').textContent,'Knife hidden');
+  app.read('var muted=[];knife={equip(){},draw(){},audio:{setMuted(value){muted.push(value)},activate(){}}}');
+  app.element('knife-enabled').checked=true;app.element('knife-enabled').fire('change');
+  app.element('knife-sounds').checked=true;app.element('knife-sounds').fire('change');
+  assert.equal(app.read('muted.at(-1)'),false);
+  const stored=JSON.parse(app.storage.get('movement-lab-settings-v1'));
+  assert.equal(stored.map,'endless');assert.equal(stored.knifeEnabled,true);assert.equal(stored.knifeSounds,true);
+  app.element('knife-enabled').checked=false;app.element('knife-enabled').fire('change');
+  assert.equal(app.element('knife-status').textContent,'Knife hidden');
+});

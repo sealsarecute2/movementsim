@@ -1,12 +1,15 @@
-"""Bundle the dependency-free modules into a double-clickable browser file."""
+"""Bundle movement code and copy the optional first-person knife assets."""
 from pathlib import Path
 import re
+import shutil
 
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
 for filename in ('index.html', 'style.css', 'endless.js', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
     (root / filename).write_text((dist / filename).read_text())
+for directory in ('butterfly', 'vendor'):
+    shutil.copytree(dist / directory, root / directory, dirs_exist_ok=True)
 pieces = []
 for filename in ('endless.js', 'course.js', 'physics.js', 'renderer.js', 'app.js'):
     source = (dist / filename).read_text()
