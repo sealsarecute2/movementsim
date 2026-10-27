@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><title>Movement Lab</title>
+<!-- M outline: Barlow Condensed SemiBold, the existing logo font (SIL OFL 1.1). -->
+<path fill="#000" d="M0 0h64v64H0z"/><path fill="none" stroke="#555" stroke-width="1.2" d="M6 16h46v46H6z"/>
+<path fill="#e9e9e9" d="M383 700H475Q480 700 483.5 696.5Q487 693 487 688V12Q487 7 483.5 3.5Q480 0 475 0H383Q378 0 374.5 3.5Q371 7 371 12V484Q371 488 369.0 488.0Q367 488 365 485L278 327Q273 319 269 319Q265 319 260 327L173 485Q171 488 169.0 488.0Q167 488 167 484V12Q167 7 163.5 3.5Q160 0 155 0H63Q58 0 54.5 3.5Q51 7 51 12V688Q51 693 54.5 696.5Q58 700 63 700H155Q165 700 170 692L267 521Q270 517 273 521L368 692Q373 700 383 700Z" transform="translate(19.47740 52.39000) scale(0.0354000 -0.0354000)"/>
+<path fill="#000" d="M40 0h24v25H40z"/><path fill="none" stroke="#e9e9e9" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter" d="M44 19 60 3M46 3h14v14"/>
+</svg>

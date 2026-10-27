@@ -2,6 +2,7 @@ import { DT, PRESETS, createPlayer, step, speed, support, platformAirspace } fro
 import { MAPS, MAP_LIST } from './course.js';
 import { createEndless } from './endless.js';
 import { createRenderer } from './renderer.js';
+import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
 import { loadLeaderboard, leaderboardRows } from './leaderboard.js';
 
@@ -29,6 +30,7 @@ try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'
 if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
 let crosshair = normaliseCrosshair(settings.crosshair);
+let skybox = normaliseSkybox(settings.skybox);
 knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==false;
 movementSounds=settings.movementSounds!==false;
 if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.checkpointSound))checkpointSound=settings.checkpointSound;
@@ -43,7 +45,7 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair,skybox})); } catch {}
 }
 function normaliseCrosshair(value) {
   const raw=value&&typeof value==='object'?value:{};
@@ -333,6 +335,11 @@ $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
 $('leaderboard').addEventListener('close',()=>{leaderboardRequest++;});
+$('skybox-select').value=skybox;renderer.setSkybox?.(skybox);
+$('skybox-select').addEventListener('change',()=>{
+  skybox=normaliseSkybox($('skybox-select').value);renderer.setSkybox?.(skybox);
+  $('skybox-select').value=skybox;saveSettings();
+});
 for(const name of ['style','red','green','blue','scale']) $('crosshair-'+name).addEventListener(name==='style'?'change':'input',()=>{
   crosshair=normaliseCrosshair({...crosshair,[name]:name==='style'?$('crosshair-style').value:Number($('crosshair-'+name).value)});
   updateCrosshair();saveSettings();

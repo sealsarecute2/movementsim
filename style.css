@@ -85,6 +85,10 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .rgb-row:has(#crosshair-blue) { color: #8faedc; }
 .crosshair-scale { margin-top: 1rem; }
 .crosshair-scale input { display: block; width: 100%; accent-color: #ddd; cursor: pointer; }
+.background-setting { margin: 0 0 1.25rem; }
+.background-setting label { display: block; margin-bottom: .5rem; color: #999; font-size: max(9px, .5625rem); letter-spacing: .08em; }
+.background-setting select { width: 100%; min-height: 2.4375rem; padding: .625rem .5rem; border: 1px solid #393939; background: #151515; color: #eee; font: max(10px, .625rem) 'IBM Plex Mono', monospace; color-scheme: dark; cursor: pointer; }
+.background-setting select:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
 @media (max-width: 760px) {
   .topbar { padding: 1.75rem var(--edge) 1rem; }

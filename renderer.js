@@ -1,3 +1,5 @@
+import { SKYBOXES, normaliseSkybox, SKY_GRADIENT_GLSL, createSkyRenderer } from './skybox.js';
+
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 export function verticalFov(fov = 100) {
   return 2 * Math.atan(Math.tan(fov * Math.PI / 360) * 0.75) * 180 / Math.PI;
@@ -24,7 +26,9 @@ export function createRenderer(canvas, boxes) {
     precision mediump float;
     #endif
     uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
+    uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     varying vec3 vWorld; varying vec3 vColor; varying float vTop; varying float vDistance;
+    ${SKY_GRADIENT_GLSL}
     void main(){
       vec2 grid=mod(vWorld.xz+0.6,64.0);
       float line=(1.0-step(1.2,min(grid.x,grid.y)))*vTop;
@@ -38,7 +42,9 @@ export function createRenderer(canvas, boxes) {
       color=mix(color,vec3(0.07,0.55,1.0),core*target);
       color+=vec3(0.015,0.22,0.65)*glow*target;
       float fade=1.0-smoothstep(1700.0,6500.0,vDistance);
-      gl_FragColor=vec4(color*fade,1.0);
+      vec3 fog=vec3(0.0);
+      if(uFogGain>0.5)fog=backgroundGradient(normalize(vWorld-uFogEye),uSkyHorizon,uSkyZenith,uSkyGround);
+      gl_FragColor=vec4(mix(fog,color,fade),1.0);
     }`;
   function shader(type, source) {
     const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s);
@@ -65,7 +71,16 @@ export function createRenderer(canvas, boxes) {
   const scale = gl.getUniformLocation(program, 'uScale');
   const targetMin = gl.getUniformLocation(program, 'uTargetMin'), targetMax = gl.getUniformLocation(program, 'uTargetMax');
   const targetActive = gl.getUniformLocation(program, 'uTargetActive');
+  const skyHorizon=gl.getUniformLocation(program,'uSkyHorizon'),skyZenith=gl.getUniformLocation(program,'uSkyZenith');
+  const skyGround=gl.getUniformLocation(program,'uSkyGround'),fogGain=gl.getUniformLocation(program,'uFogGain');
+  const fogEye=gl.getUniformLocation(program,'uFogEye');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
+  let skybox='black',skyRenderer=null;
+  function setSkybox(value) {
+    const next=normaliseSkybox(value);
+    if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
+    skybox=next;
+  }
   let vertices = [], count = 0, currentBoxes = boxes;
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
@@ -129,11 +144,20 @@ export function createRenderer(canvas, boxes) {
   }
   function draw(p,fov=100,target=null) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=SKYBOXES[skybox];
+    if(skybox!=='black') {
+      for(const {loc} of attributes)gl.disableVertexAttribArray(loc);
+      skyRenderer.draw(p,scaleX,f,preset);
+      for(const {loc} of attributes)gl.enableVertexAttribArray(loc);
+    }
+    gl.useProgram(program);
     const height=64-p.duckAmount*18;
     gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
+    gl.uniform3f(fogEye,p.x,p.y+height,p.z);
     // CS-style FOV setting is horizontal at 4:3; widescreen adds horizontal view.
-    const f=1/Math.tan(verticalFov(fov)*Math.PI/360);
-    gl.uniform2f(scale,f/(canvas.width/canvas.height),f);
+    gl.uniform2f(scale,scaleX,f);
+    gl.uniform3f(skyHorizon,...preset.horizon);gl.uniform3f(skyZenith,...preset.zenith);gl.uniform3f(skyGround,...preset.ground);
+    gl.uniform1f(fogGain,skybox==='black'?0:1);
     gl.uniform1f(targetActive,target?1:0);
     if(target) {
       gl.uniform3f(targetMin,...target.min);gl.uniform3f(targetMax,...target.max);
@@ -143,10 +167,11 @@ export function createRenderer(canvas, boxes) {
     setGlow(target);
     if(glowCount) {
       gl.uniform1f(targetActive,0);
+      gl.uniform1f(fogGain,0);
       bindGeometry(glowBuffer);gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
       gl.drawArrays(gl.TRIANGLES,0,glowCount);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
   }
-  return {draw,setBoxes,get boxes(){return currentBoxes;}};
+  return {draw,setBoxes,setSkybox,get boxes(){return currentBoxes;},get skybox(){return skybox;}};
 }
