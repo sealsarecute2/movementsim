@@ -84,14 +84,15 @@ export class GameAudio {
   movement(before, after, input) {
     if (!this.movementEnabled) return;
     const landed = after.landTime > before.landTime, jumped = after.totalJumps > before.totalJumps;
-    const cleanHop = jumped && after.jumpFeedback === 'CLEAN HOP';
-    // Browser mix tuning: soften clean rebounds instead of stacking two full
-    // impacts. Hard falls retain their thud even when the next jump is timed.
+    const moving = Math.hypot(after.vx, after.vz) >= RULES.maxSpeed * RULES.walkScale;
+    const cleanHop = jumped && moving && after.jumpFeedback === 'CLEAN HOP';
+    // Keep takeoff and landing clearly audible. Only moving bhops get a modest
+    // reduction; repeated vertical jumps and hard falls keep their normal mix.
     if (landed) {
       const level = Math.min(.7, .2 + after.landImpact / 1100);
       this.pendingLanding = null;this.stepDistance = 0;
       if (after.landImpact > RULES.jump * 1.4) this.sample('land', level);
-      else if (cleanHop) this.sample('land', level * .16);
+      else if (cleanHop) this.sample('land', level * .65);
       else this.pendingLanding = { time: after.landTime, level };
     }
     if (this.pendingLanding) {
@@ -99,12 +100,12 @@ export class GameAudio {
       // Wait only the existing bhop window so a just-after-landing jump can
       // soften its landing before a loud sample has already started playing.
       if (cleanHop && age >= 0 && age <= RULES.bhopHalfWindow + 1e-9) {
-        this.sample('land', this.pendingLanding.level * .16);this.pendingLanding = null;
+        this.sample('land', this.pendingLanding.level * .65);this.pendingLanding = null;
       } else if (age > RULES.bhopHalfWindow || age < 0) {
         this.sample('land', this.pendingLanding.level);this.pendingLanding = null;
       }
     }
-    if (jumped) { this.sample('jump', cleanHop ? .09 : .36);this.stepDistance = 0; }
+    if (jumped) { this.sample('jump', cleanHop ? .32 : .5);this.stepDistance = 0; }
     if (input.walk || input.duck || after.ducked) { this.stepDistance = 0;return; }
     if (!before.grounded || !after.grounded || landed) return;
     const distance = Math.hypot(after.x - before.x, after.z - before.z);
