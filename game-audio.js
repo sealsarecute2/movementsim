@@ -85,27 +85,25 @@ export class GameAudio {
     if (!this.movementEnabled) return;
     const landed = after.landTime > before.landTime, jumped = after.totalJumps > before.totalJumps;
     const moving = Math.hypot(after.vx, after.vz) >= RULES.maxSpeed * RULES.walkScale;
-    const cleanHop = jumped && moving && after.jumpFeedback === 'CLEAN HOP';
-    // Keep takeoff and landing clearly audible. Only moving bhops get a modest
-    // reduction; repeated vertical jumps and hard falls keep their normal mix.
+    const cleanHop = jumped && after.jumpFeedback === 'CLEAN HOP';
+    // Follow the physics bhop signal: a clean rebound plays takeoff only.
+    // Ordinary landings, including hard falls, keep their impact-based volume.
     if (landed) {
       const level = Math.min(.7, .2 + after.landImpact / 1100);
       this.pendingLanding = null;this.stepDistance = 0;
-      if (after.landImpact > RULES.jump * 1.4) this.sample('land', level);
-      else if (cleanHop) this.sample('land', level * .65);
-      else this.pendingLanding = { time: after.landTime, level };
+      if (!cleanHop) this.pendingLanding = { time: after.landTime, level };
     }
     if (this.pendingLanding) {
       const age = after.time - this.pendingLanding.time;
-      // Wait only the existing bhop window so a just-after-landing jump can
-      // soften its landing before a loud sample has already started playing.
-      if (cleanHop && age >= 0 && age <= RULES.bhopHalfWindow + 1e-9) {
-        this.sample('land', this.pendingLanding.level * .65);this.pendingLanding = null;
+      // Wait the existing bhop window so a just-after-landing jump can cancel
+      // the landing before its sample starts playing.
+      if (cleanHop) {
+        this.pendingLanding = null;
       } else if (age > RULES.bhopHalfWindow || age < 0) {
         this.sample('land', this.pendingLanding.level);this.pendingLanding = null;
       }
     }
-    if (jumped) { this.sample('jump', cleanHop ? .32 : .5);this.stepDistance = 0; }
+    if (jumped) { this.sample('jump', cleanHop && moving ? .32 : .5);this.stepDistance = 0; }
     if (input.walk || input.duck || after.ducked) { this.stepDistance = 0;return; }
     if (!before.grounded || !after.grounded || landed) return;
     const distance = Math.hypot(after.x - before.x, after.z - before.z);

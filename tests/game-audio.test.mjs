@@ -24,17 +24,19 @@ test('CS2 samples preload once, while checkpoint previews work without movement 
   const preview=fixture({movementEnabled:false});await preview.audio.activate();preview.audio.checkpoint();
   assert.equal(preview.requests.length,0);assert.equal(preview.sources.length,CHECKPOINT_CHIMES.pulse.notes.length);
 });
-test('jump and landing sounds follow physics events, including both events in an automatic bhop',async()=>{
+test('a same-tick engine-detected bhop plays only jump, including hard falls and jumps in place',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;
   const before=createPlayer(),jumped={...before,grounded:false,totalJumps:1};
   f.audio.movement(before,jumped,{});
   assert.ok(f.sources.at(-1).buffer.file.endsWith('jump_launch_01.wav'));
-  const hopped={...jumped,vx:200,time:1,landTime:1,landImpact:300,totalJumps:2,jumpFeedback:'CLEAN HOP'};
-  f.audio.movement(jumped,hopped,{jumpHeld:true});
-  assert.deepEqual(f.sources.slice(-2).map(s=>s.buffer.file.split('/').at(-1)),['land_concrete_01.wav','jump_launch_01.wav']);
-  assert.ok(Math.max(...f.sources.at(-2).output.gain.values)>.3,'bhop landings must remain clearly audible');
-  assert.equal(Math.max(...f.sources.at(-1).output.gain.values),.32);
-  const count=f.sources.length;f.audio.movement(hopped,{...hopped,time:2},{});assert.equal(f.sources.length,count);
+  for(const vx of [0,200]) for(const landImpact of [300,900]) {
+    const hopped={...jumped,vx,time:1,landTime:1,landImpact,totalJumps:2,jumpFeedback:'CLEAN HOP'};
+    const count=f.sources.length;f.audio.movement(jumped,hopped,{jumpHeld:true});
+    assert.equal(f.sources.length,count+1);
+    assert.ok(f.sources.at(-1).buffer.file.endsWith('jump_launch_01.wav'));
+    assert.equal(Math.max(...f.sources.at(-1).output.gain.values),vx===0?.5:.32);
+    f.audio.movement(hopped,{...hopped,time:2},{});assert.equal(f.sources.length,count+1,'no delayed landing after a bhop');
+  }
 });
 test('normal WASD footsteps vary samples, while Shift walking and crouching produce no footsteps',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;
@@ -59,24 +61,26 @@ test('silent walking clears accumulated stride distance so releasing Shift does 
   f.audio.movement(p,{...p,x:10},{});assert.equal(f.sources.length,0);
   f.audio.movement(p,{...p,x:85},{});assert.equal(f.sources.length,1);
 });
-test('a clean hop just after landing softens the pending landing before its full-volume sound starts',async()=>{
-  const f=fixture();await f.audio.activate();await f.audio.loading;
-  const air={...createPlayer(),vx:200,grounded:false,time:.9,totalJumps:1};
-  const landed={...air,grounded:true,time:1,landTime:1,landImpact:300};
-  f.audio.movement(air,landed,{});assert.equal(f.sources.length,0);
-  const hopped={...landed,grounded:false,time:1+DT,totalJumps:2,jumpFeedback:'CLEAN HOP'};
-  f.audio.movement(landed,hopped,{jumpPressed:true});
-  assert.equal(f.sources.length,2);assert.ok(f.sources.every(source=>Math.max(...source.output.gain.values)>=.3));
-  assert.ok(Math.max(...f.sources[0].output.gain.values)<.2+300/1100,'moving rebounds are softer than ordinary landings');
-  f.audio.movement(hopped,{...hopped,time:1.1},{});assert.equal(f.sources.length,2);
+test('a bhop just after landing cancels the pending landing, including the last tick of the bhop window',async()=>{
+  for(const vx of [0,200]) for(const landImpact of [300,900]) for(const delay of [DT,RULES.bhopHalfWindow]) {
+    const f=fixture();await f.audio.activate();await f.audio.loading;
+    const air={...createPlayer(),vx,grounded:false,time:.9,totalJumps:1};
+    const landed={...air,grounded:true,time:1,landTime:1,landImpact};
+    f.audio.movement(air,landed,{});assert.equal(f.sources.length,0);
+    const hopped={...landed,grounded:false,time:1+delay,totalJumps:2,jumpFeedback:'CLEAN HOP'};
+    f.audio.movement(landed,hopped,{jumpPressed:true});
+    assert.equal(f.sources.length,1);assert.ok(f.sources[0].buffer.file.endsWith('jump_launch_01.wav'));
+    f.audio.movement(hopped,{...hopped,time:1.1},{});assert.equal(f.sources.length,1);
+  }
 });
-test('ordinary landings remain audible after the hop window and hard falls are not quieted by rebounding',async()=>{
+test('ordinary landings and hard falls remain audible when the engine does not detect a bhop',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;
   const air={...createPlayer(),grounded:false,time:.9},landed={...air,grounded:true,time:1,landTime:1,landImpact:300};
   f.audio.movement(air,landed,{});f.audio.movement(landed,{...landed,time:1+RULES.bhopHalfWindow+DT},{});
   assert.equal(f.sources.length,1);assert.ok(Math.max(...f.sources[0].output.gain.values)>.4);
-  f.audio.movement(air,{...landed,grounded:false,landImpact:900,totalJumps:1,jumpFeedback:'CLEAN HOP'},{jumpHeld:true});
-  assert.equal(Math.max(...f.sources.at(-2).output.gain.values),.7);
+  const hardFall={...landed,time:2,landTime:2,landImpact:900};
+  f.audio.movement(air,hardFall,{});f.audio.movement(hardFall,{...hardFall,time:2+RULES.bhopHalfWindow+DT},{});
+  assert.equal(f.sources.length,2);assert.equal(Math.max(...f.sources.at(-1).output.gain.values),.7);
 });
 test('pausing or disabling movement audio discards a pending landing rather than playing it later',async()=>{
   for(const stop of [audio=>audio.stopAll(),audio=>{audio.setMovementEnabled(false);audio.setMovementEnabled(true);}]) {
@@ -86,7 +90,7 @@ test('pausing or disabling movement audio discards a pending landing rather than
     f.audio.movement(landed,{...landed,time:1.1},{});assert.equal(f.sources.length,0);
   }
 });
-test('real held-Space physics keeps repeated jumps in place and their landings at normal volume',async()=>{
+test('real held-Space physics plays only full-volume takeoffs for clean rebounds in place',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;
   const player=createPlayer(),floor={min:[-1000,-120,-1000],max:[1000,0,1000]},input={jumpHeld:true};
   for(let i=0;i<256*3;i++) {
@@ -95,9 +99,9 @@ test('real held-Space physics keeps repeated jumps in place and their landings a
   const jumps=f.sources.filter(s=>s.buffer.file.endsWith('jump_launch_01.wav'));
   const lands=f.sources.filter(s=>s.buffer.file.endsWith('land_concrete_01.wav'));
   assert.ok(jumps.length>=3);assert.ok(jumps.every(s=>Math.max(...s.output.gain.values)===.5));
-  assert.ok(lands.length>=2);assert.ok(lands.every(s=>Math.max(...s.output.gain.values)>.45));
+  assert.equal(lands.length,0);
 });
-test('real moving bhops stay audible with only a modest reduction after the first jump',async()=>{
+test('real moving bhops play only takeoffs and restore landing sounds when the chain stops',async()=>{
   const f=fixture();await f.audio.activate();await f.audio.loading;
   const player=createPlayer(),floor={min:[-1000,-120,-3000],max:[1000,0,3000]},input={forward:1,jumpHeld:true};
   player.vz=-240;
@@ -108,7 +112,13 @@ test('real moving bhops stay audible with only a modest reduction after the firs
   const lands=f.sources.filter(s=>s.buffer.file.endsWith('land_concrete_01.wav'));
   assert.ok(jumps.length>=3);assert.equal(Math.max(...jumps[0].output.gain.values),.5);
   assert.ok(jumps.slice(1).every(s=>Math.max(...s.output.gain.values)===.32));
-  assert.ok(lands.length>=2);assert.ok(lands.every(s=>Math.max(...s.output.gain.values)>=.3&&Math.max(...s.output.gain.values)<.4));
+  assert.equal(lands.length,0);
+  for(let i=0;i<256;i++) {
+    const before={...player},released={forward:1};
+    step(player,released,[floor],PRESETS.classic);f.audio.movement(before,player,released);
+  }
+  const finalLands=f.sources.filter(s=>s.buffer.file.endsWith('land_concrete_01.wav'));
+  assert.equal(finalLands.length,1);assert.ok(Math.max(...finalLands[0].output.gain.values)>.45);
 });
 test('real normal movement has footsteps, and silent movement modifiers do not mute jumps or landings',async()=>{
   const floor={min:[-1000,-120,-3000],max:[1000,0,3000]};
