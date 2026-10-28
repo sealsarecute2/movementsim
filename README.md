@@ -1,58 +1,84 @@
 # Movement Lab
 
-Play at [sealsarecute2.github.io/movementsim](https://sealsarecute2.github.io/movementsim/).
+**[Play Movement Lab](https://sealsarecute2.github.io/movementsim/)** — a browser game for practising bunny hopping, air strafing, and parkour. Use a keyboard and mouse.
 
-Use WASD to move, the mouse to look, Space or the wheel to jump, Shift to walk, and Ctrl/C to crouch. Q restarts a run, E restores your checkpoint, and Esc pauses. F inspects the knife; hold either mouse button to keep attacking.
+## Start playing
 
-The interface scales with your window size and rearranges the HUD on narrow screens. Open **Settings → Custom crosshair** in the main menu to choose **Default**, **Dot**, or **Cross**, adjust the red/green/blue sliders, and set the scale from **0.5× to 3×**. The live preview matches your in-game crosshair, and your settings are saved automatically.
+1. Open the game and click **Play**.
+2. Choose **Bhop practice** and **Starter course**. Bhop practice gives you stronger air control and lets you build more speed.
+3. Click **Start course** to capture your mouse.
+4. Follow the platforms toward the blue checkpoint. Press **Esc** whenever you want to pause or release your mouse.
 
-Use **Background** to keep the default black scene or choose **Dawn**, **Midday**, **Dusk**, or **Midnight**. The skies follow the camera, with clouds, warm horizons, daylight, or stars and a moon. Your choice is saved across courses and visits. The browser icon matches the Movement Lab M↗ logo.
+You can also open **Sandbox** from the main menu to practise on a wide floor.
 
-The timer starts after you leave the starting platform's airspace. Checkpoints and finishes activate while passing above them. Follow the blue edges to the next checkpoint or finish. FPS is shown in the top-left corner.
+## How to bhop
 
-Open **Movement & checkpoint sounds** in the menu to preview **Pulse**, **Glass**, and **Arcade**, then keep your favourite. Your choice, volume, and movement-sound toggle are saved in your browser. Jump, concrete footstep, landing, and falling wind samples come from CS2 game audio; checkpoint chimes are original synthesized sounds. Audio sources, processing details, and sample hashes are recorded in [sounds/sources.json](sounds/sources.json).
+**Bhop** means bunny hop: jumping again as soon as you land, so you carry your speed between jumps. **Air strafing** means steering while you are in the air.
 
-Normal WASD movement has footsteps; holding Shift or crouching makes footsteps silent. When the engine detects a clean bhop, only the jump sound plays. Ordinary landings and heavy falls keep their impact sound. Jumps in place stay at full volume; moving bhop takeoffs are modestly quieter. On longer downward falls, CS2's in-air wind fades in and grows with falling speed. It stops when you land, rebound, pause, finish, or reset, and follows the movement sound toggle and volume. Finishing a course plays a distinct rising victory chime at your selected movement/chime volume. The audio mix is browser-simulator tuning; it is not an exact reproduction of CS2's audio graph.
+1. **Hold W to start moving forward.** Give yourself a little room before the first jump.
+2. **Hold Space to jump.** Keep holding it: the game automatically jumps again when you land, in both physics modes.
+3. **Release W once you are in the air.** Use A and D with your mouse to steer.
+4. **To turn left, hold A and gently move your mouse left.**
+5. **To turn right, hold D and gently move your mouse right.** Release A when you switch to D, and release D when you switch back to A.
+6. **Keep Space held and aim for the next platform.** Use small, smooth turns. Start with one turn per jump; add more turns once you feel comfortable.
 
-## Courses and ladders
+Try this on the Sandbox floor first: run forward, hold Space, release W, then alternate **A + mouse left** and **D + mouse right**. Watch your speed and practise keeping a steady rhythm.
 
-The native practice maps are **Starter course**, **Endless**, and **Sandbox**. Starter keeps its original geometry, spawns, checkpoints, and finish. The eight additional timed courses and their optional shortcut routes have been removed for now. Map selection shows section counts without difficulty labels. Only Starter has a cloud leaderboard. Cyan rails and rungs identify ladders; blue edges identify the next checkpoint or finish.
+If you keep missing platforms:
 
-## Community maps
+- **Turning too far?** Make smaller mouse movements or lower your sensitivity in Settings.
+- **Losing speed?** Check that your strafe key matches your mouse direction. Start in Bhop practice, where steering is easier.
+- **Going too fast?** Release Space to land and slow down. Build control before trying for maximum speed.
+- **Need to repeat a jump?** Press E to return to your checkpoint.
 
-Open **Play → Community maps → bhop_lego**, then click **Start course**. The playable route from Tony Montana's map is shown as plain grey blocks: platforms, beams, stairs, and automatic boost pads. Room walls, ceilings, lobby areas, textures and bonus scenery are omitted. The prepared geometry is about **28 KB**, so normal play does not download or decode the 22 MB original archive. Choose **Bhop practice** for uncapped movement.
+## Controls
 
-The 25 checkpoint pads activate **in route order**, within a bounded height above each platform. Falling returns you to the latest saved pad without waiting to drop beneath the whole map. **E** restores that checkpoint and keeps the timer; **Q** starts a fresh run and clears progress. Standing on ordinary jumping blocks no longer triggers the original map's delayed teleport reset.
+| Key or input | What it does |
+| --- | --- |
+| W / A / S / D | Move |
+| Mouse | Look and steer |
+| Hold Space | Jump automatically when you land |
+| Scroll wheel | Another way to trigger a jump |
+| Shift | Walk slowly |
+| Ctrl or C | Crouch; useful under low ceilings |
+| E | Return to your checkpoint; the timer continues |
+| Q | Restart the run and clear checkpoint progress |
+| Esc | Pause and release the mouse |
+| F | Inspect the knife |
+| Hold left / right mouse button | Light / heavy knife attack |
+| R | Cancel the knife inspection |
 
-Refreshing the page restores your selected map and checkpoint in a paused state. A reload return counts as a checkpoint-assisted run. Switching maps, changing physics, finishing or restarting discards the previous run. This tab's session storage also retains prepared local-import geometry across reloads; nothing is uploaded, and it is not a permanent map collection.
+To climb a ladder, move into its cyan rails and rungs. Use W/S and look up or down to climb, A/D to move sideways, and Space or the wheel to jump off.
 
-**Import .bsp / .zip** opens compatible local Source 1 maps (BSP versions 19 and 20) as basic block geometry. Maps without a recognized finish can be explored without recording a timed best. CS:GO, CS2 and compressed BSP lumps are unsupported. This is a parkour compatibility view, not a full Source engine. Community maps do not add cloud leaderboards. See [map credits and license](maps/CREDITS.md) for attribution and the author's terms; the original archive is unchanged.
+## Choose a map and physics mode
 
-Move into a ladder to attach. W/S and your viewing angle control ascent and descent; A/D move along its face. Looking upward while pushing into it climbs faster. Release movement to hold position, move beyond an edge to leave, or press Space / the wheel to push off. Holding Space before a catch does not repeatedly kick you away. A ladder can catch a fall, cancels falling wind, and has no ground footsteps. Walk/crouch slow climbing. Climbing onto the top uses the same collision controller as the rest of the game.
+| Map | What to expect |
+| --- | --- |
+| Starter course | A short route for practising jumps, turns, and careful movement |
+| Sandbox | An open floor with obstacles and a ladder for practising freely |
+| Endless | A continuing route with a checkpoint every eight blocks |
+| bhop_lego | A community parkour route with 25 ordered checkpoint pads; find it under Community maps |
 
-The independent ladder implementation follows the view-vector and ladder-plane projection in [Valve's public Source SDK movement reference](https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp), including the Counter-Strike branch's lateral damping. The Source base climb speed is 200 units/s, with a 270 units/s outward jump. The 0.2-second regrab delay and walk/crouch scaling are simulator tuning; this is not a claim of identical current CS2 subtick behavior.
+**Bhop practice** has stronger air control and no speed cap. **CS-style** has gentler air control and capped speed. Both let you hold Space to keep hopping.
 
-Endless now mixes **12** section types, including ladder spires, wall wraps, microsteps, and crosswind turns. Its harder pillars, beams, roofs, and staggered landings still connect to a safe checkpoint every eight blocks. Sandbox keeps its open floor and adds a ladder tower, wrap wall, low duct, narrow rail, and precision pins.
+bhop_lego uses plain blocks for the jumping route. Boost pads activate automatically. You can also try **Import .bsp / .zip** for compatible Source 1 maps; some maps and features are unsupported. Local imports stay in your browser and are not uploaded.
 
-## Menu music
+## Checkpoints, saving, and times
 
-In **Settings → Menu music**, enable the two supplied songs: **Defend The Train OST - BTHG HQ** and **Surya Hearts - Retrofit**. Music is off by default. When enabled, the starting song is random and playback cycles between the tracks in the main menu and pause screen. The music volume slider is separate from movement/chime volume, and both the toggle and volume are saved.
+Follow the blue highlight to the next checkpoint or finish. Checkpoints activate in order, so jumping ahead does not save later progress. Falling returns you to your latest checkpoint.
 
-Music pauses during runs, when the browser tab is hidden, and whenever the window loses focus. Pausing stops its playback clock; returning resumes the same track and position. Existing movement/knife voices and sound previews also stop while unfocused. Browsers that block restored music on reload start it after your next menu click. The songs are bundled as AAC/M4A streams encoded from the supplied MP3 files; original and encoded hashes are listed in [music/sources.json](music/sources.json).
+Press **E** for another attempt from that checkpoint, or **Q** for a fresh run. On timed courses, using a checkpoint makes the run a practice attempt rather than a clean personal best.
 
-## Owner-managed leaderboards
+Refreshing the page restores your timed or community-map run at its checkpoint, paused. Click **Continue** to resume. Keep the same tab open: this is temporary progress. Restarting, changing maps or physics, or finishing clears the previous run. Endless keeps your best distance in your browser.
 
-Starter records live in [leaderboards/course.txt](leaderboards/course.txt). Only people with write access to this repository can publish records; the game has no score-submission endpoint or exposed credentials. Boards for the removed courses and Endless have been removed. Endless still keeps a personal best distance in your browser.
-1. Open `leaderboards/course.txt` on GitHub and click the pencil.
-2. Add a line such as `Youhong | 00:23.456 | classic`.
-3. Click **Commit changes**. After GitHub Pages publishes the update, everyone can see the record in **Leaderboard**.
+The **Starter course** has a shared leaderboard. Records are added by the owner; finishing a run does not automatically publish your score. [Leaderboard information](leaderboards/README.md).
 
-Use `classic` for CS-style or `practice` for Bhop practice. Time can be `MM:SS.mmm` or seconds, such as `23.456`. Lines starting with `#` are comments. The board separates physics modes, sorts records automatically, and keeps each player's best result.
+## Make it comfortable
 
-See [leaderboard editing instructions and course links](leaderboards/README.md). Use real records only.
+Open **Settings** to change mouse sensitivity, field of view, your crosshair, the background, or sound volume. These preferences save automatically in your browser.
 
-## Development
+**Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
 
-Run `npm run dev` to serve the source in `dist/`, `npm test` for the gameplay tests, and `npm run build` to rebuild the published root pages. Code sources live in `dist/`. Leaderboard text files at the repository root are authoritative: the build copies them into `dist/` for local preview, and never overwrites the root records.
+## Credits
 
-`npm run build:maps` rebuilds the small community geometry caches and their previews from the original archives, then rebuilds the published pages.
+bhop_lego is by **Tony Montana**, with original textures by **Man Walker**. See the [map credits and license](maps/CREDITS.md), [movement sound credits](sounds/sources.json), and [music credits](music/sources.json).
