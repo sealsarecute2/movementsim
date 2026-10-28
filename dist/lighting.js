@@ -12,23 +12,20 @@ export function sampleSceneLight(skybox,sky) {
     ambient:[.25+.07*day,.28+.06*day,.36+.03*day],power:(daylight?1:.32)*rise};
 }
 
-// A small soft circle on the first platform reached by the light ray. Keeping
-// the receiver height prevents it appearing through roofs or on lower floors.
+// Keep the soft circle directly under the player on the nearest platform.
+// The receiver height prevents it appearing through roofs or on lower floors.
 export function projectPlayerShadow(player,boxes,light) {
-  if(!player||light.power<=.005||light.direction[1]<.04||!['x','y','z'].every(k=>Number.isFinite(player[k])))return null;
-  const duck=Math.max(0,Math.min(1,player.duckAmount||0)),sourceY=player.y+28-duck*9;
+  if(!player||light.power<=.005||!['x','y','z'].every(k=>Number.isFinite(player[k])))return null;
+  const duck=Math.max(0,Math.min(1,player.duckAmount||0)),x=player.x,z=player.z;
   let hit=null,nearest=Infinity;
   for(const box of boxes) {
     if(box.ladder||box.max[1]>player.y+.1)continue;
     const gap=Math.max(0,player.y-box.max[1]);
-    if(gap>900)continue;
-    const distance=(sourceY-box.max[1])/light.direction[1];
-    if(distance>=nearest)continue;
-    const x=player.x-light.direction[0]*distance,z=player.z-light.direction[2]*distance;
+    if(gap>900||gap>=nearest)continue;
     const radius=19-duck*2+Math.min(24,gap*.065);
     const dx=x-Math.max(box.min[0],Math.min(box.max[0],x)),dz=z-Math.max(box.min[2],Math.min(box.max[2],z));
     if(dx*dx+dz*dz>=radius*radius)continue;
-    nearest=distance;
+    nearest=gap;
     hit={x,y:box.max[1],z,radius,opacity:.48*Math.min(1,light.power)*Math.exp(-gap/280)};
   }
   return hit;

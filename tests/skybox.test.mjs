@@ -133,6 +133,7 @@ test('optional box lighting follows the sky source while shadows and checkpoints
   const [sky,world,glow]=f.draws;
   assert.equal(world.uniforms.uShadersGain,1);assert.deepEqual(world.uniforms.uLightDirection,sky.uniforms.uSunDirection);
   assert.ok(world.uniforms.uShadowOpacity>0);assert.equal(world.uniforms.uPlayerShadow[1],0);
+  assert.equal(world.uniforms.uPlayerShadow[0],player.x);assert.equal(world.uniforms.uPlayerShadow[2],player.z);
   assert.equal(world.pointers.get(3),3);assert.equal(world.pointers.get(4),1);
   assert.equal(glow.uniforms.uShadersGain,0);assert.equal(glow.uniforms.uFogGain,0);assert.equal(glow.blend,true);
   f.draws.length=0;f.renderer.draw(f.camera);assert.equal(f.draws[1].uniforms.uShadersGain,1);assert.equal(f.draws[1].uniforms.uShadowOpacity,0,'gallery cameras have no player shadow');
@@ -140,6 +141,7 @@ test('optional box lighting follows the sky source while shadows and checkpoints
   assert.deepEqual(f.draws[1].uniforms.uLightDirection,f.draws[0].uniforms.uMoonDirection);
   f.renderer.setSkybox('blackhole');f.draws.length=0;f.renderer.draw(f.camera,100,null,player);
   assert.equal(f.renderer.shaders,true);assert.ok(f.draws[1].uniforms.uLightDirection[1]>0);assert.ok(f.draws[1].uniforms.uShadowOpacity>0);
+  assert.equal(f.draws[1].uniforms.uPlayerShadow[0],player.x);assert.equal(f.draws[1].uniforms.uPlayerShadow[2],player.z);
   f.renderer.setShaders(false);f.draws.length=0;f.renderer.draw(f.camera,100,null,player);
   assert.equal(f.draws[1].uniforms.uShadersGain,0);assert.equal(f.draws[1].uniforms.uShadowOpacity,0);
 });

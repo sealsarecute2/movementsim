@@ -21,11 +21,13 @@ test('light fades at the horizon and ambient lighting stays continuous through d
     assert.ok(before.ambient.every((n,i)=>Math.abs(n-after.ambient[i])<1e-5));
   }
 });
-test('the circular player shadow projects away from the light onto the ground',()=>{
-  const shadow=projectPlayerShadow({x:0,y:100,z:0},[floor],{direction:[.6,.8,0],power:1});
-  assert.ok(Math.abs(shadow.x+96)<1e-9);assert.equal(shadow.y,0);assert.equal(shadow.z,0);
-  const grounded=projectPlayerShadow({x:0,y:0,z:0},[floor],vertical);
-  assert.ok(shadow.radius>grounded.radius);assert.ok(shadow.opacity<grounded.opacity);
+test('the circular player shadow stays directly underneath the player at every light angle',()=>{
+  const player={x:23,y:100,z:-71},grounded=projectPlayerShadow({...player,y:0},[floor],vertical);
+  for(const direction of [[.6,.8,0],[-.6,.8,0],[0,.8,.6],[1,.001,0],BLACK_HOLE_DIRECTION]){
+    const shadow=projectPlayerShadow(player,[floor],{direction,power:1});
+    assert.equal(shadow.x,player.x);assert.equal(shadow.z,player.z);assert.equal(shadow.y,0);
+    assert.ok(shadow.radius>grounded.radius);assert.ok(shadow.opacity<grounded.opacity);
+  }
 });
 test('only the nearest lower platform receives the player shadow; ceilings and ladders do not',()=>{
   const pad={min:[-100,20,-100],max:[100,50,100]},ceiling={min:[-100,140,-100],max:[100,150,100]};
@@ -38,10 +40,9 @@ test('the blob can touch a platform edge but disappears over empty space',()=>{
   assert.ok(projectPlayerShadow({x:30,y:0,z:0},[pad],vertical));
   assert.equal(projectPlayerShadow({x:50,y:0,z:0},[pad],vertical),null);
 });
-test('shadow projection safely handles no player, grazing light, darkness and distant floors',()=>{
+test('shadow projection safely handles no player, darkness and distant floors',()=>{
   const player={x:0,y:0,z:0};
   assert.equal(projectPlayerShadow(null,[floor],vertical),null);
-  assert.equal(projectPlayerShadow(player,[floor],{direction:[1,.001,0],power:1}),null);
   assert.equal(projectPlayerShadow(player,[floor],{...vertical,power:0}),null);
   assert.equal(projectPlayerShadow({x:NaN,y:0,z:0},[floor],vertical),null);
   assert.equal(projectPlayerShadow({x:0,y:1000,z:0},[floor],vertical),null);
