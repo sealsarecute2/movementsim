@@ -419,9 +419,9 @@ test('invalid stored crosshair settings fall back safely and numeric values stay
   const old=boot({'movement-lab-settings-v1':JSON.stringify({crosshair:null})});
   assert.equal(old.element('crosshair').style.color,'rgb(221, 221, 221)');
 });
-test('background defaults to black and all sky choices persist across courses and reloads',()=>{
+test('background defaults to black and both choices persist across courses and reloads',()=>{
   const app=boot();assert.equal(app.skybox(),'black');assert.equal(app.element('skybox-select').value,'black');
-  for(const name of ['dawn','midday','dusk','midnight','black']) {
+  for(const name of ['cycle','black']) {
     app.element('skybox-select').value=name;app.element('skybox-select').fire('change');
     assert.equal(app.skybox(),name);app.read("chooseMap('free');reset()");assert.equal(app.skybox(),name);
     const saved=app.storage.get('movement-lab-settings-v1'),restored=boot({'movement-lab-settings-v1':saved});
@@ -429,10 +429,12 @@ test('background defaults to black and all sky choices persist across courses an
   }
 });
 test('unknown saved skies fall back to black and settings remain usable without WebGL',()=>{
-  const app=boot({'movement-lab-settings-v1':JSON.stringify({skybox:'__proto__'})});assert.equal(app.skybox(),'black');
+  for(const skybox of ['__proto__','dawn','midday','dusk','midnight']){
+    const app=boot({'movement-lab-settings-v1':JSON.stringify({skybox})});assert.equal(app.skybox(),'black');
+  }
   const fallback=boot({},'',new Error('No graphics'));
-  fallback.element('skybox-select').value='midnight';fallback.element('skybox-select').fire('change');
-  assert.equal(JSON.parse(fallback.storage.get('movement-lab-settings-v1')).skybox,'midnight');
+  fallback.element('skybox-select').value='cycle';fallback.element('skybox-select').fire('change');
+  assert.equal(JSON.parse(fallback.storage.get('movement-lab-settings-v1')).skybox,'cycle');
 });
 
 test('main navigation opens map selection and full settings, while Escape returns home',()=>{

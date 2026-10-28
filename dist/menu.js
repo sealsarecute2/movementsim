@@ -23,7 +23,7 @@ export function mapScreenshotCamera(map) {
 
 // Capture one real WebGL frame, then restore the player's geometry and sky.
 // Images are generated once per visit, without extra WebGL contexts or downloads.
-export function captureMapScreenshot({renderer,canvas,map,restoreBoxes,restoreSkybox,skybox='dawn',snapshot}) {
+export function captureMapScreenshot({renderer,canvas,map,restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
   try {
     renderer.setBoxes(map.boxes);renderer.setSkybox(skybox);
     renderer.draw(mapScreenshotCamera(map),85,map.boxes.find(b=>b.checkpoint)||map.boxes.find(b=>b.finish));

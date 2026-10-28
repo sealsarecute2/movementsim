@@ -467,7 +467,7 @@ function frame(now) {
     const i=capturedMaps++, image=slides[i];
     try {
       const shot=captureMapScreenshot({renderer,canvas,map:galleryMaps[i],restoreBoxes:boxes,restoreSkybox:skybox,
-        skybox:['dawn','midday','dusk','midnight'][i%4],snapshot:screenshotCanvas});
+        skybox,snapshot:screenshotCanvas});
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
   }

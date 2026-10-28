@@ -77,6 +77,8 @@ The **Starter course** has a shared leaderboard. Records are added by the owner;
 
 Open **Settings** to change mouse sensitivity, field of view, your crosshair, the background, or sound volume. These preferences save automatically in your browser.
 
+**Background** has two choices: **Black** (the default) and **Day / night cycle**. Turning on the cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
+
 **Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
 
 ## Credits

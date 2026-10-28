@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SKYBOXES, normaliseSkybox } from '../dist/skybox.js';
+import { SKYBOXES, normaliseSkybox, sampleSkybox, DAY_NIGHT_CYCLE_SECONDS } from '../dist/skybox.js';
 import { createRenderer } from '../dist/renderer.js';
 
 function fixture(t) {
@@ -23,16 +23,44 @@ function fixture(t) {
       uniforms:structuredClone(current.uniforms),depth,writeDepth,blend,pointers:new Map(pointers),enabled:new Set(enabled)});},
   };
   const canvas={clientWidth:1280,clientHeight:720,width:0,height:0,getContext:()=>gl};
-  const box={min:[-100,-20,-100],max:[100,0,100]},renderer=createRenderer(canvas,[box]);
+  let clock=0;
+  const box={min:[-100,-20,-100],max:[100,0,100]},renderer=createRenderer(canvas,[box],{now:()=>clock});
   const camera={x:0,y:0,z:80,yaw:.6,pitch:.2,duckAmount:0};
-  return {renderer,camera,box,gl,draws,programs,uploads};
+  return {renderer,camera,box,gl,draws,programs,uploads,setTime:seconds=>{clock=seconds*1000;}};
 }
 
-test('black is the default and all four named skies have distinct palettes',()=>{
-  assert.deepEqual(Object.keys(SKYBOXES),['black','dawn','midday','dusk','midnight']);
-  for(const value of [undefined,null,'unknown','__proto__',3])assert.equal(normaliseSkybox(value),'black');
-  for(const name of ['dawn','midday','dusk','midnight'])assert.equal(normaliseSkybox(name),name);
-  assert.equal(new Set(Object.values(SKYBOXES).map(p=>p.zenith.join(','))).size,5);
+test('only black and the day/night cycle are selectable; removed and invalid settings fall back to black',()=>{
+  assert.deepEqual(Object.keys(SKYBOXES),['black','cycle']);
+  for(const value of [undefined,null,'unknown','__proto__',3,'dawn','midday','dusk','midnight'])assert.equal(normaliseSkybox(value),'black');
+  assert.equal(normaliseSkybox('cycle'),'cycle');
+  assert.equal(sampleSkybox('black',450),SKYBOXES.black);
+  const html=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
+  const select=html.match(/<select id="skybox-select">(.*?)<\/select>/s)[1];
+  assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['black','cycle']);
+});
+test('the twenty-minute cycle has four distinct phases, an orbiting sun and an opposite moon',()=>{
+  assert.equal(DAY_NIGHT_CYCLE_SECONDS,1200);
+  const phases=[0,300,600,900].map(time=>sampleSkybox('cycle',time));
+  assert.equal(new Set(phases.map(p=>p.zenith.join(','))).size,4);
+  assert.ok(phases[1].sunDirection[1]>.85);assert.equal(phases[1].sunVisibility,1);assert.equal(phases[1].moonVisibility,0);
+  assert.ok(phases[3].moonDirection[1]>.85);assert.equal(phases[3].moonVisibility,1);assert.equal(phases[3].sunVisibility,0);
+  assert.equal(phases[1].stars,0);assert.equal(phases[3].stars,1);
+  for(let second=0;second<1200;second+=13){
+    const frame=sampleSkybox('cycle',second);
+    assert.ok(Math.abs(Math.hypot(...frame.sunDirection)-1)<1e-12);
+    assert.deepEqual(frame.moonDirection,frame.sunDirection.map(n=>-n));
+    for(const key of ['zenith','horizon','ground','cloud','sun'])assert.ok(frame[key].every(n=>Number.isFinite(n)&&n>=0&&n<=1));
+  }
+});
+test('palettes, stars, clouds and celestial motion blend smoothly at phase boundaries and the loop',()=>{
+  const numbers=frame=>Object.values(frame).flat().filter(n=>typeof n==='number').slice(0,-1);
+  for(const boundary of [0,300,600,900,1200]){
+    const before=numbers(sampleSkybox('cycle',boundary-.001)),after=numbers(sampleSkybox('cycle',boundary+.001));
+    assert.ok(before.every((n,i)=>Math.abs(n-after[i])<.0001),'no jump at '+boundary);
+  }
+  for(const time of [0,42.5,300,899,1199])assert.deepEqual(sampleSkybox('cycle',time),sampleSkybox('cycle',time+1200));
+  assert.deepEqual(sampleSkybox('cycle',NaN),sampleSkybox('cycle',0));
+  assert.notDeepEqual(sampleSkybox('cycle',150).cloudOffset,sampleSkybox('cycle',0).cloudOffset);
 });
 test('default black keeps the original clear colour and skips the sky rendering pass',t=>{
   const f=fixture(t);f.renderer.draw(f.camera);
@@ -40,25 +68,40 @@ test('default black keeps the original clear colour and skips the sky rendering 
   assert.equal(f.programs.length,1,'default mode does not compile an unused sky program');
   assert.equal(f.draws.length,1);assert.equal(f.draws[0].sky,false);assert.equal(f.draws[0].uniforms.uFogGain,0);
 });
-test('each sky draws behind geometry with matching camera angles, FOV and aspect ratio',t=>{
+test('every cycle phase draws behind geometry with matching camera, lens and distance haze',t=>{
   const f=fixture(t);
-  for(const name of ['dawn','midday','dusk','midnight']) for(const fov of [80,100,120]) {
-    f.renderer.setSkybox(name);f.draws.length=0;f.renderer.draw(f.camera,fov);
+  f.renderer.setSkybox('cycle');
+  for(const time of [0,300,600,900]) for(const fov of [80,100,120]) {
+    f.setTime(time);f.draws.length=0;f.renderer.draw(f.camera,fov);
     const [sky,world]=f.draws;
     assert.equal(f.draws.length,2);assert.equal(sky.sky,true);assert.equal(world.sky,false);
     assert.deepEqual(sky.uniforms.uSkyAngles,world.uniforms.uAngles);assert.deepEqual(sky.uniforms.uSkyScale,world.uniforms.uScale);
-    assert.deepEqual(sky.uniforms.uHorizon,SKYBOXES[name].horizon);
+    assert.deepEqual(sky.uniforms.uHorizon,sampleSkybox('cycle',time).horizon);
+    assert.deepEqual(sky.uniforms.uHorizon,world.uniforms.uSkyHorizon);
+    assert.deepEqual(sky.uniforms.uSunDirection,sampleSkybox('cycle',time).sunDirection);
+    assert.deepEqual(sky.uniforms.uMoonDirection,sampleSkybox('cycle',time).moonDirection);
     assert.equal(sky.depth,false);assert.equal(sky.writeDepth,false);assert.equal(world.depth,true);assert.equal(world.writeDepth,true);
     assert.equal(sky.pointers.get(0),2);assert.equal(world.pointers.get(0),3);
     assert.deepEqual([...world.enabled].sort(),[0,1,2]);assert.equal(world.uniforms.uFogGain,1);
   }
-  assert.equal(f.programs.length,2,'switching sky presets reuses the same shader');
-  f.renderer.setBoxes([f.box]);assert.equal(f.renderer.skybox,'midnight');
+  assert.equal(f.programs.length,2,'the cycle reuses the same shader');
+  f.renderer.setBoxes([f.box]);assert.equal(f.renderer.skybox,'cycle');
   f.renderer.setSkybox('invalid');f.draws.length=0;f.renderer.draw(f.camera);
   assert.equal(f.renderer.skybox,'black');assert.equal(f.draws.length,1);
 });
+test('the cycle starts when enabled and keeps its clock across maps, previews and repeated selection',t=>{
+  const f=fixture(t);f.setTime(100);f.renderer.setSkybox('cycle');f.renderer.draw(f.camera);
+  assert.equal(f.draws[0].uniforms.uSkyTime,0);
+  f.setTime(400);f.renderer.setBoxes([f.box]);f.renderer.setSkybox('cycle');f.draws.length=0;f.renderer.draw(f.camera);
+  assert.equal(f.draws[0].uniforms.uSkyTime,300);
+  f.setTime(1300);f.draws.length=0;f.renderer.draw(f.camera);
+  assert.equal(f.draws[0].uniforms.uSkyTime,0);
+  f.renderer.setSkybox('black');f.setTime(2000);f.renderer.setSkybox('cycle');f.draws.length=0;f.renderer.draw(f.camera);
+  assert.equal(f.draws[0].uniforms.uSkyTime,0);
+  assert.equal(f.programs.length,2);
+});
 test('blue checkpoint glow stays additive and is not tinted by sky fog',t=>{
-  const f=fixture(t);f.renderer.setSkybox('dawn');f.renderer.draw(f.camera,100,f.box);
+  const f=fixture(t);f.renderer.setSkybox('cycle');f.renderer.draw(f.camera,100,f.box);
   const [sky,world,glow]=f.draws;
   assert.equal(sky.sky,true);assert.equal(world.uniforms.uFogGain,1);
   assert.equal(glow.uniforms.uFogGain,0);assert.equal(glow.blend,true);assert.equal(glow.writeDepth,false);

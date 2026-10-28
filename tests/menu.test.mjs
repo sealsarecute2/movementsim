@@ -35,11 +35,17 @@ test('gallery captures a real renderer frame once, bounds its image size, and re
   assert.equal(captureMapScreenshot(args),'data:image/jpeg;base64,real-frame');
   assert.deepEqual(calls.map(c=>c[0]),['boxes','sky','draw','copy','encode','boxes','sky']);
   assert.equal(calls[0][1],MAP_LIST[0].boxes);
+  assert.deepEqual(calls[1],['sky','black']);
   assert.equal(calls[2][3],MAP_LIST[0].boxes.find(b=>b.checkpoint));
   assert.equal(args.snapshot.width,1200);assert.equal(args.snapshot.height,675);
   assert.equal(calls.at(-2)[1],originalBoxes);assert.deepEqual(calls.at(-1),['sky','black']);
   args.canvas={width:1080,height:3840};captureMapScreenshot(args);
   assert.equal(args.snapshot.height,1200);assert.ok(args.snapshot.width<1200);
+});
+test('gallery uses the selected cycling sky without toggling it off or selecting removed presets',()=>{
+  const {args,calls}=shotFixture();
+  captureMapScreenshot({...args,skybox:'cycle',restoreSkybox:'cycle'});
+  assert.deepEqual(calls.filter(c=>c[0]==='sky'),[['sky','cycle'],['sky','cycle']]);
 });
 test('snapshot encoding failure and unavailable 2D canvas always restore the game renderer',()=>{
   const {args,calls,originalBoxes}=shotFixture();
