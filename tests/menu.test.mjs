@@ -65,12 +65,12 @@ test('slideshow advances, wraps, updates its caption and stops its clock outside
   const {gallery,slides,title,count}=slideshow();
   assert.equal(gallery.current,0);assert.equal(slides.filter(s=>s.active).length,1);
   gallery.step(0);gallery.step(6499);assert.equal(gallery.current,0);
-  gallery.step(6500);assert.equal(gallery.current,1);assert.equal(title.textContent,'Endless');
-  assert.equal(count.textContent,'02 / 03');assert.equal(slides[0]['aria-hidden'],'true');
+  gallery.step(6500);assert.equal(gallery.current,1);assert.equal(title.textContent,MAP_LIST[1].title);
+  assert.equal(count.textContent,'02 / '+String(MAP_LIST.length).padStart(2,'0'));assert.equal(slides[0]['aria-hidden'],'true');
   gallery.step(7000,false);gallery.step(30000);assert.equal(gallery.current,1);
   gallery.step(36500);assert.equal(gallery.current,2);
-  gallery.show(2);gallery.next();assert.equal(gallery.current,0);
-  gallery.previous();assert.equal(gallery.current,2);
+  gallery.show(MAP_LIST.length-1);gallery.next();assert.equal(gallery.current,0);
+  gallery.previous();assert.equal(gallery.current,MAP_LIST.length-1);
 });
 test('reduced motion disables automatic slideshow movement and leaves manual controls usable',()=>{
   const {gallery}=slideshow(true);gallery.step(0);gallery.step(50000);

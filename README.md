@@ -5,7 +5,7 @@
 ## Start playing
 
 1. Open the game and click **Play**.
-2. Choose **Bhop practice** and **Starter course**. Bhop practice gives you stronger air control and lets you build more speed.
+2. Choose **Bhop practice** and **Bhop School** to learn from the signs along the route. Bhop practice gives you stronger air control and lets you build more speed.
 3. Click **Start course** to capture your mouse.
 4. Follow the platforms toward the blue checkpoint. Press **Esc** whenever you want to pause or release your mouse.
 
@@ -55,6 +55,8 @@ To climb a ladder, move into its cyan rails and rungs. Use W/S and look up or do
 | Map | What to expect |
 | --- | --- |
 | Starter course | A short route for practising jumps, turns, and careful movement |
+| Bhop School | Four lessons with signs explaining jumping, air strafing, control, and checkpoints |
+| Ladder Run | Two ladder climbs linked by rooftop jumps and checkpoint decks |
 | Sandbox | An open floor with obstacles and a ladder for practising freely |
 | Endless | A continuing route with a checkpoint every eight blocks |
 | bhop_lego | A community parkour route with 25 ordered checkpoint pads; find it under Community maps |

@@ -37,6 +37,42 @@ export const SPAWNS = [
 ];
 
 const stage=(title,tip)=>({title,tip});
+const lessonSign=(x,z,floor,title,lines)=>[
+  {min:[x-120,floor+42,z-4],max:[x+120,floor+156,z],obstacle:true,sign:{title,lines}},
+  {min:[x-3,floor,z-3],max:[x+3,floor+42,z-1],obstacle:true,signPost:true},
+];
+const BHOP_SCHOOL = [
+  box(0,-80,600,560,0,{label:'01 / KEEP HOPPING'}),
+  box(0,-475,220,140),box(0,-680,200,140),
+  box(0,-920,600,280,0,{checkpoint:1,label:'02 / AIR STRAFE'}),
+  box(80,-1190,220,140),box(-30,-1410,220,140),
+  box(0,-1650,600,280,0,{checkpoint:2,label:'03 / STAY IN CONTROL'}),
+  box(80,-1930,200,140),box(140,-2150,180,140,16),box(60,-2360,200,140,32),
+  box(0,-2590,600,280,32,{checkpoint:3,label:'04 / PUT IT TOGETHER'}),
+  box(-70,-2860,200,140,32),box(60,-3070,220,140,32),
+  box(0,-3320,440,240,32,{finish:true,label:'FINISH'}),
+  ...lessonSign(170,-140,0,'01 / KEEP HOPPING',['HOLD W TO GET MOVING','HOLD SPACE TO KEEP HOPPING','RELEASE W AFTER TAKEOFF']),
+  ...lessonSign(170,-1000,0,'02 / AIR STRAFE',['A + MOUSE LEFT','D + MOUSE RIGHT','TURN SMOOTHLY IN THE AIR']),
+  ...lessonSign(170,-1730,0,'03 / CONTROL',['AIM FOR THE NEXT BOX','SMALL TURNS KEEP CONTROL','KEEP SPACE HELD TO BOUNCE']),
+  ...lessonSign(170,-2670,32,'04 / CHECKPOINTS',['BLUE = NEXT CHECKPOINT','E = TRY THIS SECTION AGAIN','Q = RESTART THE COURSE']),
+];
+const LADDER_RUN = [
+  box(0,-80,600,560,0,{label:'01 / CLIMB'}),
+  {min:[-40,0,-360],max:[40,226,-358],ladder:true,normal:[0,0,1]},
+  {min:[-48,-120,-424],max:[48,224,-360],obstacle:true,tower:true},
+  box(0,-510,600,200,224,{checkpoint:1,label:'02 / ROOFTOP HOPS',feature:'ladder'}),
+  box(80,-780,200,140,224),box(-20,-1000,200,140,240),
+  box(0,-1230,600,260,240,{checkpoint:2,label:'03 / SECOND CLIMB'}),
+  {min:[-40,240,-1360],max:[40,466,-1358],ladder:true,normal:[0,0,1]},
+  {min:[-48,120,-1424],max:[48,464,-1360],obstacle:true,tower:true},
+  box(0,-1510,600,200,464,{checkpoint:3,label:'04 / HIGH JUMPS',feature:'ladder'}),
+  box(-80,-1780,180,140,464),box(50,-2000,200,140,464),box(100,-2210,180,140,480),
+  box(0,-2450,440,260,480,{finish:true,label:'FINISH'}),
+  ...lessonSign(170,-140,0,'01 / CLIMB',['MOVE INTO THE CYAN LADDER','HOLD W AND LOOK UP','WALK OVER THE TOP']),
+  ...lessonSign(170,-565,224,'02 / ROOFTOP HOPS',['HOLD SPACE TO CHAIN HOPS','A/D + MOUSE TO STEER','BLUE PLATFORM SAVES YOU']),
+  ...lessonSign(170,-1305,240,'03 / SECOND CLIMB',['RELEASE SPACE AND CLIMB','LOOK UP AND HOLD W','SPACE PUSHES OFF A LADDER']),
+  ...lessonSign(170,-1565,464,'04 / HIGH JUMPS',['JUMP BETWEEN THE ROOFTOPS','E = RETURN TO CHECKPOINT','REACH THE FINISH STRIPES']),
+];
 
 const endlessPreview = createEndless(1);
 export const MAP_LIST = [
@@ -46,6 +82,20 @@ export const MAP_LIST = [
     stages: [stage('Find your momentum.', 'Build speed on the runway. Jump at the edge.'),
       stage('Carry it through the turn.', 'Release W. Match A / D with a smooth mouse turn.'),
       stage('Slow down. Stay in control.', 'Walk the beam. Crouch under the low ceiling.')] },
+  { id:'bhop-school',title:'Bhop School',timed:true,features:['Tutorial signs'],
+    description:'Learn bunny hopping with readable signs, forgiving jumps, and checkpoint lessons.',
+    boxes:BHOP_SCHOOL,spawns:[{x:0,y:0,z:100,yaw:0},{x:0,y:0,z:-830,yaw:0},{x:0,y:0,z:-1560,yaw:0},{x:0,y:32,z:-2500,yaw:0}],
+    stages:[stage('Keep hopping.','Read the sign. Hold W to move, then hold Space and release W in the air.'),
+      stage('Match your strafe.','A + mouse left. D + mouse right. Make smooth turns.'),
+      stage('Stay in control.','Aim for each box. Small turns make the landing easier.'),
+      stage('Put it together.','Follow the blue platform. E returns to this checkpoint; Q restarts.')] },
+  { id:'ladder-run',title:'Ladder Run',timed:true,features:['Ladders','Jumps'],
+    description:'Climb two cyan ladders and link rooftop jumps on the way to the finish.',
+    boxes:LADDER_RUN,spawns:[{x:0,y:0,z:100,yaw:0},{x:0,y:224,z:-470,yaw:0},{x:0,y:240,z:-1140,yaw:0},{x:0,y:464,z:-1470,yaw:0}],
+    stages:[stage('Climb the first tower.','Move into the cyan ladder, hold W, and look up. Walk over the top.'),
+      stage('Jump across the rooftops.','Hold Space for the jumps. Release it before climbing the next ladder.'),
+      stage('Climb again.','Hold W and look up on the second ladder. Space pushes you away.'),
+      stage('Take the high route.','Link the last rooftop jumps and reach the striped finish.')] },
   { id: 'endless', revision: 2, title: 'Endless', endless: true, timed: false,
     description: 'Mixed sections with checkpoints every 8 blocks.',
     boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],

@@ -1,5 +1,6 @@
 import { sampleSkybox, normaliseSkybox, SKY_GRADIENT_GLSL, createSkyRenderer } from './skybox.js';
 import { sampleSceneLight, projectPlayerShadow } from './lighting.js';
+import { buildSignMesh } from './signs.js';
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 export function verticalFov(fov = 100) {
@@ -33,8 +34,8 @@ export const WORLD_FRAGMENT_GLSL = `
     void main(){
       vec2 grid=mod(vWorld.xz+0.6,64.0);
       float line=(1.0-step(1.2,min(grid.x,grid.y)))*vTop;
-      vec3 color=vColor*vShade;
-      if(uShadersGain>0.5){
+      vec3 color=vColor*abs(vShade);
+      if(uShadersGain>0.5&&vShade>0.0){
         vec3 normal=normalize(vNormal);
         float diffuse=max(dot(normal,uLightDirection),0.0);
         vec3 ambient=uAmbientColour*mix(0.65,1.2,normal.y*0.5+0.5);
@@ -145,6 +146,8 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   function setBoxes(next) {
     currentBoxes = next; vertices=[];
     for(const b of next) {
+      if(b.sign){addBox(b,[.045,.065,.085]);vertices.push(...buildSignMesh(b));continue;}
+      if(b.signPost){addBox(b,[.11,.14,.17]);continue;}
       if(b.ladder) {
         const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
         // Cyan rails and individual rungs mark the exact climbable face.
