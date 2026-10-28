@@ -1,5 +1,6 @@
 // Read original Source 1 maps without rewriting or executing their contents.
 // Binary structures: ValveSoftware/source-sdk-2013/src/public/bspfile.h.
+import { makeParkourMap } from './parkour-map.js';
 const sourceText = new TextDecoder('windows-1252');
 const sourcePoint = v => [v[0], v[2], -v[1]];
 const sourceVector = s => (s || '0 0 0').trim().split(/\s+/).map(Number);
@@ -44,28 +45,11 @@ export async function unpackSourceArchive(input) {
 
 export async function loadSourceMap(input,options={}) {
   const bytes=await unpackSourceArchive(input);
-  const map=parseSourceBsp(bytes,options);
-  const {unzipSync}=await import('./vendor/fflate.module.js');
-  let assetBytes=0;
-  const assets=unzipSync(map.pak,{filter:f=>{
-    if(!/^materials\//i.test(f.name)||!/\.(vmt|vtf)$/i.test(f.name)||f.originalSize>=16*1024*1024)return false;
-    assetBytes+=f.originalSize;if(assetBytes>128*1024*1024)throw Error('This map contains too many texture assets.');return true;
-  }});
-  const files=new Map(Object.entries(assets).map(([k,v])=>[k.replace(/\\/g,'/').toLowerCase(),v]));
-  for(const material of map.materials) {
-    const vmt=files.get('materials/'+material.name.toLowerCase()+'.vmt');
-    const text=vmt?sourceText.decode(vmt):'';
-    const texture=/"?\$basetexture"?\s+"?([^"\r\n}]+)"?/i.exec(text)?.[1].trim().replace(/\\/g,'/');
-    material.translucent=/\$(translucent|alphatest)"?\s+"?1/i.test(text);
-    material.unlit=/unlitgeneric|\$selfillum"?\s+"?1/i.test(text);
-    const vtf=files.get('materials/'+(texture||material.name).toLowerCase()+'.vtf');
-    if(vtf)try{material.image=decodeSourceTexture(vtf);}catch{/* Reflectivity is the fallback for unsupported textures. */}
-  }
-  delete map.pak;
-  return map;
+  const map=parseSourceBsp(bytes,{...options,geometryOnly:true});
+  return makeParkourMap(map);
 }
 
-export function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null}={}) {
+export function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,geometryOnly=false}={}) {
   const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
   if(bytes.length<1036||sourceText.decode(bytes.subarray(0,4))!=='VBSP')throw Error('This is not a Source 1 BSP map.');
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
@@ -132,7 +116,7 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',entryT
   if(!boxes.length)throw Error('No supported solid geometry was found in this map.');
   const batches=new Map();
   // Trigger volumes are invisible. Their model geometry must not become walls.
-  for(let index=0;index<models.length;index++) {
+  for(let index=0;!geometryOnly&&index<models.length;index++) {
     const model=models[index],e=modelEntities.get(index),offset=modelOffset(index);
     if(index&&(!e||e.classname.startsWith('trigger_')||e.StartDisabled==='1'))continue;
     if(index&&!solidModels.has(index)&&!['func_illusionary','func_rotating'].includes(e.classname))continue;
@@ -177,38 +161,4 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',entryT
     return [...found];
   };
   return sourceMap;
-}
-
-// Decode DXT1 / DXT5 VTF textures at a bounded mip level for WebGL 1.
-export function decodeSourceTexture(bytes,maxSize=512) {
-  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
-  if(sourceText.decode(bytes.subarray(0,4))!=='VTF\0')throw Error('Invalid VTF.');
-  const u16=o=>view.getUint16(o,true),u32=o=>view.getUint32(o,true);
-  let width=u16(16),height=u16(18);const format=u32(52),mips=bytes[56],frames=u16(24)||1;
-  if(![13,15].includes(format)||width>8192||height>8192||!width||!height||mips<1||mips>14||frames>64)throw Error('Unsupported VTF texture.');
-  const blockBytes=format===13?8:16,size=(w,h)=>Math.max(1,Math.ceil(w/4))*Math.max(1,Math.ceil(h/4))*blockBytes;
-  const lowW=bytes[61],lowH=bytes[62],lowFormat=u32(57);
-  let offset=u32(12)+(lowW&&lowH?(lowFormat===13?8:16)*Math.ceil(lowW/4)*Math.ceil(lowH/4):0);
-  // Newer VTFs may locate image data through their resource table.
-  if(u32(8)>=3&&bytes.length>=80){const count=u32(68);if(count>128)throw Error('Invalid VTF resource table.');for(let i=0;i<count;i++){const o=80+i*8;if(o+8<=bytes.length&&bytes[o]===0x30&&bytes[o+1]===0&&bytes[o+2]===0)offset=u32(o+4);}}
-  let level=0;while((width>>level)>maxSize||(height>>level)>maxSize)level++;
-  for(let mip=mips-1;mip>level;mip--)offset+=size(Math.max(1,width>>mip),Math.max(1,height>>mip))*frames;
-  width=Math.max(1,width>>level);height=Math.max(1,height>>level);
-  if(offset+size(width,height)>bytes.length)throw Error('Truncated VTF.');
-  const rgba=new Uint8Array(width*height*4),rgb565=n=>[(n>>11)*255/31,((n>>5)&63)*255/63,(n&31)*255/31];
-  for(let y=0;y<height;y+=4)for(let x=0;x<width;x+=4) {
-    const alpha=format===15,colourOffset=offset+(alpha?8:0),c0=u16(colourOffset),c1=u16(colourOffset+2),a=rgb565(c0),b=rgb565(c1);
-    const colours=[a,b,c0>c1||alpha?a.map((v,i)=>(2*v+b[i])/3):a.map((v,i)=>(v+b[i])/2),c0>c1||alpha?a.map((v,i)=>(v+2*b[i])/3):[0,0,0]];
-    const codes=u32(colourOffset+4),alphas=alpha?[bytes[offset],bytes[offset+1]]:[255,255];
-    if(alpha){if(alphas[0]>alphas[1])for(let i=1;i<=6;i++)alphas.push(((7-i)*alphas[0]+i*alphas[1])/7);else{for(let i=1;i<=4;i++)alphas.push(((5-i)*alphas[0]+i*alphas[1])/5);alphas.push(0,255);}}
-    for(let p=0;p<16;p++) {
-      const px=x+p%4,py=y+(p>>2);if(px>=width||py>=height)continue;
-      const c=(codes>>>(p*2))&3,d=(py*width+px)*4;
-      rgba.set(colours[c].map(Math.round),d);
-      const bit=p*3,word=alpha?(bytes[offset+2+(bit>>3)]|((bytes[offset+3+(bit>>3)]||0)<<8)):0;
-      rgba[d+3]=alpha?alphas[(word>>(bit&7))&7]:c===3&&c0<=c1?0:255;
-    }
-    offset+=blockBytes;
-  }
-  return {width,height,rgba};
 }

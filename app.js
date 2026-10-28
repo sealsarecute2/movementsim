@@ -9,6 +9,7 @@ import { mapPreviewSVG, createMenuSlideshow, captureMapScreenshot } from './menu
 import { MenuMusic } from './menu-music.js';
 import { loadSourceMap } from './source-map.js';
 import { createSourceRuntime } from './source-runtime.js';
+import { hydrateParkourMap } from './parkour-map.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -32,6 +33,8 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
+let pendingRunRestore=null;
+try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
@@ -63,6 +66,22 @@ const format = seconds => {
 };
 function saveSettings() {
   try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair,skybox,musicEnabled,musicVolume})); } catch {}
+}
+function clearSavedRun() {
+  try{const saved=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');if(saved?.map===map)sessionStorage.removeItem('movement-lab-run-v1');}catch{}
+}
+function saveRunCheckpoint() {
+  const selected=MAPS[map];if(!started||completed||selected.endless||!selected.timed&&!selected.community)return;
+  const snapshot={map,preset,revision:selected.revision||1,checkpoint,runTime,respawns,runActive,started:true};
+  if(map==='local-map')snapshot.geometry=boxes.sourceMap;
+  try{sessionStorage.setItem('movement-lab-run-v1',JSON.stringify(snapshot,(key,value)=>key==='sourceMap'?undefined:value));}catch{}
+}
+function restoreSavedRun(snapshot) {
+  if(!snapshot||snapshot.map!==map||snapshot.preset!==preset||snapshot.revision!==(MAPS[map].revision||1)||!Number.isSafeInteger(snapshot.checkpoint)||snapshot.checkpoint<0||snapshot.checkpoint>=MAPS[map].spawns.length||!Number.isFinite(snapshot.runTime)||snapshot.runTime<0||snapshot.runTime>86400||!Number.isSafeInteger(snapshot.respawns)||snapshot.respawns<0)return false;
+  checkpoint=snapshot.checkpoint;runTime=snapshot.runTime;respawns=snapshot.respawns+(snapshot.runActive?1:0);runActive=snapshot.runActive===true;
+  reset(false);started=true;playing=false;lockPending=false;clearInput();captureButtons();showPause();saveRunCheckpoint();
+  $('pause-input-note').textContent='Run restored at your saved checkpoint. Continue captures the mouse.';
+  return true;
 }
 function normaliseCrosshair(value) {
   const raw=value&&typeof value==='object'?value:{};
@@ -144,6 +163,8 @@ function saveEndlessBest() {
 function clearInput() { keys.clear(); pendingJump=false; }
 function reset(full=true) {
   gameAudio?.stopAll();
+  if(sourceRuntime)clearInput();
+  if(full)clearSavedRun();
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
@@ -190,7 +211,7 @@ function returnToMain(view='home') {
 }
 function pause() {
   if(completed) return;
-  saveEndlessBest();playing=false;lockPending=false;clearInput();
+  saveEndlessBest();saveRunCheckpoint();playing=false;lockPending=false;clearInput();
   document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);captureButtons();
   if(started)showPause();else showMain(mainView);
   if(document.pointerLockElement===canvas)document.exitPointerLock();
@@ -204,6 +225,7 @@ function beginSession() {
   playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
   $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
   overlay.classList.add('hidden');document.body.classList.remove('main-menu-open');document.body.classList.add('playing');updateMenuMusic();
+  saveRunCheckpoint();
 }
 function mouseCaptureFailed() {
   if(!lockPending) return;
@@ -234,6 +256,7 @@ function play() {
 }
 function choosePreset(value,resetRun=true) {
   if(!PRESETS[value]) return;
+  if(resetRun)try{sessionStorage.removeItem('movement-lab-run-v1');pendingRunRestore=null;}catch{}
   saveEndlessBest();
   // The new preset starts a fresh endless record and route.
   if(endless)endless=null;
@@ -245,10 +268,11 @@ function choosePreset(value,resetRun=true) {
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
-function chooseMap(value,resetRun=true) {
+function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   if(!Object.hasOwn(MAPS,value)) return;
+  if(!preserveSavedRun){try{sessionStorage.removeItem('movement-lab-run-v1');}catch{}pendingRunRestore=null;}
   sourceLoadGeneration++;sourceLoadController?.abort();
-  $('source-map-status').textContent='Community maps download when selected. Local imports stay on your device.';
+  $('source-map-status').textContent='Lightweight parkour geometry. Local imports stay in this tab.';
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
   sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
@@ -263,7 +287,7 @@ function chooseMap(value,resetRun=true) {
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
   $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
-  $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}${selected.textureAuthor?' · Textures: '+selected.textureAuthor:''}. Browser compatibility: main route, original textures and movement triggers; some Source-only props and bonus scripts are unavailable.`:'';
+  $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`:'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
   if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=selected.id!=='course';
@@ -272,9 +296,9 @@ function chooseMap(value,resetRun=true) {
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
-async function selectCommunityMap(metadata,file=null) {
+async function selectCommunityMap(metadata,file=null,restore=false) {
   if(playing||lockPending)pause();
-  if(MAPS[metadata.id]&&!file){chooseMap(metadata.id);return;}
+  if(MAPS[metadata.id]&&!file){chooseMap(metadata.id,true,restore);if(restore){restoreSavedRun(pendingRunRestore);pendingRunRestore=null;}return;}
   sourceLoadController?.abort();const generation=++sourceLoadGeneration;
   const controller=new AbortController();sourceLoadController=controller;
   const status=$('source-map-status');status.textContent=`Loading ${metadata.title}…`;
@@ -283,8 +307,10 @@ async function selectCommunityMap(metadata,file=null) {
     let input;
     if(file){if(file.size>180*1024*1024)throw Error('Map files must be smaller than 180 MB.');input=await file.arrayBuffer();}
     else{
-      const response=await fetch(metadata.archive,{signal:controller.signal});
+      const response=await fetch(metadata.geometry?metadata.geometry+'?v='+(metadata.revision||1):metadata.archive,{signal:controller.signal});
       if(!response.ok)throw Error('The map download failed. Select the map to retry.');
+      if(metadata.geometry)input=await response.json();
+      else{
       const total=Number(response.headers.get('content-length'))||0;
       if(total>180*1024*1024)throw Error('This map archive is too large.');
       if(response.body?.getReader){
@@ -292,19 +318,23 @@ async function selectCommunityMap(metadata,file=null) {
         while(true){const {done,value}=await reader.read();if(done)break;received+=value.length;if(received>180*1024*1024){await reader.cancel();throw Error('This map archive is too large.');}chunks.push(value);status.textContent=`Loading ${metadata.title} · ${(received/1048576).toFixed(1)}${total?' / '+(total/1048576).toFixed(1):''} MB`;}
         input=new Uint8Array(received);let offset=0;for(const chunk of chunks){input.set(chunk,offset);offset+=chunk.length;}
       } else input=await response.arrayBuffer();
+      }
     }
     if(generation!==sourceLoadGeneration)return;
     status.textContent=`Preparing ${metadata.title}…`;
-    const imported=await loadSourceMap(input,metadata);
+    const imported=metadata.geometry&&!file?hydrateParkourMap(input):await loadSourceMap(input,metadata);
     if(generation!==sourceLoadGeneration)return;
-    MAPS[metadata.id]={id:metadata.id,title:metadata.title,timed:!!imported.finish,community:true,author:metadata.author,textureAuthor:metadata.textures,source:metadata.source,
-      description:metadata.author?'The original community map by '+metadata.author+'.':'A locally imported Source map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
-    chooseMap(metadata.id);status.textContent=`${metadata.title} ready. Choose Bhop practice for uncapped movement.`;
+    MAPS[metadata.id]={id:metadata.id,title:metadata.title,revision:imported.revision||metadata.revision||1,timed:imported.greybox?imported.finishPad!==null:!!imported.finish,community:true,author:metadata.author,source:metadata.source,
+      description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'A locally imported parkour map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+    chooseMap(metadata.id,true,restore);
+    if(restore)restoreSavedRun(pendingRunRestore);pendingRunRestore=null;
+    status.textContent=`${metadata.title} ready. Choose Bhop practice for uncapped movement.`;
   } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
 function finishRun() {
   if(completed)return;
+  clearSavedRun();
   gameAudio?.stopAll();
   completed=true; playing=false; clearInput(); document.body.classList.remove('playing');updateMenuMusic();
   knife?.draw(0);
@@ -359,12 +389,13 @@ function tick() {
     if(!runActive&&Math.hypot(player.x-first.x,player.z-first.z)>96)runActive=true;
     if(runActive)runTime+=DT;
     for(const event of sourceRuntime.step(player,previousDraw,DT)){
+      if(event.type==='respawn'){respawns++;reset(false);saveRunCheckpoint();toast('BACK AT CHECKPOINT — TIMER CONTINUES');return;}
       if(event.type==='teleport'){
         previousDraw={...player};
         const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
         if(runActive&&index<=checkpoint)respawns++;
       }
-      if(event.type==='checkpoint'){checkpoint=event.stage;gameAudio?.checkpoint();toast(`SECTION ${MAPS[map].stages[checkpoint].target.toUpperCase()} SAVED — E TO RETURN`,true);}
+      if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`SECTION ${MAPS[map].stages[checkpoint].target.toUpperCase()} SAVED — E TO RETURN`,true);}
       if(event.type==='finish'){finishRun();return;}
     }
     if(player.y<boxes.sourceMap.killHeight){respawns++;reset(false);toast('BACK AT CHECKPOINT — TIMER CONTINUES');}
@@ -397,7 +428,7 @@ function tick() {
     for(const {box,time} of hits) {
       if(box.checkpoint===checkpoint+1) {
         gameAudio?.checkpoint();
-        checkpoint=box.checkpoint; toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
+        checkpoint=box.checkpoint;saveRunCheckpoint();toast(`CHECKPOINT ${String(checkpoint).padStart(2,'0')} SAVED — E TO RETURN`,true);
       }
       if(box.finish&&runActive&&checkpoint===MAPS[map].spawns.length-1) {
         timerEnd=time;finished=true;break;
@@ -542,8 +573,8 @@ document.addEventListener('keydown',e=>{
   }
   if(!playing) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','KeyW','KeyA','KeyS','KeyD','ControlLeft','ControlRight'].includes(e.code)) e.preventDefault();
-  if(e.code==='KeyQ'&&!e.repeat) {reset();toast('NEW RUN');return;}
-  if(e.code==='KeyE'&&!e.repeat) {respawns++;reset(false);toast('CHECKPOINT RESTORED — TIMER CONTINUES');return;}
+  if(e.code==='KeyQ'&&!e.repeat) {reset();saveRunCheckpoint();toast('NEW RUN');return;}
+  if(e.code==='KeyE'&&!e.repeat) {respawns++;reset(false);saveRunCheckpoint();toast('CHECKPOINT RESTORED — TIMER CONTINUES');return;}
   if(e.code==='Space'&&!e.repeat) pendingJump=true;
   keys.add(e.code);
 });
@@ -570,7 +601,7 @@ window.addEventListener('blur',()=>{
 window.addEventListener('focus',()=>{
   windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
 });
-window.addEventListener('pagehide',()=>{saveEndlessBest();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pagehide',()=>{saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
 window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
@@ -593,9 +624,15 @@ if(Number.isFinite(settings.sensitivity)) {
 if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
 const requestedMap=new URLSearchParams(window.location?.search||'').get('course');
-chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
+const initialMap=requestedMap||pendingRunRestore?.map||settings.map;
+if(initialMap==='local-map'&&pendingRunRestore?.geometry)try{
+  const imported=hydrateParkourMap(pendingRunRestore.geometry);
+  MAPS['local-map']={id:'local-map',title:imported.title,revision:imported.revision||1,timed:imported.finishPad!==null,community:true,description:'A locally imported parkour map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+}catch{}
+chooseMap(Object.hasOwn(MAPS,initialMap)?initialMap:'course',false,true);
 syncLookSettings();captureButtons();showMain('home',false);
 reset();requestAnimationFrame(frame);
-const requestedCommunity=COMMUNITY_MAPS.find(m=>m.id===(requestedMap||settings.map));
-if(requestedCommunity)void selectCommunityMap(requestedCommunity);
+const requestedCommunity=COMMUNITY_MAPS.find(m=>m.id===initialMap);
+if(requestedCommunity)void selectCommunityMap(requestedCommunity,null,true);
+else{restoreSavedRun(pendingRunRestore);pendingRunRestore=null;}
 if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';

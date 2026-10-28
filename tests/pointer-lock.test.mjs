@@ -12,6 +12,7 @@ import * as skyboxModule from '../dist/skybox.js';
 import * as menuModule from '../dist/menu.js';
 import * as musicModule from '../dist/menu-music.js';
 import * as sourceRuntimeModule from '../dist/source-runtime.js';
+import * as parkourModule from '../dist/parkour-map.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -43,14 +44,16 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
     addEventListener(){},load(){this.loads++;this.paused=true;this.currentTime=0;this.ended=false;},
     play(){this.plays++;this.paused=false;return Promise.resolve();},pause(){this.pauses++;this.paused=true;}};
   class TestMenuMusic extends musicModule.MenuMusic {constructor(options){super({...options,createAudio:()=>musicAudio});}}
-  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,MenuMusic:TestMenuMusic,document,window,
+  const session=sourceOptions.session||new Map();
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,...parkourModule,MenuMusic:TestMenuMusic,document,window,
     AbortController,fetch:sourceOptions.fetch,loadSourceMap:sourceOptions.load,
+    sessionStorage:{getItem:key=>session.get(key)||null,setItem:(key,value)=>session.set(key,value),removeItem:key=>session.delete(key)},
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
   return {context,document,window,canvas,musicAudio,element:id=>document.getElementById(id),
-    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,read:source=>vm.runInContext(source,context),storage,
+    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,read:source=>vm.runInContext(source,context),storage,session,
     lock(){document.pointerLockElement=canvas;document.fire('pointerlockchange');}};
 }
 test('Enter waits for capture, then mouse movement looks without dragging',()=>{
@@ -591,4 +594,50 @@ test('selecting a native map while decoding prevents a stale import from replaci
  await started;
  app.read("chooseMap('free')");resolve(source);await request;
  assert.equal(app.read('map'),'free');assert.equal(course.MAPS[source.id],undefined);assert.equal(app.element('import-source-map').disabled,false);
+});
+
+const greyGeometry=()=>JSON.parse(readFileSync(new URL('../dist/maps/bhop_lego.json',import.meta.url),'utf8'));
+const greyFetch=async()=>({ok:true,json:async()=>greyGeometry()});
+const finishMicrotasks=()=>new Promise(resolve=>setImmediate(resolve));
+test('refresh restores the selected map and safe checkpoint with the timer paused',async()=>{
+ const session=new Map(),app=boot({},'',null,{session,fetch:greyFetch});
+ try {
+  await app.context.selectCommunityMap(course.COMMUNITY_MAPS[0]);app.element('play').fire('click');app.lock();
+  app.read('checkpoint=2;runTime=18.25;runActive=true;reset(false);saveRunCheckpoint()');
+  const saved=Object.fromEntries(app.storage);delete course.MAPS.bhop_lego;
+  const refreshed=boot(saved,'',null,{session,fetch:greyFetch});await finishMicrotasks();
+  assert.equal(refreshed.read('map'),'bhop_lego');assert.equal(refreshed.read('checkpoint'),2);assert.equal(refreshed.read('sourceRuntime.stage'),2);
+  assert.equal(refreshed.read('runTime'),18.25);assert.equal(refreshed.read('playing'),false);assert.equal(refreshed.read('menuMode'),'pause');
+  assert.equal(refreshed.read('player.y'),course.MAPS.bhop_lego.spawns[2].y);assert.ok(refreshed.read('player.grounded'));
+  assert.match(refreshed.element('pause-input-note').textContent,/restored/);
+ } finally {delete course.MAPS.bhop_lego;}
+});
+test('E returns to the latest pad and Q clears progress, including the next refresh',async()=>{
+ const session=new Map(),app=boot({},'',null,{session,fetch:greyFetch});
+ try {
+  await app.context.selectCommunityMap(course.COMMUNITY_MAPS[0]);app.element('play').fire('click');app.lock();
+  app.read('checkpoint=3;runTime=22;runActive=true;player.x=99999;keys.add("Space")');
+  app.document.fire('keydown',{code:'KeyE'});
+  assert.equal(app.read('player.x'),course.MAPS.bhop_lego.spawns[3].x);assert.equal(app.read('keys.size'),0);assert.equal(app.read('sourceRuntime.stage'),3);assert.equal(app.read('runTime'),22);
+  app.document.fire('keydown',{code:'KeyQ'});assert.equal(app.read('checkpoint'),0);assert.equal(app.read('runTime'),0);assert.equal(app.read('respawns'),0);
+  const saved=Object.fromEntries(app.storage);delete course.MAPS.bhop_lego;
+  const refreshed=boot(saved,'',null,{session,fetch:greyFetch});await finishMicrotasks();assert.equal(refreshed.read('checkpoint'),0);assert.equal(refreshed.read('runTime'),0);
+ } finally {delete course.MAPS.bhop_lego;}
+});
+test('switching maps discards the old run instead of restoring the wrong map on refresh',async()=>{
+ const session=new Map(),app=boot({},'',null,{session,fetch:greyFetch});
+ try {
+  await app.context.selectCommunityMap(course.COMMUNITY_MAPS[0]);app.element('play').fire('click');app.lock();app.read('checkpoint=1;saveRunCheckpoint();chooseMap("free")');
+  assert.equal(session.has('movement-lab-run-v1'),false);
+  const refreshed=boot(Object.fromEntries(app.storage),'',null,{session,fetch:greyFetch});assert.equal(refreshed.read('map'),'free');assert.equal(refreshed.read('checkpoint'),0);
+ } finally {delete course.MAPS.bhop_lego;}
+});
+test('locally imported block geometry survives refresh within the same tab',async()=>{
+ const session=new Map(),geometry=greyGeometry();geometry.id='local-map';geometry.title='Local test map';
+ const app=boot({},'',null,{session,load:async()=>parkourModule.hydrateParkourMap(geometry)});
+ try {
+  await app.context.selectCommunityMap({id:'local-map',title:'Local test map'},localSourceFile);app.element('play').fire('click');app.lock();app.read('checkpoint=1;runTime=3;runActive=true;reset(false);saveRunCheckpoint()');
+  const saved=Object.fromEntries(app.storage);delete course.MAPS['local-map'];
+  const refreshed=boot(saved,'',null,{session});assert.equal(refreshed.read('map'),'local-map');assert.equal(refreshed.read('checkpoint'),1);assert.equal(refreshed.read('menuMode'),'pause');
+ } finally {delete course.MAPS['local-map'];}
 });

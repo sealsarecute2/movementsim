@@ -1,5 +1,4 @@
 import { SKYBOXES, normaliseSkybox, SKY_GRADIENT_GLSL, createSkyRenderer } from './skybox.js';
-import { createSourceRenderer } from './source-renderer.js';
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 export function verticalFov(fov = 100) {
@@ -82,7 +81,7 @@ export function createRenderer(canvas, boxes) {
     if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
     skybox=next;
   }
-  let vertices = [], count = 0, currentBoxes = boxes, sourceRenderer=null;
+  let vertices = [], count = 0, currentBoxes = boxes;
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
     const key=target?[...target.min,...target.max].join(','):'';
@@ -121,7 +120,6 @@ export function createRenderer(canvas, boxes) {
   }
   function setBoxes(next) {
     currentBoxes = next; vertices=[];
-    if(next.sourceMap){sourceRenderer??=createSourceRenderer(gl);sourceRenderer.setMap(next.sourceMap);count=0;return;}
     for(const b of next) {
       if(b.ladder) {
         const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
@@ -169,7 +167,6 @@ export function createRenderer(canvas, boxes) {
       skyRenderer.draw(p,scaleX,f,preset);
       for(const {loc} of attributes)gl.enableVertexAttribArray(loc);
     }
-    if(currentBoxes.sourceMap){sourceRenderer.draw(p,scaleX,f);return;}
     gl.useProgram(program);
     for(const {loc} of attributes)gl.enableVertexAttribArray(loc);
     const height=64-p.duckAmount*18;

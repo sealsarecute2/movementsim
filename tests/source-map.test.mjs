@@ -3,23 +3,24 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {COMMUNITY_MAPS} from '../dist/course.js';
-import {loadSourceMap,parseSourceBsp,parseSourceEntities,sourceSpawn} from '../dist/source-map.js';
+import {loadSourceMap,unpackSourceArchive,parseSourceBsp,parseSourceEntities,sourceSpawn} from '../dist/source-map.js';
+import {hydrateParkourMap} from '../dist/parkour-map.js';
 import {createSourceRuntime,sourceTriggerCrossing} from '../dist/source-runtime.js';
 import {createPlayer,step,support,PRESETS} from '../dist/physics.js';
 const archive=readFileSync(new URL('../dist/maps/bhop_lego.zip',import.meta.url));
 const imported=await loadSourceMap(archive,COMMUNITY_MAPS[0]);
+const original=parseSourceBsp(await unpackSourceArchive(archive),COMMUNITY_MAPS[0]);
 
 test('the shipped map archive is byte-for-byte the original author release',()=>{
   assert.equal(createHash('md5').update(archive).digest('hex'),'c916f2a56ef10e3a0a025c2c07d12e00');
   assert.deepEqual(archive,readFileSync(new URL('../maps/bhop_lego.zip',import.meta.url)));
 });
-test('the real BSP has textured geometry, separate invisible triggers and all main-route destinations',()=>{
-  assert.ok(imported.boxes.length>1500);assert.ok(imported.mesh.reduce((n,b)=>n+b.data.length/18,0)>15000);
-  assert.ok(imported.materials.filter(m=>m.image).length>50);assert.equal(imported.spawns.length,25);
-  assert.equal(imported.triggers.filter(t=>t.classname==='trigger_teleport').length,356);
-  for(const b of imported.boxes)assert.ok(b.planes.length>=6);
-  for(const batch of imported.mesh)assert.ok(batch.data.every(Number.isFinite));
-  assert.ok(imported.finish);assert.equal(imported.boxes.sourceMap,imported);
+test('the playable import keeps only simple route blocks, with no textures, room shell or bonus route',()=>{
+  assert.ok(imported.boxes.length>200&&imported.boxes.length<original.boxes.length/2);assert.equal(imported.spawns.length,25);
+  assert.equal(imported.materials,undefined);assert.equal(imported.mesh,undefined);assert.equal(imported.pak,undefined);
+  for(const b of imported.boxes){assert.equal(b.planes,undefined);assert.ok(b.max[1]-b.min[1]<=120);}
+  assert.equal(imported.greybox,true);assert.ok(imported.boxes[imported.finishPad].finish);assert.equal(imported.boxes.sourceMap,imported);
+  assert.ok(imported.boosts.length>=8);
 });
 test('every imported checkpoint settles safely on its original pad, including the deep final stages',()=>{
   for(const [i,spawn] of imported.spawns.entries()){
@@ -30,17 +31,17 @@ test('every imported checkpoint settles safely on its original pad, including th
   }
 });
 test('the broadphase preserves exact collision when compared with the complete imported scene',()=>{
-  const full=[...imported.boxes],near=createPlayer(imported.spawns[0]),all=createPlayer(imported.spawns[0]);
+  const full=[...original.boxes],near=createPlayer(original.spawns[0]),all=createPlayer(original.spawns[0]);
   for(let tick=0;tick<400;tick++){
     const input={forward:1,jumpHeld:true,side:tick>200?.25:0};
-    step(near,input,imported.boxes,PRESETS.practice);step(all,input,full,PRESETS.practice);
+    step(near,input,original.boxes,PRESETS.practice);step(all,input,full,PRESETS.practice);
     for(const k of ['x','y','z','vx','vy','vz'])assert.ok(Math.abs(near[k]-all[k])<1e-6,k);
   }
 });
-test('the actual first LEGO pad resets a stalled player and allows an immediate jump',()=>{
-  const stalled=createPlayer({x:-104,y:128,z:120,yaw:Math.PI}),runtime=createSourceRuntime(imported);let reset=false;
-  for(let i=0;i<80;i++){const before={...stalled};step(stalled,{},imported.boxes);if(runtime.step(stalled,before,1/256).some(e=>e.type==='teleport')){reset=true;break;}}
-  assert.equal(reset,true);assert.equal(stalled.x,imported.spawns[0].x);assert.equal(stalled.z,imported.spawns[0].z);
+test('an ordinary LEGO pad no longer kicks a stationary player back to the beginning',()=>{
+  const stalled=createPlayer({x:-104,y:128,z:120,yaw:Math.PI}),runtime=createSourceRuntime(imported);
+  for(let i=0;i<512;i++){const before={...stalled};step(stalled,{},imported.boxes);assert.ok(!runtime.step(stalled,before,1/256).some(e=>e.type==='teleport'||e.type==='respawn'));}
+  assert.equal(stalled.x,-104);assert.equal(stalled.z,120);assert.ok(stalled.grounded);
   const hopping=createPlayer({x:-104,y:128,z:120,yaw:Math.PI}),clean=createSourceRuntime(imported);
   for(let i=0;i<64;i++){const before={...hopping};step(hopping,{jumpHeld:true},imported.boxes,PRESETS.practice);assert.ok(!clean.step(hopping,before,1/256).some(e=>e.type==='teleport'));}
   assert.ok(hopping.y>170);

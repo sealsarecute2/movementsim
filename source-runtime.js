@@ -10,6 +10,7 @@ export function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
 }
 
 export function createSourceRuntime(map) {
+  if(map.greybox)return createParkourRuntime(map);
   const named=new Map();
   for(const e of map.entities)if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
   let disabled,time,actorName,pending,inside,cooldown,current,finished;
@@ -76,6 +77,33 @@ export function createSourceRuntime(map) {
         const s=map.spawns[i];if(Math.hypot(player.x-s.x,player.z-s.z)<88&&Math.abs(player.y-s.y)<70){current=i;events.push({type:'checkpoint',stage:i});break;}
       }
       if(map.finish&&!finished&&current===map.spawns.length-1&&Math.hypot(player.x-map.finish.x,player.z-map.finish.z)<112&&Math.abs(player.y-map.finish.y)<100){finished=true;events.push({type:'finish'});}
+      return events;
+    },
+  };
+}
+
+function createParkourRuntime(map) {
+  let current=0,finished=false;
+  const activation=(from,to,pad)=>sourceTriggerCrossing(from,to,{min:[pad.min[0],pad.max[1]-.01,pad.min[2]],max:[pad.max[0],pad.max[1]+96,pad.max[2]]},0);
+  return {
+    get stage(){return current;},
+    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;},
+    interact(){return false;},
+    step(player,previous,dt) {
+      const events=[];let lastTime=-1;
+      while(current+1<map.spawns.length){
+        const crossing=activation(previous,player,map.boxes[map.checkpointPads[current+1]]);
+        if(!crossing||crossing.enter<lastTime)break;
+        lastTime=crossing.enter;events.push({type:'checkpoint',stage:++current});
+      }
+      if(map.finishPad!==null&&current===map.spawns.length-1&&!finished&&activation(previous,player,map.boxes[map.finishPad])){
+        finished=true;events.push({type:'finish'});return events;
+      }
+      if(player.y<map.sectionFalls[current]){events.push({type:'respawn',stage:current});return events;}
+      for(const boost of map.boosts||[])if(sourceTriggerCrossing(previous,player,boost,player.ducked?54:72)){
+        const [pitch,yaw]=(boost.pushdir||'0 0 0').split(/\s+/).map(v=>Number(v)*Math.PI/180),force=Number(boost.speed)*dt;
+        player.vx+=Math.cos(pitch)*Math.cos(yaw)*force;player.vy-=Math.sin(pitch)*force;player.vz-=Math.cos(pitch)*Math.sin(yaw)*force;
+      }
       return events;
     },
   };

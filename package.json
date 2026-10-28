@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "python3 build-standalone.py",
+    "build:maps": "node tools/build-community-maps.mjs && python3 build-standalone.py",
     "dev": "python3 -m http.server 5173 --directory dist",
     "test": "node --test tests/*.test.mjs"
   }

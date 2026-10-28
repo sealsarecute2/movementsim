@@ -20,11 +20,13 @@ The native practice maps are **Starter course**, **Endless**, and **Sandbox**. S
 
 ## Community maps
 
-Open **Play → Community maps → bhop_lego**, wait for the download to finish, then click **Start course**. This loads Tony Montana's original Counter-Strike: Source map, with LEGO textures by Man Walker, from the unmodified original release archive. Its 25 main-route section pads become browser checkpoints. Choose **Bhop practice** for uncapped movement; use **Q** to restart and **E** to return to your saved section. The map's delayed reset zones and push triggers are active. Click a nearby boost button with the knife to activate it. The archive is about 22 MB and downloads only when selected.
+Open **Play → Community maps → bhop_lego**, then click **Start course**. The playable route from Tony Montana's map is shown as plain grey blocks: platforms, beams, stairs, and automatic boost pads. Room walls, ceilings, lobby areas, textures and bonus scenery are omitted. The prepared geometry is about **28 KB**, so normal play does not download or decode the 22 MB original archive. Choose **Bhop practice** for uncapped movement.
 
-**Import .bsp / .zip** also opens compatible local Source 1 maps (BSP versions 19 and 20). Files stay in memory on your device; they are not uploaded or saved between visits. Reimport a local map after reloading. Maps without a recognized finish can be explored without recording a timed best. CS:GO, CS2, compressed BSP lumps, and every Source entity type are not supported.
+The 25 checkpoint pads activate **in route order**, within a bounded height above each platform. Falling returns you to the latest saved pad without waiting to drop beneath the whole map. **E** restores that checkpoint and keeps the timer; **Q** starts a fresh run and clears progress. Standing on ordinary jumping blocks no longer triggers the original map's delayed teleport reset.
 
-The importer draws original brush geometry and embedded base textures, with convex brush collision and movement triggers. This is a browser compatibility layer, not a full Source engine: lightmaps, studio-model props, moving brush mechanisms, water physics and collectible/bonus scripts are not emulated. The bundled bhop_lego is for its main route. Community maps do not add cloud leaderboards. See [map credits and license](maps/CREDITS.md) for attribution and the author's CC BY-NC-ND 4.0 terms; the map archive itself is unchanged.
+Refreshing the page restores your selected map and checkpoint in a paused state. A reload return counts as a checkpoint-assisted run. Switching maps, changing physics, finishing or restarting discards the previous run. This tab's session storage also retains prepared local-import geometry across reloads; nothing is uploaded, and it is not a permanent map collection.
+
+**Import .bsp / .zip** opens compatible local Source 1 maps (BSP versions 19 and 20) as basic block geometry. Maps without a recognized finish can be explored without recording a timed best. CS:GO, CS2 and compressed BSP lumps are unsupported. This is a parkour compatibility view, not a full Source engine. Community maps do not add cloud leaderboards. See [map credits and license](maps/CREDITS.md) for attribution and the author's terms; the original archive is unchanged.
 
 Move into a ladder to attach. W/S and your viewing angle control ascent and descent; A/D move along its face. Looking upward while pushing into it climbs faster. Release movement to hold position, move beyond an edge to leave, or press Space / the wheel to push off. Holding Space before a catch does not repeatedly kick you away. A ladder can catch a fall, cancels falling wind, and has no ground footsteps. Walk/crouch slow climbing. Climbing onto the top uses the same collision controller as the rest of the game.
 
@@ -52,3 +54,5 @@ See [leaderboard editing instructions and course links](leaderboards/README.md).
 ## Development
 
 Run `npm run dev` to serve the source in `dist/`, `npm test` for the gameplay tests, and `npm run build` to rebuild the published root pages. Code sources live in `dist/`. Leaderboard text files at the repository root are authoritative: the build copies them into `dist/` for local preview, and never overwrites the root records.
+
+`npm run build:maps` rebuilds the small community geometry caches and their previews from the original archives, then rebuilds the published pages.
