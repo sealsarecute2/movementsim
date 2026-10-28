@@ -32,9 +32,9 @@ const endlessSections = [
   {name:'Ladder spires',tip:'Catch the cyan ladder, climb onto the balcony, then control the descending jumps.',nodes:[
     [0,-320,180,160],[0,-480,160,160,240,false,false,'ladder'],[140,-700,72,96,240],
     [0,-930,72,96,216],[-140,-1160,72,96,168],[0,-1410,80,110,96],[0,-1730,96,120,0]]},
-  {name:'Wall wraps',tip:'Go around the exposed end of the tall wall. A straight jump is blocked.',nodes:[
-    [-85,-330,80,90],[85,-330,64,90,0,false,false,'wrap'],[200,-570,96,110],
-    [70,-850,96,110],[-60,-1130,96,110],[70,-1410,112,120],[0,-1730,128,120]]},
+  {name:'Stepping stones',tip:'Link the open platforms with small, smooth corrections.',nodes:[
+    [0,-330,160,160],[0,-560,128,144],[-45,-790,112,144],[45,-1020,112,144],
+    [-45,-1250,128,144],[45,-1480,144,160],[0,-1730,180,180]]},
   {name:'Microsteps',tip:'Tiny raised landings require edge takeoffs. Keep your turns shallow.',nodes:[
     [0,-330,120,140],[55,-560,56,72,16],[-35,-770,48,64,32],[50,-980,48,64,48],
     [-35,-1190,48,64,32],[45,-1410,48,64,16],[0,-1730,120,160]]},
@@ -77,9 +77,6 @@ export function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
       const previous=layout(index-1),face=p.max[2],x=layoutNode.x;
       result.push({min:[x-40,previous.y,face],max:[x+40,p.max[1]+2,face+2],ladder:true,normal:[0,0,1]},
         {min:[x-48,previous.y-120,face-96],max:[x+48,p.max[1],face],obstacle:true,tower:true});
-    }
-    if(p.feature==='wrap') {
-      result.push({min:[-16,p.max[1]-120,layoutNode.z-90],max:[16,p.max[1]+220,layoutNode.z+72],obstacle:true,wrapWall:true});
     }
     return result;
   }

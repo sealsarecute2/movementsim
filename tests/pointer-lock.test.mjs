@@ -218,7 +218,7 @@ test('endless checkpoints save in the bottom right, respawn safely, and retain d
     assert.equal(app.read('completed'),false);
   }
   assert.equal(app.element('best-label').textContent,'BEST DISTANCE');
-  assert.ok(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v2:classic']>9000);
+  assert.ok(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v3:classic']>9000);
   app.read('reset()');
   assert.equal(app.read('checkpoint'),0);assert.equal(app.read('endless.distance'),0);
   assert.equal(app.read('runTime'),0);
@@ -419,9 +419,9 @@ test('invalid stored crosshair settings fall back safely and numeric values stay
   const old=boot({'movement-lab-settings-v1':JSON.stringify({crosshair:null})});
   assert.equal(old.element('crosshair').style.color,'rgb(221, 221, 221)');
 });
-test('background defaults to black and all four choices persist across courses and reloads',()=>{
+test('background defaults to black and all three choices persist across courses and reloads',()=>{
   const app=boot();assert.equal(app.skybox(),'black');assert.equal(app.element('skybox-select').value,'black');
-  for(const name of ['cycle','blackhole','galaxies','black']) {
+  for(const name of ['cycle','blackhole','black']) {
     app.element('skybox-select').value=name;app.element('skybox-select').fire('change');
     assert.equal(app.skybox(),name);app.read("chooseMap('free');reset()");assert.equal(app.skybox(),name);
     const saved=app.storage.get('movement-lab-settings-v1'),restored=boot({'movement-lab-settings-v1':saved});
@@ -447,7 +447,7 @@ test('only an actual run supplies a player shadow caster; menu cameras stay shad
   app.read('returnToMain()');app.context.frame(64);assert.equal(app.shadowCaster(),null);
 });
 test('unknown saved skies fall back to black and settings remain usable without WebGL',()=>{
-  for(const skybox of ['__proto__','dawn','midday','dusk','midnight']){
+  for(const skybox of ['__proto__','dawn','midday','dusk','midnight','galaxies']){
     const app=boot({'movement-lab-settings-v1':JSON.stringify({skybox})});assert.equal(app.skybox(),'black');
   }
   const fallback=boot({},'',new Error('No graphics'));
@@ -515,13 +515,14 @@ test('returning from Endless saves distance and clears the route for the next ru
   app.read('player.z=-3210;endless.update(player,null);runTime=15;checkpoint=2;pause()');
   app.element('back-to-main').fire('click');
   assert.equal(app.read('endless.distance'),0);assert.equal(app.read('runTime'),0);
-  assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v2:classic'],3210);
+  assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v3:classic'],3210);
 });
-test('Starter can open a leaderboard while Endless stays excluded, including from direct app actions',()=>{
+test('all scored native maps have boards and Endless opens a distance board without changing the course',async()=>{
  const app=boot();app.element('open-map-select').fire('click');
- app.read("chooseMap('endless');openLeaderboard()");assert.equal(!!app.element('leaderboard').open,false);
- assert.equal(app.element('leaderboard-button').disabled,true);assert.equal(app.element('endless-leaderboard'),null);
- app.read("chooseMap('course');openLeaderboard()");assert.equal(app.element('leaderboard').open,true);
+ app.read('loadLeaderboard=async()=>[{name:"Seal",value:12345}]');
+ for(const id of ['course','bhop-school','ladder-run']){app.read(`chooseMap('${id}');openLeaderboard()`);assert.equal(app.element('leaderboard-button').disabled,false);assert.equal(app.element('leaderboard').open,true);app.element('leaderboard-close').fire('click');}
+ app.element('endless-leaderboard').fire('click');await app.read('refreshLeaderboard()');
+ assert.equal(app.read('map'),'ladder-run');assert.equal(app.element('leaderboard-title').textContent,'Endless');assert.equal(app.element('leaderboard-score').textContent,'DISTANCE');assert.match(app.element('leaderboard-rows').innerHTML,/12,345 u/);
  app.document.fire('keydown',{code:'Escape'});assert.equal(app.read('mainView'),'maps');
 });
 
@@ -619,6 +620,25 @@ test('selecting a native map while decoding prevents a stale import from replaci
 const greyGeometry=()=>JSON.parse(readFileSync(new URL('../dist/maps/bhop_lego.json',import.meta.url),'utf8'));
 const greyFetch=async()=>({ok:true,json:async()=>greyGeometry()});
 const finishMicrotasks=()=>new Promise(resolve=>setImmediate(resolve));
+test('Kitsune portals save the next checkpoint without a respawn penalty or a camera interpolation jump',async()=>{
+ const metadata=course.COMMUNITY_MAPS.find(m=>m.id==='bhop_kitsune');
+ const geometry=JSON.parse(readFileSync(new URL('../dist/maps/bhop_kitsune.json',import.meta.url),'utf8'));
+ const app=boot({},'',null,{fetch:async()=>({ok:true,json:async()=>geometry})});
+ try {
+  await app.context.selectCommunityMap(metadata);app.context.frame(0);assert.equal(app.target(),app.read('boxes[boxes.sourceMap.portals[0].exitPad]'));
+  assert.equal(app.element('leaderboard-button').disabled,false);app.element('play').fire('click');app.lock();
+  app.read('runActive=true;runTime=15;var portal=boxes.sourceMap.portals[0];player=createPlayer({x:(portal.min[0]+portal.max[0])/2,y:portal.min[1],z:(portal.min[2]+portal.max[2])/2,yaw:0});player.vx=500;tick()');
+  assert.equal(app.read('checkpoint'),1);assert.equal(app.read('sourceRuntime.stage'),1);assert.equal(app.read('respawns'),0);assert.ok(app.read('runTime')>15);assert.equal(app.read('player.vx'),500*(1-physics.RULES.friction*physics.DT));
+  assert.equal(app.read('player.x'),geometry.spawns[1].x);assert.equal(app.read('previousDraw.x'),app.read('player.x'));assert.equal(app.read('previousDraw.y'),app.read('player.y'));
+  app.context.frame(0);assert.equal(app.target(),app.read('boxes[boxes.sourceMap.portals[1].exitPad]'));
+  app.document.fire('keydown',{code:'KeyE'});assert.equal(app.read('player.x'),geometry.spawns[1].x);assert.equal(app.read('respawns'),1);
+ } finally {delete course.MAPS.bhop_kitsune;}
+});
+test('the menu contains 15 slideshow entries with later sections and both community previews',()=>{
+ const app=boot();assert.equal(app.read('galleryMaps.length'),15);
+ assert.equal((app.element('gallery-slides').innerHTML.match(/<img /g)||[]).length,15);
+ assert.match(app.element('gallery-slides').innerHTML,/Final section/);assert.match(app.element('gallery-slides').innerHTML,/bhop_kitsune/);
+});
 test('bhop_lego exposes its leaderboard from map selection and the finish screen in both modes',async()=>{
  const app=boot({},'',null,{fetch:greyFetch});app.context.leaderboardCalls=[];
  app.read('loadLeaderboard=async(id,mode,options)=>{leaderboardCalls.push({id,mode,revision:options.revision});return [{name:"<Seal>",value:154.567}];}');

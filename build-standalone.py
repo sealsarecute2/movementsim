@@ -6,12 +6,12 @@ import shutil
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-modules = ('endless.js', 'course.js', 'physics.js', 'galaxy-data.js', 'galaxies.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'source-map.js', 'source-runtime.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'app.js')
+modules = ('endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'source-map.js', 'source-runtime.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'app.js')
 for filename in ('index.html', 'style.css', *modules):
     (root / filename).write_text((dist / filename).read_text())
 for filename in ('favicon.ico', 'favicon.svg'):
     shutil.copyfile(dist / filename, root / filename)
-for directory in ('butterfly', 'vendor', 'sounds', 'music', 'maps', 'backgrounds'):
+for directory in ('butterfly', 'vendor', 'sounds', 'music', 'maps'):
     shutil.copytree(dist / directory, root / directory, dirs_exist_ok=True)
 pieces = []
 for filename in modules:

@@ -31,7 +31,7 @@ test('cloud loading only reads the selected text file and reports failures inste
   await assert.rejects(loadLeaderboard('course','classic',{fetcher:async()=>({ok:false})}),/unavailable/);
 });
 test('each scored course has an editable root text file and accepts owner-published records',()=>{
-  for(const map of [...MAP_LIST.filter(m=>m.id==='course'),...COMMUNITY_MAPS]) {
+  for(const map of [...MAP_LIST.filter(m=>m.timed||m.endless),...COMMUNITY_MAPS]) {
     const root=readFileSync(new URL('../leaderboards/'+map.id+(map.revision>1?'-v'+map.revision:'')+'.txt',import.meta.url),'utf8');
     assert.equal(readFileSync(new URL('../dist/leaderboards/'+map.id+(map.revision>1?'-v'+map.revision:'')+'.txt',import.meta.url),'utf8'),root);
     assert.doesNotThrow(()=>parseLeaderboard(root,{endless:!!map.endless}));
@@ -52,8 +52,8 @@ test('a rebuild preserves owner-edited root records and updates the preview copy
   const folder=mkdtempSync(join(tmpdir(),'movement-leaderboard-build-'));
   try {
     copyFileSync(new URL('../build-standalone.py',import.meta.url),join(folder,'build-standalone.py'));
-    for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/music','dist/maps','dist/backgrounds','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
-    for(const name of ['index.html','style.css','endless.js','course.js','physics.js','galaxy-data.js','galaxies.js','skybox.js','lighting.js','signs.js','parkour-map.js','source-map.js','source-runtime.js','renderer.js','game-audio.js','leaderboard.js','menu.js','menu-music.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
+    for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/music','dist/maps','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
+    for(const name of ['index.html','style.css','endless.js','course.js','physics.js','skybox.js','lighting.js','signs.js','parkour-map.js','source-map.js','source-runtime.js','renderer.js','game-audio.js','leaderboard.js','menu.js','menu-music.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
     writeFileSync(join(folder,'leaderboards/course.txt'),'Seal | 12.345 | classic\n');writeFileSync(join(folder,'dist/leaderboards/course.txt'),'# stale preview\n');writeFileSync(join(folder,'dist/leaderboards/endless.txt'),'# retired\n');
     writeFileSync(join(folder,'leaderboards/bhop_lego-v2.txt'),'Seal | 154.567 | practice\n');writeFileSync(join(folder,'dist/leaderboards/bhop_lego-v2.txt'),'# stale community preview\n');
     const result=spawnSync('python3',[join(folder,'build-standalone.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
@@ -65,7 +65,16 @@ test('a rebuild preserves owner-edited root records and updates the preview copy
 
 test('retired courses, local imports and unknown IDs cannot load shared boards',async()=>{
  let calls=0;const fetcher=async()=>{calls++;return {ok:true,text:async()=>''};};
- for(const id of ['momentum','zigzag','skyline','circuit','balance','underpass','needles','gauntlet','endless','free','local-map','other-community','__proto__','../bhop_lego'])await assert.rejects(loadLeaderboard(id,'classic',{fetcher}),/Invalid/);
+ for(const id of ['momentum','zigzag','skyline','circuit','balance','underpass','needles','gauntlet','free','local-map','other-community','__proto__','../bhop_lego'])await assert.rejects(loadLeaderboard(id,'classic',{fetcher}),/Invalid/);
  await assert.rejects(loadLeaderboard('course','classic',{revision:2,fetcher}),/Invalid/);assert.equal(calls,0);
- for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')).sort(),['bhop_lego-v2.txt','course.txt']);
+ for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')).sort(),['bhop-school.txt','bhop_kitsune-v2.txt','bhop_lego-v2.txt','course.txt','endless-v3.txt','ladder-run.txt']);
+});
+test('the new native and Kitsune boards load times while Endless ranks distance under revision 3',async()=>{
+ const calls=[],fetcher=async(url)=>{calls.push(url);return {ok:true,text:async()=> 'Seal | 12345 | practice\nSecond | 456 | practice'};};
+ for(const id of ['bhop-school','ladder-run']){
+  assert.equal(hasLeaderboard(id),true);await loadLeaderboard(id,'practice',{fetcher});assert.match(calls.at(-1),new RegExp('leaderboards/'+id+'\\.txt'));
+ }
+ await loadLeaderboard('bhop_kitsune','practice',{revision:2,fetcher});assert.match(calls.at(-1),/bhop_kitsune-v2\.txt/);
+ const records=await loadLeaderboard('endless','practice',{revision:3,fetcher});assert.equal(records[0].value,12345);assert.match(calls.at(-1),/endless-v3\.txt/);
+ for(const revision of [1,2])await assert.rejects(loadLeaderboard('endless','practice',{revision,fetcher}),/Invalid/);
 });

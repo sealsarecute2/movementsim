@@ -91,6 +91,12 @@ function createParkourRuntime(map) {
     interact(){return false;},
     step(player,previous,dt) {
       const events=[];let lastTime=-1;
+      const portal=map.portals?.find(p=>p.from===current&&sourceTriggerCrossing(previous,player,p,player.ducked?54:72));
+      if(portal){
+        current=portal.to;const spawn=map.spawns[current];
+        Object.assign(player,{x:spawn.x,y:spawn.y,z:spawn.z,yaw:spawn.yaw,pitch:0,vy:0,grounded:true,groundBox:map.boxes[map.checkpointPads[current]],ladder:null,ladderNormal:null});
+        return [{type:'checkpoint',stage:current},{type:'portal',stage:current}];
+      }
       while(current+1<map.spawns.length){
         const crossing=activation(previous,player,map.boxes[map.checkpointPads[current+1]]);
         if(!crossing||crossing.enter<lastTime)break;

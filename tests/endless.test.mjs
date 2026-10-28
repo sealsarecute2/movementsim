@@ -59,22 +59,23 @@ test('flying through checkpoint airspace saves a safe respawn, including across 
   route.update(player);
   assert.equal(route.checkpoint,10,'passing below the next checkpoint cannot save it');
 });
-test('endless includes all twelve section types, real roofs, beams, elevation, and right-angle turns',()=>{
-  const route=createEndless(3),names=new Set();let roof=false,beam=false,raised=false,turn=false,ladder=false,wrap=false;
+test('endless keeps twelve varied sections with open stepping stones instead of wall wraps',()=>{
+  const route=createEndless(3),names=new Set();let roof=false,beam=false,raised=false,turn=false,ladder=false;
   for(let i=0;i<96;i++) {
     const p=route.platform(i),next=route.platform(i+1);
     const player=createPlayer({x:(p.min[0]+p.max[0])/2,y:p.max[1],z:(p.min[2]+p.max[2])/2,yaw:0});
     route.update(player,p);names.add(route.sectionTitle);
-    roof ||= route.geometry(i).some(b=>b.roof);ladder ||= route.geometry(i).some(b=>b.ladder);wrap ||= route.geometry(i).some(b=>b.wrapWall);
+    roof ||= route.geometry(i).some(b=>b.roof);ladder ||= route.geometry(i).some(b=>b.ladder);
+    assert.ok(!route.geometry(i).some(b=>b.wrapWall||b.feature==='wrap'));
     beam ||= p.walk&&p.max[0]-p.min[0]<=60;
     raised ||= p.max[1]>0;
     turn ||= p.min[2]+p.max[2]===next.min[2]+next.max[2]&&p.min[0]!==next.min[0];
   }
-  assert.equal(names.size,12);assert.ok(roof&&beam&&raised&&turn&&ladder&&wrap);
+  assert.equal(names.size,12);assert.ok(names.has('Stepping stones'));assert.equal(names.has('Wall wraps'),false);assert.ok(roof&&beam&&raised&&turn&&ladder);
 });
 
-test('standing on decorative roofs or wrap walls cannot corrupt block progress',()=>{
- const route=createEndless(9),wall=route.geometry(2).find(b=>b.wrapWall);
+test('standing on decorative roofs cannot corrupt block progress',()=>{
+ const route=createEndless(5),wall=route.geometry(2).find(b=>b.roof);
  assert.ok(wall);
  const p=createPlayer({x:(wall.min[0]+wall.max[0])/2,y:wall.max[1],z:(wall.min[2]+wall.max[2])/2,yaw:0});
  route.update(p,wall);assert.ok(Number.isFinite(route.furthestBlock));assert.ok(Number.isFinite(route.checkpoint));

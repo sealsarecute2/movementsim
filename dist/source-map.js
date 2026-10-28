@@ -49,7 +49,7 @@ export async function loadSourceMap(input,options={}) {
   return makeParkourMap(map);
 }
 
-export function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,geometryOnly=false}={}) {
+export function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',geometryOnly=false}={}) {
   const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
   if(bytes.length<1036||sourceText.decode(bytes.subarray(0,4))!=='VBSP')throw Error('This is not a Source 1 BSP map.');
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
@@ -140,13 +140,13 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',entryT
   const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>e.classname==='info_player_terrorist'||e.classname==='info_player_start')||{origin:'0 0 0'});
   const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
   const spawns=targets.map(name=>({...destinations.get(name)||initial}));
-  const stages=targets.map((name,i)=>({title:stageTargets?'Section '+name.toUpperCase():title,tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name}));
+  const stages=targets.map((name,i)=>({title:stageTitles?.[i]||(stageTargets?'Section '+name.toUpperCase():title),tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name,...(resetTargets?{resetTarget:resetTargets[i]}:{})}));
   const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap(e=>{
     const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];
   });
   const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
   const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
-  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,finish:destinations.get('end'),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
   boxes.sourceMap=sourceMap;
   // Keep the broadphase near the player; full maps contain thousands of brushes.
   const cells=new Map(),cellSize=512,large=[];

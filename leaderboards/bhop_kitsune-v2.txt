@@ -1,0 +1,3 @@
+# bhop_kitsune — plain parkour route, revision 2
+# One clean run per line: player name | MM:SS.mmm or seconds | classic or practice
+# Stage portals are part of the route. Checkpoint respawns do not count as clean runs.

@@ -1,0 +1,3 @@
+# Endless — revision 3, without wall-wrap sections
+# One record per line: player name | whole-number distance in units | classic or practice
+# Highest distance wins. Keep records from previous route versions separate.

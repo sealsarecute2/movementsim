@@ -1,0 +1,3 @@
+# Bhop School
+# One clean run per line: player name | MM:SS.mmm or seconds | classic or practice
+# Records are published by the owner. Lines beginning with # are comments.

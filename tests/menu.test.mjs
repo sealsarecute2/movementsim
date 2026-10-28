@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAP_LIST } from '../dist/course.js';
-import { mapPreviewSVG, mapScreenshotCamera, captureMapScreenshot, createMenuSlideshow } from '../dist/menu.js';
+import { MAP_LIST, COMMUNITY_MAPS } from '../dist/course.js';
+import { mapPreviewSVG, createGalleryEntries, mapScreenshotCamera, captureMapScreenshot, createMenuSlideshow } from '../dist/menu.js';
 
 test('top-down previews draw every actual platform, distinguish roofs, and fit their viewport',()=>{
   for(const map of MAP_LIST.filter(m=>m.timed)) {
@@ -22,6 +22,16 @@ test('each screenshot camera faces the actual course from above with a finite pe
     assert.ok(camera.pitch<0&&camera.pitch>-Math.PI/2);
     assert.ok(camera.y+64>Math.max(...map.boxes.slice(0,9).map(b=>b.max[1])));
   }
+});
+test('the expanded gallery includes 15 distinct views, all native maps and both community previews',()=>{
+ const entries=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);assert.equal(entries.length,15);
+ assert.equal(new Set(entries.map(e=>e.title)).size,15);
+ for(const map of MAP_LIST){
+  const views=entries.filter(e=>e.map===map);assert.equal(views.length,map.timed?3:2);
+  const cameras=views.map(e=>mapScreenshotCamera(map,e.view));assert.ok(cameras.every(c=>Object.values(c).every(Number.isFinite)));
+  assert.equal(new Set(cameras.map(c=>JSON.stringify(c))).size,views.length);
+ }
+ assert.deepEqual(entries.filter(e=>e.thumbnail).map(e=>e.thumbnail),COMMUNITY_MAPS.map(m=>m.thumbnail));
 });
 function shotFixture() {
   const calls=[],originalBoxes=[{original:true}];
@@ -46,6 +56,10 @@ test('gallery uses the selected cycling sky without toggling it off or selecting
   const {args,calls}=shotFixture();
   captureMapScreenshot({...args,skybox:'cycle',restoreSkybox:'cycle'});
   assert.deepEqual(calls.filter(c=>c[0]==='sky'),[['sky','cycle'],['sky','cycle']]);
+});
+test('later-section slides use a different camera and highlight the next checkpoint for that section',()=>{
+ const {args,calls}=shotFixture(),view={section:1,side:-1};captureMapScreenshot({...args,view});
+ const draw=calls.find(c=>c[0]==='draw');assert.deepEqual(draw[1],mapScreenshotCamera(args.map,view));assert.equal(draw[3].checkpoint,2);
 });
 test('snapshot encoding failure and unavailable 2D canvas always restore the game renderer',()=>{
   const {args,calls,originalBoxes}=shotFixture();

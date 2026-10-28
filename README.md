@@ -60,10 +60,11 @@ To climb a ladder, move into its cyan rails and rungs. Use W/S and look up or do
 | Sandbox | An open floor with obstacles and a ladder for practising freely |
 | Endless | A continuing route with a checkpoint every eight blocks |
 | bhop_lego | A community parkour route with 25 ordered checkpoint pads; find it under Community maps |
+| bhop_kitsune | Six community stages linked by portals, with checkpoints at each entrance |
 
 **Bhop practice** has stronger air control and no speed cap. **CS-style** has gentler air control and capped speed. Both let you hold Space to keep hopping.
 
-bhop_lego uses plain blocks for the jumping route. Boost pads activate automatically. You can also try **Import .bsp / .zip** for compatible Source 1 maps; some maps and features are unsupported. Local imports stay in your browser and are not uploaded.
+The community maps use plain blocks for their jumping routes. Boost pads activate automatically. On **bhop_kitsune**, follow the blue exit pad to the next stage; portals preserve your horizontal speed and save the new checkpoint. Endless has open stepping-stone sections in place of wall wraps. You can also try **Import .bsp / .zip** for compatible Source 1 maps; some maps and features are unsupported. Local imports stay in your browser and are not uploaded.
 
 ## Checkpoints, saving, and times
 
@@ -73,19 +74,19 @@ Press **E** for another attempt from that checkpoint, or **Q** for a fresh run. 
 
 Refreshing the page restores your timed or community-map run at its checkpoint, paused. Click **Continue** to resume. Keep the same tab open: this is temporary progress. Restarting, changing maps or physics, or finishing clears the previous run. Endless keeps your best distance in your browser.
 
-**Starter course** and **bhop_lego** have shared leaderboards with separate CS-style and Bhop practice rankings. Select either map and click **Leaderboard**, or open it after finishing. Records are added by the owner; finishing a run does not automatically publish your score. [Leaderboard information](leaderboards/README.md).
+All timed courses and both community maps have shared leaderboards with separate CS-style and Bhop practice rankings. Select a map and click **Leaderboard**, or open it after finishing. **Endless leaderboard** ranks distance, highest first. Records are added by the owner; completing a run does not automatically publish your score. [Leaderboard information](leaderboards/README.md).
 
 ## Make it comfortable
 
 Open **Settings** to change mouse sensitivity, field of view, your crosshair, the background, or sound volume. These preferences save automatically in your browser.
 
-**Background** offers **Black** (the default), **Day / night cycle**, **Black hole**, and **Galaxies**. Turning on the day/night cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
+**Background** offers **Black** (the default), **Day / night cycle**, and **Black hole**. Turning on the day/night cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
 
 **Black hole** adds a dark centre, glowing rings, a swirling accretion disk, and a warped star field. It is an original browser effect inspired by the look of IterationT's Minecraft End sky. Choose it in **Settings → Background**; it works on every map.
 
-**Galaxies** uses Alex Melas's space HDRI, with pink and purple lighting sampled from its bright galaxies. The optimized background downloads only when selected (about 5.5 MB) and is reused when you switch maps. Enable **Shaders** to see the coloured light on the boxes. [Sky credits and license](backgrounds/CREDITS.md).
+Enable **Settings → Shaders** for directional lighting on the boxes and a soft, round player shadow. The day/night cycle uses the sun by day and moon by night; the black-hole background lights the course from the black hole. Black uses a fixed light. Your shadow stays directly beneath you on platform tops and grows softer as you jump. Shaders start off, and your choice saves automatically.
 
-Enable **Settings → Shaders** for directional lighting on the boxes and a soft, round player shadow. The day/night cycle uses the sun by day and moon by night; the black-hole background lights the course from the black hole, and Galaxies adds two coloured light sources. Black uses a fixed light. Your shadow stays directly beneath you on platform tops and grows softer as you jump. Shaders start off, and your choice saves automatically.
+The main-menu slideshow has 15 views: course overviews, later sections, the Sandbox ladder tower, and both community-route previews. Use the arrows to browse; automatic changes pause during gameplay.
 
 **Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
 

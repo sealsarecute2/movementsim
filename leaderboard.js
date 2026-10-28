@@ -38,7 +38,11 @@ export function leaderboardRows(records, endless = false) {
 
 const LEADERBOARD_FILES = Object.freeze({
   course: {revision:1,file:'course.txt'},
+  'bhop-school': {revision:1,file:'bhop-school.txt'},
+  'ladder-run': {revision:1,file:'ladder-run.txt'},
+  endless: {revision:3,file:'endless-v3.txt',endless:true},
   bhop_lego: {revision:2,file:'bhop_lego-v2.txt'},
+  bhop_kitsune: {revision:2,file:'bhop_kitsune-v2.txt'},
 });
 
 export function hasLeaderboard(courseId, revision=1) {
@@ -51,5 +55,5 @@ export async function loadLeaderboard(courseId, preset, { fetcher = globalThis.f
   if (!response.ok) throw new Error('Leaderboard unavailable');
   const text = await response.text();
   if (text.length > 200000) throw new Error('Leaderboard file is too large');
-  return parseLeaderboard(text, { preset });
+  return parseLeaderboard(text, { preset,endless:!!LEADERBOARD_FILES[courseId].endless });
 }

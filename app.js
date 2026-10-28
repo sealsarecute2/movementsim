@@ -5,7 +5,7 @@ import { createRenderer } from './renderer.js';
 import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
 import { loadLeaderboard, leaderboardRows, hasLeaderboard } from './leaderboard.js';
-import { mapPreviewSVG, createMenuSlideshow, captureMapScreenshot } from './menu.js';
+import { mapPreviewSVG, createGalleryEntries, createMenuSlideshow, captureMapScreenshot } from './menu.js';
 import { MenuMusic } from './menu-music.js';
 import { loadSourceMap } from './source-map.js';
 import { createSourceRuntime } from './source-runtime.js';
@@ -15,7 +15,7 @@ const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
 let renderer, rendererReady = true;
-try { renderer = createRenderer(canvas, MAPS.course.boxes,{onSkyStatus:message=>{$('skybox-status').textContent=message;}}); }
+try { renderer = createRenderer(canvas, MAPS.course.boxes); }
 catch (error) {
   rendererReady=false;renderer={draw(){},setBoxes(){}};
   $('menu-description').textContent=error.message+' Sound previews and leaderboards are still available.';
@@ -390,13 +390,14 @@ function tick() {
     if(!runActive&&Math.hypot(player.x-first.x,player.z-first.z)>96)runActive=true;
     if(runActive)runTime+=DT;
     for(const event of sourceRuntime.step(player,previousDraw,DT)){
+      if(event.type==='portal')previousDraw={...player};
       if(event.type==='respawn'){respawns++;reset(false);saveRunCheckpoint();toast('BACK AT CHECKPOINT — TIMER CONTINUES');return;}
       if(event.type==='teleport'){
         previousDraw={...player};
         const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
         if(runActive&&index<=checkpoint)respawns++;
       }
-      if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`SECTION ${MAPS[map].stages[checkpoint].target.toUpperCase()} SAVED — E TO RETURN`,true);}
+      if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`${MAPS[map].stages[checkpoint].title.toUpperCase()} SAVED — E TO RETURN`,true);}
       if(event.type==='finish'){finishRun();return;}
     }
     if(player.y<boxes.sourceMap.killHeight){respawns++;reset(false);toast('BACK AT CHECKPOINT — TIMER CONTINUES');}
@@ -461,13 +462,15 @@ function frame(now) {
     const spawn=endless?endless.spawn:MAPS[map].spawns[0];
     Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
   }
+  const sourcePortal=boxes.sourceMap?.portals?.find(p=>p.from===checkpoint);
   const target=completed?null:endless?endless.platform((checkpoint+1)*8):
-    MAPS[map].timed?boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish):null;
+    MAPS[map].timed?(sourcePortal?boxes[sourcePortal.exitPad]:boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish)):null;
   const galleryVisible=menuMode==='main'&&!overlay.classList.contains('hidden')&&!document.hidden;
   if(rendererReady&&galleryVisible&&capturedMaps<galleryMaps.length&&screenshotCanvas) {
     const i=capturedMaps++, image=slides[i];
     try {
-      const shot=captureMapScreenshot({renderer,canvas,map:galleryMaps[i],restoreBoxes:boxes,restoreSkybox:skybox,
+      const entry=galleryMaps[i];
+      const shot=entry.thumbnail||captureMapScreenshot({renderer,canvas,map:entry.map,view:entry.view,restoreBoxes:boxes,restoreSkybox:skybox,
         skybox,snapshot:screenshotCanvas});
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
@@ -487,7 +490,7 @@ $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
 $('back-to-main').addEventListener('click',()=>returnToMain());
 $('play-sandbox').addEventListener('click',()=>{if(lockPending)return;chooseMap('free');play();});
-const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=MAP_LIST;
+const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);
 $('map-grid').classList.toggle('single-map',timedMaps.length===1);
 $('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.stages.length} sections</span></button>`).join('');
 $('map-grid').addEventListener('click',event=>{
@@ -503,13 +506,14 @@ $('source-map-file').addEventListener('change',()=>{
   $('source-map-file').value='';
 });
 document.addEventListener('pointerdown',event=>{if(playing&&(event.button===0||event.button===2))sourceRuntime?.interact(player);});
-$('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
+$('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${m.thumbnail?' gallery-route':''}${i===0?' is-active':''}" alt="${m.title}" decoding="async">`).join('');
 const slides=Array.from(document.querySelectorAll('.gallery-slide'));
 if(slides.length&&rendererReady)screenshotCanvas=document.createElement('canvas');
 if(slides.length)slideshow=createMenuSlideshow({slides,maps:galleryMaps,title:$('gallery-title'),count:$('gallery-count'),reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches});
 $('gallery-next').addEventListener('click',()=>slideshow?.next());
 $('gallery-previous').addEventListener('click',()=>slideshow?.previous());
 $('leaderboard-button').addEventListener('click',openLeaderboard);
+$('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless'));
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());

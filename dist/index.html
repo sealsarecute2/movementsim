@@ -31,7 +31,7 @@
       <aside class="menu-gallery" aria-label="Map screenshot slideshow">
         <div id="gallery-slides" class="gallery-slides"></div>
         <div class="gallery-shade"></div>
-        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 05</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
+        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 15</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
       </aside>
       <main class="menu main-panel">
         <div class="menu-wordmark"><span class="brand-icon">M<span>↗</span></span><span>MOVEMENT LAB <small>CS-STYLE MOVEMENT TRAINER</small></span></div>
@@ -60,6 +60,7 @@
           <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
+          <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
         </section>
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
@@ -67,8 +68,7 @@
           <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="eyebrow">SAVED AUTOMATICALLY</span></div>
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
-      <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option><option value="galaxies">Galaxies · HDRI</option></select></div>
-      <p id="skybox-status" class="skybox-status" role="status"></p>
+      <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option></select></div>
       <div class="shader-setting"><label><input id="shaders-enabled" type="checkbox"> Shaders</label><p>Directional box lighting &amp; a soft player shadow.</p></div>
       <details class="crosshair-settings" open><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
         <div class="crosshair-top"><label for="crosshair-style">STYLE<select id="crosshair-style"><option value="default">Default</option><option value="dot">Dot</option><option value="cross">Cross</option></select></label><div class="crosshair-preview-stage" role="img" aria-label="Live crosshair preview"><div id="crosshair-preview" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div></div></div>

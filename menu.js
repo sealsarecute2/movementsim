@@ -10,23 +10,35 @@ export function mapPreviewSVG(map) {
   return `<svg viewBox="0 0 320 100" aria-hidden="true" focusable="false"><path d="M0 25H320M0 50H320M0 75H320M40 0V100M80 0V100M120 0V100M160 0V100M200 0V100M240 0V100M280 0V100" class="preview-grid"/><polyline points="${route}" class="preview-route"/>${shapes}<circle cx="${x(map.spawns[0].z)}" cy="${y(map.spawns[0].x)}" r="2" class="preview-spawn"/></svg>`;
 }
 
-export function mapScreenshotCamera(map) {
-  const visible=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle).slice(0,9);
+export function createGalleryEntries(maps,community=[]) {
+  return [...maps.flatMap(map=>[
+    {title:map.title,map,view:{}},
+    ...(map.timed?[
+      {title:map.title+' / Section 2',map,view:{section:1,side:-1}},
+      {title:map.title+' / Final section',map,view:{section:map.spawns.length-1}},
+    ]:[{title:map.title+(map.endless?' / Checkpoint run':' / Ladder tower'),map,view:map.endless?{section:1,side:-1}:{start:6,count:2,side:-1}}]),
+  ]),...community.map(map=>({title:map.title+' / Route preview',thumbnail:map.thumbnail}))];
+}
+
+export function mapScreenshotCamera(map,{section=0,start=null,count=9,side=1}={}) {
+  const platforms=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle);
+  const first=start??(section?Math.max(0,platforms.findIndex(b=>b.checkpoint===section)):0);
+  const visible=platforms.slice(first,first+count);
   const left=Math.min(...visible.map(b=>b.min[0])),right=Math.max(...visible.map(b=>b.max[0]));
   const near=Math.max(...visible.map(b=>b.max[2])),far=Math.min(...visible.map(b=>b.min[2]));
   const top=Math.max(...visible.map(b=>b.max[1]));
   const x=(left+right)/2,z=(near+far)/2,extent=Math.max(650,(near-far)*.65,(right-left)*1.1);
-  const eye={x:x-extent*.85,y:top+extent*.8,z:z+extent*.7};
+  const eye={x:x-extent*.85*side,y:top+extent*.8,z:z+extent*.7};
   return {...eye,y:eye.y-64,yaw:Math.atan2(x-eye.x,eye.z-z),
     pitch:Math.atan2(top-eye.y,Math.hypot(x-eye.x,z-eye.z)),duckAmount:0};
 }
 
 // Capture one real WebGL frame, then restore the player's geometry and sky.
 // Images are generated once per visit, without extra WebGL contexts or downloads.
-export function captureMapScreenshot({renderer,canvas,map,restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
+export function captureMapScreenshot({renderer,canvas,map,view={},restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
   try {
     renderer.setBoxes(map.boxes);renderer.setSkybox(skybox);
-    renderer.draw(mapScreenshotCamera(map),85,map.boxes.find(b=>b.checkpoint)||map.boxes.find(b=>b.finish));
+    renderer.draw(mapScreenshotCamera(map,view),85,map.boxes.find(b=>b.checkpoint===(view.section||0)+1)||map.boxes.find(b=>b.finish));
     const context=snapshot.getContext('2d');
     if(!context)return null;
     const ratio=Math.min(1,1200/Math.max(canvas.width,canvas.height));

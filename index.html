@@ -271,8 +271,7 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .shader-setting label { display:flex; align-items:center; gap:.5rem; cursor:pointer; }
 .shader-setting input { accent-color:#ddd; }
 .shader-setting p { margin:.45rem 0 0; color:#888; font-size:max(10px,.6rem); line-height:1.6; }
-.skybox-status { color:#a8bdcc; font-size:max(10px,.6rem); line-height:1.6; margin:.5rem 0; }
-.skybox-status:empty { display:none; }
+.gallery-slide.gallery-route { object-fit:contain; padding:2rem; background:#080b0e; }
 
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
@@ -298,7 +297,7 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
       <aside class="menu-gallery" aria-label="Map screenshot slideshow">
         <div id="gallery-slides" class="gallery-slides"></div>
         <div class="gallery-shade"></div>
-        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 05</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
+        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 15</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
       </aside>
       <main class="menu main-panel">
         <div class="menu-wordmark"><span class="brand-icon">M<span>↗</span></span><span>MOVEMENT LAB <small>CS-STYLE MOVEMENT TRAINER</small></span></div>
@@ -327,6 +326,7 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
           <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
+          <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
         </section>
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
@@ -334,8 +334,7 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
           <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="eyebrow">SAVED AUTOMATICALLY</span></div>
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
-      <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option><option value="galaxies">Galaxies · HDRI</option></select></div>
-      <p id="skybox-status" class="skybox-status" role="status"></p>
+      <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option></select></div>
       <div class="shader-setting"><label><input id="shaders-enabled" type="checkbox"> Shaders</label><p>Directional box lighting &amp; a soft player shadow.</p></div>
       <details class="crosshair-settings" open><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
         <div class="crosshair-top"><label for="crosshair-style">STYLE<select id="crosshair-style"><option value="default">Default</option><option value="dot">Dot</option><option value="cross">Cross</option></select></label><div class="crosshair-preview-stage" role="img" aria-label="Live crosshair preview"><div id="crosshair-preview" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div></div></div>
@@ -409,9 +408,9 @@ const endlessSections = [
   {name:'Ladder spires',tip:'Catch the cyan ladder, climb onto the balcony, then control the descending jumps.',nodes:[
     [0,-320,180,160],[0,-480,160,160,240,false,false,'ladder'],[140,-700,72,96,240],
     [0,-930,72,96,216],[-140,-1160,72,96,168],[0,-1410,80,110,96],[0,-1730,96,120,0]]},
-  {name:'Wall wraps',tip:'Go around the exposed end of the tall wall. A straight jump is blocked.',nodes:[
-    [-85,-330,80,90],[85,-330,64,90,0,false,false,'wrap'],[200,-570,96,110],
-    [70,-850,96,110],[-60,-1130,96,110],[70,-1410,112,120],[0,-1730,128,120]]},
+  {name:'Stepping stones',tip:'Link the open platforms with small, smooth corrections.',nodes:[
+    [0,-330,160,160],[0,-560,128,144],[-45,-790,112,144],[45,-1020,112,144],
+    [-45,-1250,128,144],[45,-1480,144,160],[0,-1730,180,180]]},
   {name:'Microsteps',tip:'Tiny raised landings require edge takeoffs. Keep your turns shallow.',nodes:[
     [0,-330,120,140],[55,-560,56,72,16],[-35,-770,48,64,32],[50,-980,48,64,48],
     [-35,-1190,48,64,32],[45,-1410,48,64,16],[0,-1730,120,160]]},
@@ -454,9 +453,6 @@ function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
       const previous=layout(index-1),face=p.max[2],x=layoutNode.x;
       result.push({min:[x-40,previous.y,face],max:[x+40,p.max[1]+2,face+2],ladder:true,normal:[0,0,1]},
         {min:[x-48,previous.y-120,face-96],max:[x+48,p.max[1],face],obstacle:true,tower:true});
-    }
-    if(p.feature==='wrap') {
-      result.push({min:[-16,p.max[1]-120,layoutNode.z-90],max:[16,p.max[1]+220,layoutNode.z+72],obstacle:true,wrapWall:true});
     }
     return result;
   }
@@ -614,7 +610,7 @@ const MAP_LIST = [
       stage('Jump across the rooftops.','Hold Space for the jumps. Release it before climbing the next ladder.'),
       stage('Climb again.','Hold W and look up on the second ladder. Space pushes you away.'),
       stage('Take the high route.','Link the last rooftop jumps and reach the striped finish.')] },
-  { id: 'endless', revision: 2, title: 'Endless', endless: true, timed: false,
+  { id: 'endless', revision: 3, title: 'Endless', endless: true, timed: false,
     description: 'Mixed sections with checkpoints every 8 blocks.',
     boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
     stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. Q starts a new route.')] },
@@ -630,6 +626,15 @@ const COMMUNITY_MAPS = [{
   archive:'maps/bhop_lego.zip',geometry:'maps/bhop_lego.json',revision:2,thumbnail:'maps/bhop_lego.svg',
   source:'https://gamebanana.com/mods/125406',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
   entryTarget:'1a',stageTargets:['1a','1b','1c','1d','1e','1f','2a','2b','2c','3a','3b','3c','4a','4b','4c','4d','5a','5b','6a','6b','6c','6d','7a','7b','7c'],
+},{
+  id:'bhop_kitsune',title:'bhop_kitsune',author:'NoNimus (Ghost1447951)',
+  archive:'maps/bhop_kitsune.zip',geometry:'maps/bhop_kitsune.json',revision:2,thumbnail:'maps/bhop_kitsune.svg',
+  source:'https://gamebanana.com/mods/126424',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  entryTarget:'enterredmarker',finishTarget:'exitwhitemarker',
+  stageTargets:['enterredmarker','enterorangemarker','entercyanmarker','entergreenmarker','enterpurplemarker','enterwhitemarker'],
+  resetTargets:['restartred','restartorange','restartcyan','restartgreen','restartpurple','restartwhite'],
+  exitTargets:['exitredmarker','exitorangemarker','exitcyanmarker','exitgreenmarker','exitpurplemarker','exitwhitemarker'],
+  stageTitles:['Red','Orange','Cyan','Green','Purple','White'],
 }];
 
 // Independent Source-style movement recreation. No Valve code or assets included.
@@ -913,33 +918,11 @@ function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   return p;
 }
 
-// Generated by tools/build-galaxy.py from the original licensed HDRI.
-const GALAXY_ENVIRONMENT = {"author":"Alex Melas (alexandr-melas)","sourceSize":[7680,4320],"sourceSha256":"6bb307800e2a145b36307adb48fc791541b0560b9250d5aa1aad259bfec0cddd","packedSha256":"9253d8f0af51d65970d0b8efabac62e86a4fb24fe1893dcd05b3c8a91199e5c4","width":2048,"height":1024,"lighting":{"direction":[0.0,0.14673,-0.989177],"colour":[1.0,0.1408,0.817658],"ambient":[0.240194,0.153895,0.28],"power":1.0,"fillDirection":[0.872376,0.14673,0.466295],"fillColour":[0.547052,0.126148,0.66],"uvOffset":0.7578125,"zenith":[0.212951,0.149048,0.27194],"horizon":[0.219177,0.180123,0.290327],"ground":[0.176614,0.140941,0.234428]}};
-
-
-function decodeGalaxyAsset(input,inflate) {
-  const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
-  if(bytes.length<17||bytes.length>12*1024*1024||String.fromCharCode(...bytes.subarray(0,4))!=='MLBG'||bytes[4]!==1||bytes[5]!==4)throw Error('Invalid galaxy background.');
-  const header=new DataView(bytes.buffer,bytes.byteOffset,16),width=header.getUint16(8,true),height=header.getUint16(10,true),size=header.getUint32(12,true);
-  if(width!==GALAXY_ENVIRONMENT.width||height!==GALAXY_ENVIRONMENT.height||size!==width*height*4)throw Error('Invalid galaxy dimensions.');
-  const pixels=inflate(bytes.subarray(16),{out:new Uint8Array(size)});
-  if(pixels.length!==size)throw Error('Incomplete galaxy background.');
-  return {width,height,pixels};
-}
-
-async function loadGalaxyEnvironment({fetcher=globalThis.fetch}={}) {
-  const response=await fetcher('backgrounds/galaxies.mlbg?v=1',{cache:'force-cache'});
-  if(!response.ok)throw Error('Could not download the galaxy background.');
-  const data=await response.arrayBuffer(),{unzlibSync}=await import('./vendor/fflate.module.js');
-  return decodeGalaxyAsset(data,unzlibSync);
-}
-
 // Direction-based skies stay at infinity and use the world's camera lens.
 const SKYBOXES = Object.freeze({
   black: { label:'Default · Black', zenith:[0,0,0], horizon:[0,0,0], ground:[0,0,0] },
   cycle: { label:'Day / night cycle · 20 min' },
   blackhole: { label:'Black hole · End-inspired' },
-  galaxies: { label:'Galaxies · HDRI' },
 });
 
 function normaliseSkybox(value) {
@@ -960,17 +943,16 @@ function skyEase(value) { const t=Math.max(0,Math.min(1,value));return t*t*(3-2*
 const BLACK_HOLE_SKY = {
   zenith:[.006,.008,.018],horizon:[.025,.026,.039],ground:[.003,.004,.009],
   cloud:[0,0,0],sun:[0,0,0],sunDirection:[0,1,0],moonDirection:[0,-1,0],
-  clouds:0,stars:1,sunVisibility:0,moonVisibility:0,cloudOffset:[0,0],blackHole:1,galaxies:0,
+  clouds:0,stars:1,sunVisibility:0,moonVisibility:0,cloudOffset:[0,0],blackHole:1,
 };
 function sampleSkybox(value,elapsedSeconds=0) {
   const selected=normaliseSkybox(value);
   if(selected==='black')return SKYBOXES.black;
   const seconds=Number.isFinite(elapsedSeconds)?elapsedSeconds:0;
   if(selected==='blackhole')return {...BLACK_HOLE_SKY,time:((seconds%600)+600)%600};
-  if(selected==='galaxies')return {...BLACK_HOLE_SKY,zenith:GALAXY_ENVIRONMENT.lighting.zenith,horizon:GALAXY_ENVIRONMENT.lighting.horizon,ground:GALAXY_ENVIRONMENT.lighting.ground,blackHole:0,galaxies:1,time:0};
   const time=((seconds%DAY_NIGHT_CYCLE_SECONDS)+DAY_NIGHT_CYCLE_SECONDS)%DAY_NIGHT_CYCLE_SECONDS;
   const phase=time/DAY_NIGHT_CYCLE_SECONDS*4,index=Math.floor(phase),blend=skyEase(phase-index);
-  const from=SKY_PHASES[index],to=SKY_PHASES[(index+1)%4],frame={blackHole:0,galaxies:0};
+  const from=SKY_PHASES[index],to=SKY_PHASES[(index+1)%4],frame={blackHole:0};
   for(const key of ['zenith','horizon','ground','cloud','sun'])frame[key]=from[key].map((n,i)=>n+(to[key][i]-n)*blend);
   for(const key of ['clouds','stars'])frame[key]=from[key]+(to[key]-from[key])*blend;
   const angle=time/DAY_NIGHT_CYCLE_SECONDS*Math.PI*2,sine=Math.sin(angle);
@@ -1069,7 +1051,6 @@ const SKY_FRAGMENT_GLSL = `
   uniform vec3 uCloudColour; uniform vec3 uSunColour; uniform vec3 uSunDirection; uniform vec3 uMoonDirection;
   uniform vec2 uCloudOffset;
   uniform float uClouds; uniform float uStars; uniform float uSunVisibility; uniform float uMoonVisibility; uniform float uSkyTime; uniform float uBlackHole;
-  uniform sampler2D uGalaxyMap; uniform float uGalaxies; uniform float uGalaxyOffset;
   varying vec2 vClip;
   ${SKY_GRADIENT_GLSL}
   float skyHash(vec2 p){
@@ -1087,10 +1068,6 @@ const SKY_FRAGMENT_GLSL = `
     vec2 plane=vClip/uSkyScale;
     float forward=cp-plane.y*sp;
     vec3 direction=normalize(vec3(plane.x*cy+forward*sy,plane.y*cp+sp,plane.x*sy-forward*cy));
-    if(uGalaxies>0.5){
-      vec2 uv=vec2(fract(atan(direction.z,direction.x)*0.15915494+0.5+uGalaxyOffset),acos(clamp(direction.y,-1.0,1.0))*0.31830989);
-      gl_FragColor=vec4(texture2D(uGalaxyMap,uv).rgb,1.0);return;
-    }
     if(uBlackHole>0.5){gl_FragColor=vec4(blackHoleSky(direction,uSkyTime),1.0);return;}
     vec3 colour=backgroundGradient(direction,uHorizon,uZenith,uGround);
     float above=smoothstep(-0.015,0.06,direction.y);
@@ -1121,7 +1098,7 @@ const SKY_FRAGMENT_GLSL = `
   }
 `;
 
-function createSkyRenderer(gl,{loadGalaxy=loadGalaxyEnvironment}={}) {
+function createSkyRenderer(gl) {
   function compile(type,source) {
     const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
     if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));
@@ -1133,27 +1110,12 @@ function createSkyRenderer(gl,{loadGalaxy=loadGalaxyEnvironment}={}) {
   if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
   const buffer=gl.createBuffer(),position=gl.getAttribLocation(program,'aClip');
   gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
-  const names=['uSkyAngles','uSkyScale','uHorizon','uZenith','uGround','uCloudColour','uSunColour','uSunDirection','uMoonDirection','uCloudOffset','uClouds','uStars','uSunVisibility','uMoonVisibility','uSkyTime','uBlackHole','uGalaxyMap','uGalaxies','uGalaxyOffset'];
+  const names=['uSkyAngles','uSkyScale','uHorizon','uZenith','uGround','uCloudColour','uSunColour','uSunDirection','uMoonDirection','uCloudOffset','uClouds','uStars','uSunVisibility','uMoonVisibility','uSkyTime','uBlackHole'];
   const uniforms=Object.fromEntries(names.map(name=>[name,gl.getUniformLocation(program,name)]));
-  const galaxyTexture=gl.createTexture();let galaxyReady=false,galaxyLoading=null;
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galaxyTexture);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-  return {get galaxiesReady(){return galaxyReady;},loadGalaxies(){
-    if(galaxyReady)return Promise.resolve();
-    if(!galaxyLoading)galaxyLoading=Promise.resolve().then(()=>loadGalaxy()).then(({width,height,pixels})=>{
-      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galaxyTexture);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,width,height,0,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
-      gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);galaxyReady=true;
-    }).catch(error=>{galaxyLoading=null;throw error;});
-    return galaxyLoading;
-  },draw(camera,scaleX,scaleY,preset){
+  return {draw(camera,scaleX,scaleY,preset){
     gl.useProgram(program);gl.disable(gl.DEPTH_TEST);gl.depthMask(false);
     gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
     gl.uniform2f(uniforms.uSkyAngles,camera.yaw,camera.pitch);gl.uniform2f(uniforms.uSkyScale,scaleX,scaleY);
-    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galaxyTexture);gl.uniform1i(uniforms.uGalaxyMap,0);
-    gl.uniform1f(uniforms.uGalaxies,preset.galaxies);gl.uniform1f(uniforms.uGalaxyOffset,GALAXY_ENVIRONMENT.lighting.uvOffset);
     for(const [name,value] of [['uHorizon',preset.horizon],['uZenith',preset.zenith],['uGround',preset.ground],
       ['uCloudColour',preset.cloud],['uSunColour',preset.sun],['uSunDirection',preset.sunDirection],['uMoonDirection',preset.moonDirection]])gl.uniform3f(uniforms[name],...value);
     gl.uniform2f(uniforms.uCloudOffset,...preset.cloudOffset);
@@ -1168,7 +1130,6 @@ function createSkyRenderer(gl,{loadGalaxy=loadGalaxyEnvironment}={}) {
 const unitLight=vector=>{const length=Math.hypot(...vector);return vector.map(n=>n/length);};
 const FIXED_LIGHT=unitLight([-.45,.85,.27]);
 function sampleSceneLight(skybox,sky) {
-  if(skybox==='galaxies')return GALAXY_ENVIRONMENT.lighting;
   if(skybox==='blackhole')return {direction:BLACK_HOLE_DIRECTION,colour:[1,.86,.68],ambient:[.31,.32,.39],power:1.05};
   if(skybox!=='cycle')return {direction:FIXED_LIGHT,colour:[1,.97,.91],ambient:[.32,.34,.38],power:.85};
   const daylight=sky.sunDirection[1]>=0,direction=daylight?sky.sunDirection:sky.moonDirection;
@@ -1244,7 +1205,8 @@ function buildSignMesh(board) {
 // Keep the playable route and use the same simple blocks as the native maps.
 // Original teleport-pad footprints identify jumping surfaces, not decorations.
 function makeParkourMap(source) {
-  const targets=new Set(source.stages.map(s=>s.target)),anchors=[];
+  const resetTarget=stage=>stage.resetTarget||stage.target;
+  const targets=new Set(source.stages.map(resetTarget)),anchors=[];
   for(const trigger of source.triggers) {
     const width=trigger.max[0]-trigger.min[0],depth=trigger.max[2]-trigger.min[2];
     if(trigger.classname==='trigger_teleport'&&targets.has(trigger.target)&&trigger.filtername&&trigger.max[1]-trigger.min[1]<=8&&width<=256&&depth<=256)
@@ -1262,9 +1224,17 @@ function makeParkourMap(source) {
   for(const original of source.boxes) {
     const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
     const width=original.max[0]-original.min[0],depth=original.max[2]-original.min[2];
-    if(!((width<=512&&depth<=512)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.999))continue;
+    const maximum=source.exitTargets?1024:512;
+    if(!((width<=maximum&&depth<=maximum)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.999))continue;
+    if(source.exitTargets&&source.stages.some((stage,i)=>{
+      const spawn=source.spawns[i],exit=source.destinations.get(source.exitTargets[i]);if(!exit)return false;
+      const floors=basins.filter(t=>t.target===resetTarget(stage));
+      const low=Math.min(...floors.map(t=>t.max[1]),spawn.y-128,exit.y-128);
+      return x>=Math.min(spawn.x,exit.x)-240&&x<=Math.max(spawn.x,exit.x)+240&&Math.abs(z-spawn.z)<=600&&original.max[1]>low+.01&&original.max[1]<=spawn.y+64;
+    })){addOriginal(original);continue;}
+    if(source.exitTargets)continue;
     if(basins.some(t=>{
-      const i=source.stages.findIndex(s=>s.target===t.target),upper=Math.max(source.spawns[i].y,(source.spawns[i+1]||source.finish||source.spawns[i]).y,...anchors.filter(a=>a.target===t.target).map(a=>a.y))+64;
+      const i=source.stages.findIndex(s=>resetTarget(s)===t.target),upper=Math.max(source.spawns[i].y,(source.spawns[i+1]||source.finish||source.spawns[i]).y,...anchors.filter(a=>a.target===t.target).map(a=>a.y))+64;
       return x>=t.min[0]&&x<=t.max[0]&&z>=t.min[2]&&z<=t.max[2]&&original.max[1]>t.max[1]+.01&&original.max[1]<=upper;
     }))addOriginal(original);
   }
@@ -1292,21 +1262,29 @@ function makeParkourMap(source) {
   }
   let finishPad=null;
   if(source.finish){finishPad=blockAt(source.finish);finishPad.finish=true;finishPad.label='FINISH';}
+  const portals=(source.exitTargets||[]).slice(0,-1).map((name,from)=>{
+    const trigger=source.triggers.find(t=>t.classname==='trigger_teleport'&&t.target===source.stages[from+1].target);
+    if(!trigger)throw Error('A stage connection is missing.');
+    const pad=blockAt(source.destinations.get(name));pad.label='NEXT STAGE';
+    return {from,to:from+1,min:trigger.min,max:trigger.max,pad};
+  });
   // Put the starting pad first, matching native timer and preview conventions.
   blocks.splice(blocks.indexOf(checkpointPads[0]),1);blocks.unshift(checkpointPads[0]);
-  const sectionFalls=spawns.map((spawn,i)=>Math.min(spawn.y,(spawns[i+1]||source.finish||spawn).y,...anchors.filter(a=>a.target===source.stages[i].target).map(a=>a.y))-256);
-  const boosts=source.triggers.filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&basins.some(b=>{
+  const sectionFalls=spawns.map((spawn,i)=>Math.min(spawn.y,(portals.length?source.destinations.get(source.exitTargets[i]):spawns[i+1]||source.finish||spawn).y,...anchors.filter(a=>a.target===resetTarget(source.stages[i])).map(a=>a.y))-256);
+  const nearEntry=t=>source.exitTargets?source.spawns.findIndex(s=>s.x>=t.min[0]&&s.x<=t.max[0]&&s.z>=t.min[2]&&s.z<=t.max[2]&&Math.abs(s.y-t.min[1])<96):-1;
+  const boosts=source.triggers.filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&(nearEntry(t)>=0||basins.some(b=>{
     const x=(t.min[0]+t.max[0])/2,z=(t.min[2]+t.max[2])/2;return x>=b.min[0]&&x<=b.max[0]&&z>=b.min[2]&&z<=b.max[2]&&t.min[1]>=b.min[1]&&t.min[1]-b.max[1]<128;
-  }))
+  })))
     .map(t=>{
       const x=(t.min[0]+t.max[0])/2,z=(t.min[2]+t.max[2])/2;
       const basin=basins.find(b=>x>=b.min[0]&&x<=b.max[0]&&z>=b.min[2]&&z<=b.max[2]&&t.min[1]>=b.min[1]&&t.min[1]-b.max[1]<128);
-      const stage=source.stages.findIndex(s=>s.target===basin.target);sectionFalls[stage]=Math.min(sectionFalls[stage],t.min[1]-256);
-      return {min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed};
+      const entry=nearEntry(t),stage=basin?source.stages.findIndex(s=>resetTarget(s)===basin.target):entry;sectionFalls[stage]=Math.min(sectionFalls[stage],t.min[1]-256);
+      return {min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed,...(entry>=0?{entry:true}:{})};
     });
-  for(const boost of boosts){const pad={min:[boost.min[0],boost.min[1]-24,boost.min[2]],max:[boost.max[0],boost.min[1],boost.max[2]],label:'BOOST',boost:true};blocks.push(pad);}
+  for(const boost of boosts)if(!boost.entry){const pad={min:[boost.min[0],boost.min[1]-24,boost.min[2]],max:[boost.max[0],boost.min[1],boost.max[2]],label:'BOOST',boost:true};blocks.push(pad);}
   return hydrateParkourMap({id:source.id,title:source.title,greybox:true,revision:2,boxes:blocks,spawns,stages:source.stages.map(s=>({...s,tip:'Follow the blue checkpoint. E returns to your saved pad. Q restarts the route.'})),
-    checkpointPads:checkpointPads.map(b=>blocks.indexOf(b)),finishPad:finishPad?blocks.indexOf(finishPad):null,sectionFalls,boosts});
+    checkpointPads:checkpointPads.map(b=>blocks.indexOf(b)),finishPad:finishPad?blocks.indexOf(finishPad):null,sectionFalls,boosts,
+    ...(portals.length?{portals:portals.map(({pad,...portal})=>({...portal,exitPad:blocks.indexOf(pad)}))}:{})});
 }
 
 function hydrateParkourMap(data) {
@@ -1314,10 +1292,28 @@ function hydrateParkourMap(data) {
   for(const box of data.boxes)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
+  if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');
   const map={...data,greybox:true};
   map.boxes.sourceMap=map;
   if(!Array.isArray(map.sectionFalls)||map.sectionFalls.length!==map.spawns.length||!map.sectionFalls.every(Number.isFinite))throw Error('Invalid section reset heights.');
   map.killHeight=Math.min(...map.sectionFalls);
+  if(map.boxes.length>800){
+    const cells=new Map(),size=512,large=[];
+    for(const box of map.boxes){
+      const x0=Math.floor(box.min[0]/size),x1=Math.floor(box.max[0]/size),z0=Math.floor(box.min[2]/size),z1=Math.floor(box.max[2]/size);
+      if((x1-x0+1)*(z1-z0+1)>256){large.push(box);continue;}
+      for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){
+        const key=x+','+z;if(!cells.has(key))cells.set(key,[]);cells.get(key).push(box);
+      }
+    }
+    map.boxes.nearby=(player,dt=.004)=>{
+      const pad=80+Math.max(Math.abs(player.vx||0),Math.abs(player.vz||0))*dt*2,found=new Set(large);
+      for(let x=Math.floor((player.x-pad)/size);x<=Math.floor((player.x+pad)/size);x++)for(let z=Math.floor((player.z-pad)/size);z<=Math.floor((player.z+pad)/size);z++)for(const box of cells.get(x+','+z)||[]){
+        if(player.y+80>=box.min[1]&&player.y+Math.min(0,(player.vy||0)*dt)-24<=box.max[1])found.add(box);
+      }
+      return [...found];
+    };
+  }
   return map;
 }
 
@@ -1371,7 +1367,7 @@ async function loadSourceMap(input,options={}) {
   return makeParkourMap(map);
 }
 
-function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,geometryOnly=false}={}) {
+function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',geometryOnly=false}={}) {
   const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
   if(bytes.length<1036||sourceText.decode(bytes.subarray(0,4))!=='VBSP')throw Error('This is not a Source 1 BSP map.');
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
@@ -1462,13 +1458,13 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=n
   const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>e.classname==='info_player_terrorist'||e.classname==='info_player_start')||{origin:'0 0 0'});
   const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
   const spawns=targets.map(name=>({...destinations.get(name)||initial}));
-  const stages=targets.map((name,i)=>({title:stageTargets?'Section '+name.toUpperCase():title,tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name}));
+  const stages=targets.map((name,i)=>({title:stageTitles?.[i]||(stageTargets?'Section '+name.toUpperCase():title),tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name,...(resetTargets?{resetTarget:resetTargets[i]}:{})}));
   const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap(e=>{
     const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];
   });
   const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
   const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
-  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,finish:destinations.get('end'),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
   boxes.sourceMap=sourceMap;
   // Keep the broadphase near the player; full maps contain thousands of brushes.
   const cells=new Map(),cellSize=512,large=[];
@@ -1578,6 +1574,12 @@ function createParkourRuntime(map) {
     interact(){return false;},
     step(player,previous,dt) {
       const events=[];let lastTime=-1;
+      const portal=map.portals?.find(p=>p.from===current&&sourceTriggerCrossing(previous,player,p,player.ducked?54:72));
+      if(portal){
+        current=portal.to;const spawn=map.spawns[current];
+        Object.assign(player,{x:spawn.x,y:spawn.y,z:spawn.z,yaw:spawn.yaw,pitch:0,vy:0,grounded:true,groundBox:map.boxes[map.checkpointPads[current]],ladder:null,ladderNormal:null});
+        return [{type:'checkpoint',stage:current},{type:'portal',stage:current}];
+      }
       while(current+1<map.spawns.length){
         const crossing=activation(previous,player,map.boxes[map.checkpointPads[current+1]]);
         if(!crossing||crossing.enter<lastTime)break;
@@ -1623,7 +1625,6 @@ const WORLD_FRAGMENT_GLSL = `
     uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
-    uniform vec3 uFillDirection; uniform vec3 uFillColour;
     uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
@@ -1637,8 +1638,7 @@ const WORLD_FRAGMENT_GLSL = `
         vec3 ambient=uAmbientColour*mix(0.65,1.2,normal.y*0.5+0.5);
         vec3 halfLight=normalize(uLightDirection+normalize(uFogEye-vWorld)+vec3(0.0001));
         float gloss=pow(max(dot(normal,halfLight),0.0),28.0)*0.12*uLightPower;
-        float fill=max(dot(normal,uFillDirection),0.0);
-        color=vColor*(ambient+uLightColour*diffuse*uLightPower+uFillColour*fill)+uLightColour*gloss;
+        color=vColor*(ambient+uLightColour*diffuse*uLightPower)+uLightColour*gloss;
         if(vTop>0.5&&uShadowOpacity>0.0&&abs(vWorld.y-uPlayerShadow.y)<0.5){
           float distance=length(vWorld.xz-uPlayerShadow.xz)/max(uPlayerShadow.w,1.0);
           float shadow=1.0-smoothstep(0.15,1.0,distance);
@@ -1660,7 +1660,7 @@ const WORLD_FRAGMENT_GLSL = `
       gl_FragColor=vec4(mix(fog,color,fade),1.0);
     }`;
 
-function createRenderer(canvas, boxes, {now=()=>performance.now(),onSkyStatus=()=>{},loadGalaxy}={}) {
+function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
   function shader(type, source) {
@@ -1693,21 +1693,15 @@ function createRenderer(canvas, boxes, {now=()=>performance.now(),onSkyStatus=()
   const fogEye=gl.getUniformLocation(program,'uFogEye');
   const lightDirection=gl.getUniformLocation(program,'uLightDirection'),lightColour=gl.getUniformLocation(program,'uLightColour');
   const ambientColour=gl.getUniformLocation(program,'uAmbientColour'),lightPower=gl.getUniformLocation(program,'uLightPower');
-  const fillDirection=gl.getUniformLocation(program,'uFillDirection'),fillColour=gl.getUniformLocation(program,'uFillColour');
   const shadersGain=gl.getUniformLocation(program,'uShadersGain'),playerShadow=gl.getUniformLocation(program,'uPlayerShadow'),shadowOpacity=gl.getUniformLocation(program,'uShadowOpacity');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
   let skybox='black',skyRenderer=null,skyStarted=0,shadersEnabled=false;
-  const galaxyStatus=()=>onSkyStatus(shadersEnabled?'Galaxies ready. Coloured lighting is on.':'Galaxies ready. Enable Shaders for coloured lighting.');
-  function setShaders(value) { shadersEnabled=value===true;if(skybox==='galaxies'&&skyRenderer?.galaxiesReady)galaxyStatus(); }
+  function setShaders(value) { shadersEnabled=value===true; }
   function setSkybox(value) {
     const next=normaliseSkybox(value);
-    if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl,{loadGalaxy});
+    if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
     if(next!=='black'&&skybox!==next)skyStarted=now();
     skybox=next;
-    if(next==='galaxies'){
-      if(skyRenderer.galaxiesReady)galaxyStatus();
-      else{onSkyStatus('Loading galaxies…');void skyRenderer.loadGalaxies().then(()=>{if(skybox==='galaxies')galaxyStatus();}).catch(()=>{if(skybox==='galaxies')onSkyStatus('Could not load galaxies. Select the background again to retry.');});}
-    }else onSkyStatus('');
   }
   let vertices = [], count = 0, currentBoxes = boxes;
   let glowCount = 0, glowKey = '';
@@ -1809,7 +1803,6 @@ function createRenderer(canvas, boxes, {now=()=>performance.now(),onSkyStatus=()
     gl.uniform1f(shadersGain,shadersEnabled?1:0);
     const light=sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
     gl.uniform3f(lightDirection,...light.direction);gl.uniform3f(lightColour,...light.colour);gl.uniform3f(ambientColour,...light.ambient);gl.uniform1f(lightPower,light.power);
-    gl.uniform3f(fillDirection,...(light.fillDirection||[0,1,0]));gl.uniform3f(fillColour,...(light.fillColour||[0,0,0]));
     gl.uniform4f(playerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(shadowOpacity,shadow?.opacity||0);
     gl.uniform1f(targetActive,target?1:0);
     if(target) {
@@ -2057,7 +2050,11 @@ function leaderboardRows(records, endless = false) {
 
 const LEADERBOARD_FILES = Object.freeze({
   course: {revision:1,file:'course.txt'},
+  'bhop-school': {revision:1,file:'bhop-school.txt'},
+  'ladder-run': {revision:1,file:'ladder-run.txt'},
+  endless: {revision:3,file:'endless-v3.txt',endless:true},
   bhop_lego: {revision:2,file:'bhop_lego-v2.txt'},
+  bhop_kitsune: {revision:2,file:'bhop_kitsune-v2.txt'},
 });
 
 function hasLeaderboard(courseId, revision=1) {
@@ -2070,7 +2067,7 @@ async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, s
   if (!response.ok) throw new Error('Leaderboard unavailable');
   const text = await response.text();
   if (text.length > 200000) throw new Error('Leaderboard file is too large');
-  return parseLeaderboard(text, { preset });
+  return parseLeaderboard(text, { preset,endless:!!LEADERBOARD_FILES[courseId].endless });
 }
 
 // Render the actual collision geometry as a compact, horizontal top-down route.
@@ -2085,23 +2082,35 @@ function mapPreviewSVG(map) {
   return `<svg viewBox="0 0 320 100" aria-hidden="true" focusable="false"><path d="M0 25H320M0 50H320M0 75H320M40 0V100M80 0V100M120 0V100M160 0V100M200 0V100M240 0V100M280 0V100" class="preview-grid"/><polyline points="${route}" class="preview-route"/>${shapes}<circle cx="${x(map.spawns[0].z)}" cy="${y(map.spawns[0].x)}" r="2" class="preview-spawn"/></svg>`;
 }
 
-function mapScreenshotCamera(map) {
-  const visible=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle).slice(0,9);
+function createGalleryEntries(maps,community=[]) {
+  return [...maps.flatMap(map=>[
+    {title:map.title,map,view:{}},
+    ...(map.timed?[
+      {title:map.title+' / Section 2',map,view:{section:1,side:-1}},
+      {title:map.title+' / Final section',map,view:{section:map.spawns.length-1}},
+    ]:[{title:map.title+(map.endless?' / Checkpoint run':' / Ladder tower'),map,view:map.endless?{section:1,side:-1}:{start:6,count:2,side:-1}}]),
+  ]),...community.map(map=>({title:map.title+' / Route preview',thumbnail:map.thumbnail}))];
+}
+
+function mapScreenshotCamera(map,{section=0,start=null,count=9,side=1}={}) {
+  const platforms=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle);
+  const first=start??(section?Math.max(0,platforms.findIndex(b=>b.checkpoint===section)):0);
+  const visible=platforms.slice(first,first+count);
   const left=Math.min(...visible.map(b=>b.min[0])),right=Math.max(...visible.map(b=>b.max[0]));
   const near=Math.max(...visible.map(b=>b.max[2])),far=Math.min(...visible.map(b=>b.min[2]));
   const top=Math.max(...visible.map(b=>b.max[1]));
   const x=(left+right)/2,z=(near+far)/2,extent=Math.max(650,(near-far)*.65,(right-left)*1.1);
-  const eye={x:x-extent*.85,y:top+extent*.8,z:z+extent*.7};
+  const eye={x:x-extent*.85*side,y:top+extent*.8,z:z+extent*.7};
   return {...eye,y:eye.y-64,yaw:Math.atan2(x-eye.x,eye.z-z),
     pitch:Math.atan2(top-eye.y,Math.hypot(x-eye.x,z-eye.z)),duckAmount:0};
 }
 
 // Capture one real WebGL frame, then restore the player's geometry and sky.
 // Images are generated once per visit, without extra WebGL contexts or downloads.
-function captureMapScreenshot({renderer,canvas,map,restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
+function captureMapScreenshot({renderer,canvas,map,view={},restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
   try {
     renderer.setBoxes(map.boxes);renderer.setSkybox(skybox);
-    renderer.draw(mapScreenshotCamera(map),85,map.boxes.find(b=>b.checkpoint)||map.boxes.find(b=>b.finish));
+    renderer.draw(mapScreenshotCamera(map,view),85,map.boxes.find(b=>b.checkpoint===(view.section||0)+1)||map.boxes.find(b=>b.finish));
     const context=snapshot.getContext('2d');
     if(!context)return null;
     const ratio=Math.min(1,1200/Math.max(canvas.width,canvas.height));
@@ -2213,7 +2222,7 @@ const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
 let renderer, rendererReady = true;
-try { renderer = createRenderer(canvas, MAPS.course.boxes,{onSkyStatus:message=>{$('skybox-status').textContent=message;}}); }
+try { renderer = createRenderer(canvas, MAPS.course.boxes); }
 catch (error) {
   rendererReady=false;renderer={draw(){},setBoxes(){}};
   $('menu-description').textContent=error.message+' Sound previews and leaderboards are still available.';
@@ -2588,13 +2597,14 @@ function tick() {
     if(!runActive&&Math.hypot(player.x-first.x,player.z-first.z)>96)runActive=true;
     if(runActive)runTime+=DT;
     for(const event of sourceRuntime.step(player,previousDraw,DT)){
+      if(event.type==='portal')previousDraw={...player};
       if(event.type==='respawn'){respawns++;reset(false);saveRunCheckpoint();toast('BACK AT CHECKPOINT — TIMER CONTINUES');return;}
       if(event.type==='teleport'){
         previousDraw={...player};
         const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
         if(runActive&&index<=checkpoint)respawns++;
       }
-      if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`SECTION ${MAPS[map].stages[checkpoint].target.toUpperCase()} SAVED — E TO RETURN`,true);}
+      if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`${MAPS[map].stages[checkpoint].title.toUpperCase()} SAVED — E TO RETURN`,true);}
       if(event.type==='finish'){finishRun();return;}
     }
     if(player.y<boxes.sourceMap.killHeight){respawns++;reset(false);toast('BACK AT CHECKPOINT — TIMER CONTINUES');}
@@ -2659,13 +2669,15 @@ function frame(now) {
     const spawn=endless?endless.spawn:MAPS[map].spawns[0];
     Object.assign(camera,{...spawn,y:spawn.y+35,pitch:-0.18});
   }
+  const sourcePortal=boxes.sourceMap?.portals?.find(p=>p.from===checkpoint);
   const target=completed?null:endless?endless.platform((checkpoint+1)*8):
-    MAPS[map].timed?boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish):null;
+    MAPS[map].timed?(sourcePortal?boxes[sourcePortal.exitPad]:boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish)):null;
   const galleryVisible=menuMode==='main'&&!overlay.classList.contains('hidden')&&!document.hidden;
   if(rendererReady&&galleryVisible&&capturedMaps<galleryMaps.length&&screenshotCanvas) {
     const i=capturedMaps++, image=slides[i];
     try {
-      const shot=captureMapScreenshot({renderer,canvas,map:galleryMaps[i],restoreBoxes:boxes,restoreSkybox:skybox,
+      const entry=galleryMaps[i];
+      const shot=entry.thumbnail||captureMapScreenshot({renderer,canvas,map:entry.map,view:entry.view,restoreBoxes:boxes,restoreSkybox:skybox,
         skybox,snapshot:screenshotCanvas});
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
@@ -2685,7 +2697,7 @@ $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
 $('back-to-main').addEventListener('click',()=>returnToMain());
 $('play-sandbox').addEventListener('click',()=>{if(lockPending)return;chooseMap('free');play();});
-const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=MAP_LIST;
+const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);
 $('map-grid').classList.toggle('single-map',timedMaps.length===1);
 $('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.stages.length} sections</span></button>`).join('');
 $('map-grid').addEventListener('click',event=>{
@@ -2701,13 +2713,14 @@ $('source-map-file').addEventListener('change',()=>{
   $('source-map-file').value='';
 });
 document.addEventListener('pointerdown',event=>{if(playing&&(event.button===0||event.button===2))sourceRuntime?.interact(player);});
-$('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
+$('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${m.thumbnail?' gallery-route':''}${i===0?' is-active':''}" alt="${m.title}" decoding="async">`).join('');
 const slides=Array.from(document.querySelectorAll('.gallery-slide'));
 if(slides.length&&rendererReady)screenshotCanvas=document.createElement('canvas');
 if(slides.length)slideshow=createMenuSlideshow({slides,maps:galleryMaps,title:$('gallery-title'),count:$('gallery-count'),reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches});
 $('gallery-next').addEventListener('click',()=>slideshow?.next());
 $('gallery-previous').addEventListener('click',()=>slideshow?.previous());
 $('leaderboard-button').addEventListener('click',openLeaderboard);
+$('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless'));
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());

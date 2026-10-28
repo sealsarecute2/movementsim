@@ -99,7 +99,7 @@ export const MAP_LIST = [
       stage('Jump across the rooftops.','Hold Space for the jumps. Release it before climbing the next ladder.'),
       stage('Climb again.','Hold W and look up on the second ladder. Space pushes you away.'),
       stage('Take the high route.','Link the last rooftop jumps and reach the striped finish.')] },
-  { id: 'endless', revision: 2, title: 'Endless', endless: true, timed: false,
+  { id: 'endless', revision: 3, title: 'Endless', endless: true, timed: false,
     description: 'Mixed sections with checkpoints every 8 blocks.',
     boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
     stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. Q starts a new route.')] },
@@ -115,4 +115,13 @@ export const COMMUNITY_MAPS = [{
   archive:'maps/bhop_lego.zip',geometry:'maps/bhop_lego.json',revision:2,thumbnail:'maps/bhop_lego.svg',
   source:'https://gamebanana.com/mods/125406',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
   entryTarget:'1a',stageTargets:['1a','1b','1c','1d','1e','1f','2a','2b','2c','3a','3b','3c','4a','4b','4c','4d','5a','5b','6a','6b','6c','6d','7a','7b','7c'],
+},{
+  id:'bhop_kitsune',title:'bhop_kitsune',author:'NoNimus (Ghost1447951)',
+  archive:'maps/bhop_kitsune.zip',geometry:'maps/bhop_kitsune.json',revision:2,thumbnail:'maps/bhop_kitsune.svg',
+  source:'https://gamebanana.com/mods/126424',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  entryTarget:'enterredmarker',finishTarget:'exitwhitemarker',
+  stageTargets:['enterredmarker','enterorangemarker','entercyanmarker','entergreenmarker','enterpurplemarker','enterwhitemarker'],
+  resetTargets:['restartred','restartorange','restartcyan','restartgreen','restartpurple','restartwhite'],
+  exitTargets:['exitredmarker','exitorangemarker','exitcyanmarker','exitgreenmarker','exitpurplemarker','exitwhitemarker'],
+  stageTitles:['Red','Orange','Cyan','Green','Purple','White'],
 }];
