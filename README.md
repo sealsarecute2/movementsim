@@ -81,6 +81,8 @@ Open **Settings** to change mouse sensitivity, field of view, your crosshair, th
 
 **Black hole** adds a dark centre, glowing rings, a swirling accretion disk, and a warped star field. It is an original browser effect inspired by the look of IterationT's Minecraft End sky. Choose it in **Settings → Background**; it works on every map.
 
+Enable **Settings → Shaders** for directional lighting on the boxes and a soft, round player shadow. The day/night cycle uses the sun by day and moon by night; the black-hole background lights the course from the black hole. Black uses a fixed light. Your shadow moves away from the light, follows platform tops, and grows softer as you jump. Shaders start off, and your choice saves automatically.
+
 **Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
 
 ## Credits

@@ -41,6 +41,7 @@ if(!bests||typeof bests!=='object') bests={};
 if(!settings||typeof settings!=='object') settings={};
 let crosshair = normaliseCrosshair(settings.crosshair);
 let skybox = normaliseSkybox(settings.skybox);
+let shadersEnabled = settings.shadersEnabled===true;
 knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==false;
 movementSounds=settings.movementSounds!==false;
 if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.checkpointSound))checkpointSound=settings.checkpointSound;
@@ -65,7 +66,7 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair,skybox,musicEnabled,musicVolume})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair,skybox,shadersEnabled,musicEnabled,musicVolume})); } catch {}
 }
 function clearSavedRun() {
   try{const saved=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');if(saved?.map===map)sessionStorage.removeItem('movement-lab-run-v1');}catch{}
@@ -471,7 +472,7 @@ function frame(now) {
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
   }
-  renderer.draw(camera,fov,target);knife?.draw(elapsed,fov);updateHud();
+  renderer.draw(camera,fov,target,started?camera:null);knife?.draw(elapsed,fov);updateHud();
   slideshow?.step(now,galleryVisible);
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
@@ -517,6 +518,10 @@ $('skybox-select').value=skybox;renderer.setSkybox?.(skybox);
 $('skybox-select').addEventListener('change',()=>{
   skybox=normaliseSkybox($('skybox-select').value);renderer.setSkybox?.(skybox);
   $('skybox-select').value=skybox;saveSettings();
+});
+$('shaders-enabled').checked=shadersEnabled;renderer.setShaders?.(shadersEnabled);
+$('shaders-enabled').addEventListener('change',()=>{
+  shadersEnabled=$('shaders-enabled').checked===true;renderer.setShaders?.(shadersEnabled);saveSettings();
 });
 for(const name of ['style','red','green','blue','scale']) $('crosshair-'+name).addEventListener(name==='style'?'change':'input',()=>{
   crosshair=normaliseCrosshair({...crosshair,[name]:name==='style'?$('crosshair-style').value:Number($('crosshair-'+name).value)});

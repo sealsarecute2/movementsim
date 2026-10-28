@@ -36,7 +36,7 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
     return elements.get(id);
   };
   document.querySelectorAll=()=>[];document.body=element();document.pointerLockElement=null;document.hidden=false;document.hasFocus=()=>true;
-  const canvas=document.getElementById('world');let requests=0,lastCamera,lastTarget,lastFov,lastSkybox;
+  const canvas=document.getElementById('world');let requests=0,lastCamera,lastTarget,lastFov,lastSkybox,lastShaders,lastShadowCaster;
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
@@ -49,11 +49,11 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
     AbortController,fetch:sourceOptions.fetch,loadSourceMap:sourceOptions.load,
     sessionStorage:{getItem:key=>session.get(key)||null,setItem:(key,value)=>session.set(key,value),removeItem:key=>session.delete(key)},
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
-    requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}};}});
+    requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},setShaders(value){lastShaders=value;},draw(p,fov,target,caster){lastCamera=p;lastFov=fov;lastTarget=target;lastShadowCaster=caster;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
   return {context,document,window,canvas,musicAudio,element:id=>document.getElementById(id),
-    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,read:source=>vm.runInContext(source,context),storage,session,
+    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,shaders:()=>lastShaders,shadowCaster:()=>lastShadowCaster,read:source=>vm.runInContext(source,context),storage,session,
     lock(){document.pointerLockElement=canvas;document.fire('pointerlockchange');}};
 }
 test('Enter waits for capture, then mouse movement looks without dragging',()=>{
@@ -427,6 +427,24 @@ test('background defaults to black and all three choices persist across courses 
     const saved=app.storage.get('movement-lab-settings-v1'),restored=boot({'movement-lab-settings-v1':saved});
     assert.equal(restored.skybox(),name);assert.equal(restored.element('skybox-select').value,name);
   }
+});
+test('the shaders toggle starts off, persists across maps and reloads, and works without graphics',()=>{
+  const app=boot();assert.equal(app.shaders(),false);assert.equal(app.element('shaders-enabled').checked,false);
+  app.element('shaders-enabled').checked=true;app.element('shaders-enabled').fire('change');
+  assert.equal(app.shaders(),true);app.read("chooseMap('free')");assert.equal(app.shaders(),true);
+  const restored=boot(Object.fromEntries(app.storage));assert.equal(restored.shaders(),true);assert.equal(restored.element('shaders-enabled').checked,true);
+  restored.element('shaders-enabled').checked=false;restored.element('shaders-enabled').fire('change');
+  assert.equal(restored.shaders(),false);assert.equal(JSON.parse(restored.storage.get('movement-lab-settings-v1')).shadersEnabled,false);
+  assert.equal(boot({'movement-lab-settings-v1':JSON.stringify({shadersEnabled:'true'})}).shaders(),false);
+  const fallback=boot({},'',new Error('No graphics'));fallback.element('shaders-enabled').checked=true;fallback.element('shaders-enabled').fire('change');
+  assert.equal(JSON.parse(fallback.storage.get('movement-lab-settings-v1')).shadersEnabled,true);
+});
+test('only an actual run supplies a player shadow caster; menu cameras stay shadow-free',()=>{
+  const app=boot();app.context.frame(16);assert.equal(app.shadowCaster(),null);
+  app.element('play').fire('click');app.lock();app.context.frame(32);
+  assert.equal(app.shadowCaster(),app.camera());
+  app.read('pause()');app.context.frame(48);assert.equal(app.shadowCaster(),app.camera());
+  app.read('returnToMain()');app.context.frame(64);assert.equal(app.shadowCaster(),null);
 });
 test('unknown saved skies fall back to black and settings remain usable without WebGL',()=>{
   for(const skybox of ['__proto__','dawn','midday','dusk','midnight']){

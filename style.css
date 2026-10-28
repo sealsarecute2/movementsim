@@ -257,3 +257,7 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .map-credit,.map-source-link { font-size:max(10px,.6rem); line-height:1.6; color:#8394a1; }
 .map-credit:empty { display:none; }
 .map-source-link { display:inline-block; margin:.1rem 0 .75rem; color:#9ac9ec; }
+.shader-setting { margin:.75rem 0 1.25rem; font-size:max(11px,.65rem); color:#bbb; }
+.shader-setting label { display:flex; align-items:center; gap:.5rem; cursor:pointer; }
+.shader-setting input { accent-color:#ddd; }
+.shader-setting p { margin:.45rem 0 0; color:#888; font-size:max(10px,.6rem); line-height:1.6; }

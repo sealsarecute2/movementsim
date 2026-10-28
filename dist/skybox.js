@@ -10,6 +10,7 @@ export function normaliseSkybox(value) {
 }
 
 export const DAY_NIGHT_CYCLE_SECONDS = 20 * 60;
+export const BLACK_HOLE_DIRECTION = Object.freeze([-.12,.44,-.89].map(n=>n/Math.hypot(-.12,.44,-.89)));
 // Dawn, midday, dusk and midnight are five minutes apart. Ease the palettes
 // through every phase and the wrap to dawn; move the two bodies continuously.
 const SKY_PHASES = [
@@ -78,7 +79,7 @@ export const BLACK_HOLE_GLSL = `
   }
   vec3 blackHoleSky(vec3 ray,float time){
     float phase=time*0.0104719755;
-    vec3 centre=normalize(vec3(-0.12,0.44,-0.89));
+    vec3 centre=vec3(${BLACK_HOLE_DIRECTION.join(',')});
     vec3 right=normalize(cross(centre,vec3(0.0,1.0,0.0))),up=cross(right,centre);
     float facing=dot(ray,centre);
     if(facing<=0.05)return blackHoleTone(blackHoleSpace(ray,phase));

@@ -1,25 +1,24 @@
 import { sampleSkybox, normaliseSkybox, SKY_GRADIENT_GLSL, createSkyRenderer } from './skybox.js';
+import { sampleSceneLight, projectPlayerShadow } from './lighting.js';
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 export function verticalFov(fov = 100) {
   return 2 * Math.atan(Math.tan(fov * Math.PI / 360) * 0.75) * 180 / Math.PI;
 }
 
-export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
-  const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
-  if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
-  const vertex = `attribute vec3 aPosition; attribute vec3 aColor; attribute float aTop;
+export const WORLD_VERTEX_GLSL = `attribute vec3 aPosition; attribute vec3 aColor; attribute float aTop;
+    attribute vec3 aNormal; attribute float aShade;
     uniform vec3 uEye; uniform vec2 uAngles; uniform vec2 uScale;
-    varying vec3 vWorld; varying vec3 vColor; varying float vTop; varying float vDistance;
+    varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     void main(){
       vec3 p=aPosition-uEye;
       float cy=cos(uAngles.x),sy=sin(uAngles.x),cp=cos(uAngles.y),sp=sin(uAngles.y);
       float right=p.x*cy+p.z*sy,forward=p.x*sy-p.z*cy;
       float up=p.y*cp-forward*sp,depth=forward*cp+p.y*sp;
       gl_Position=vec4(right*uScale.x,up*uScale.y,1.0001*depth-2.0001,depth);
-      vWorld=aPosition;vColor=aColor;vTop=aTop;vDistance=length(p);
+      vWorld=aPosition;vColor=aColor;vNormal=aNormal;vShade=aShade;vTop=aTop;vDistance=length(p);
     }`;
-  const fragment = `
+export const WORLD_FRAGMENT_GLSL = `
     #ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
     #else
@@ -27,12 +26,28 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     #endif
     uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
-    varying vec3 vWorld; varying vec3 vColor; varying float vTop; varying float vDistance;
+    uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
+    uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
+    varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
     void main(){
       vec2 grid=mod(vWorld.xz+0.6,64.0);
       float line=(1.0-step(1.2,min(grid.x,grid.y)))*vTop;
-      vec3 color=mix(vColor,vColor*0.76,line);
+      vec3 color=vColor*vShade;
+      if(uShadersGain>0.5){
+        vec3 normal=normalize(vNormal);
+        float diffuse=max(dot(normal,uLightDirection),0.0);
+        vec3 ambient=uAmbientColour*mix(0.65,1.2,normal.y*0.5+0.5);
+        vec3 halfLight=normalize(uLightDirection+normalize(uFogEye-vWorld)+vec3(0.0001));
+        float gloss=pow(max(dot(normal,halfLight),0.0),28.0)*0.12*uLightPower;
+        color=vColor*(ambient+uLightColour*diffuse*uLightPower)+uLightColour*gloss;
+        if(vTop>0.5&&uShadowOpacity>0.0&&abs(vWorld.y-uPlayerShadow.y)<0.5){
+          float distance=length(vWorld.xz-uPlayerShadow.xz)/max(uPlayerShadow.w,1.0);
+          float shadow=1.0-smoothstep(0.15,1.0,distance);
+          color*=1.0-shadow*uShadowOpacity;
+        }
+      }
+      color=mix(color,color*0.76,line);
       vec3 bounds=step(uTargetMin-vec3(0.01),vWorld)*step(vWorld,uTargetMax+vec3(0.6));
       float target=bounds.x*bounds.y*bounds.z*uTargetActive;
       vec3 d=min(abs(vWorld-uTargetMin),abs(uTargetMax-vWorld));
@@ -46,26 +61,30 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
       if(uFogGain>0.5)fog=backgroundGradient(normalize(vWorld-uFogEye),uSkyHorizon,uSkyZenith,uSkyGround);
       gl_FragColor=vec4(mix(fog,color,fade),1.0);
     }`;
+
+export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
+  const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+  if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
   function shader(type, source) {
     const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(s));
     return s;
   }
   const program = gl.createProgram();
-  gl.attachShader(program, shader(gl.VERTEX_SHADER, vertex));
-  gl.attachShader(program, shader(gl.FRAGMENT_SHADER, fragment));
+  gl.attachShader(program, shader(gl.VERTEX_SHADER, WORLD_VERTEX_GLSL));
+  gl.attachShader(program, shader(gl.FRAGMENT_SHADER, WORLD_FRAGMENT_GLSL));
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
   const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer();
   const attributes = [];
-  for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24]]) {
+  for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24], ['aNormal',3,28], ['aShade',1,40]]) {
     const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
     attributes.push({loc,count,offset});
   }
   function bindGeometry(targetBuffer) {
     gl.bindBuffer(gl.ARRAY_BUFFER, targetBuffer);
-    for(const {loc,count,offset} of attributes) gl.vertexAttribPointer(loc,count,gl.FLOAT,false,28,offset);
+    for(const {loc,count,offset} of attributes) gl.vertexAttribPointer(loc,count,gl.FLOAT,false,44,offset);
   }
   const eye = gl.getUniformLocation(program, 'uEye'), angles = gl.getUniformLocation(program, 'uAngles');
   const scale = gl.getUniformLocation(program, 'uScale');
@@ -74,8 +93,12 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   const skyHorizon=gl.getUniformLocation(program,'uSkyHorizon'),skyZenith=gl.getUniformLocation(program,'uSkyZenith');
   const skyGround=gl.getUniformLocation(program,'uSkyGround'),fogGain=gl.getUniformLocation(program,'uFogGain');
   const fogEye=gl.getUniformLocation(program,'uFogEye');
+  const lightDirection=gl.getUniformLocation(program,'uLightDirection'),lightColour=gl.getUniformLocation(program,'uLightColour');
+  const ambientColour=gl.getUniformLocation(program,'uAmbientColour'),lightPower=gl.getUniformLocation(program,'uLightPower');
+  const shadersGain=gl.getUniformLocation(program,'uShadersGain'),playerShadow=gl.getUniformLocation(program,'uPlayerShadow'),shadowOpacity=gl.getUniformLocation(program,'uShadowOpacity');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
-  let skybox='black',skyRenderer=null,skyStarted=0;
+  let skybox='black',skyRenderer=null,skyStarted=0,shadersEnabled=false;
+  function setShaders(value) { shadersEnabled=value===true; }
   function setSkybox(value) {
     const next=normaliseSkybox(value);
     if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
@@ -97,26 +120,26 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
         const points=[[a,d0,c0],[b,d0,c0],[b,d1,c1],[a,d1,c1]];
         for(const index of [0,1,2,0,2,3]) {
           const [p,d,c]=points[index];
-          data.push(p[0]+n[0]*d,y,p[1]+n[1]*d,0.045*c,0.42*c,c,0);
+          data.push(p[0]+n[0]*d,y,p[1]+n[1]*d,0.045*c,0.42*c,c,0,0,1,0,1);
         }
       }
     }
-    glowCount=data.length/7;
+    glowCount=data.length/11;
     bindGeometry(glowBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);
   }
   function addBox(b, base = 0.46) {
     const [x,y,z]=b.min,[X,Y,Z]=b.max;
     const faces = [
-      [[[x,Y,z],[x,Y,Z],[X,Y,Z],[X,Y,z]],1.12,1],
-      [[[x,y,z],[X,y,z],[X,y,Z],[x,y,Z]],0.38,0],
-      [[[x,y,z],[x,y,Z],[x,Y,Z],[x,Y,z]],0.65,0],
-      [[[X,y,Z],[X,y,z],[X,Y,z],[X,Y,Z]],0.8,0],
-      [[[X,y,z],[x,y,z],[x,Y,z],[X,Y,z]],0.72,0],
-      [[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]],0.87,0],
+      [[[x,Y,z],[x,Y,Z],[X,Y,Z],[X,Y,z]],1.12,1,[0,1,0]],
+      [[[x,y,z],[X,y,z],[X,y,Z],[x,y,Z]],0.38,0,[0,-1,0]],
+      [[[x,y,z],[x,y,Z],[x,Y,Z],[x,Y,z]],0.65,0,[-1,0,0]],
+      [[[X,y,Z],[X,y,z],[X,Y,z],[X,Y,Z]],0.8,0,[1,0,0]],
+      [[[X,y,z],[x,y,z],[x,Y,z],[X,Y,z]],0.72,0,[0,0,-1]],
+      [[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]],0.87,0,[0,0,1]],
     ];
-    for(const [points,shade,top] of faces) for(const index of [0,1,2,0,2,3]) {
+    for(const [points,shade,top,normal] of faces) for(const index of [0,1,2,0,2,3]) {
       const rgb=Array.isArray(base)?base:[base,base,base];
-      vertices.push(...points[index],...rgb.map(c=>c*shade),top);
+      vertices.push(...points[index],...rgb,top,...normal,shade);
     }
   }
   function setBoxes(next) {
@@ -151,7 +174,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
           addBox({min:[b.min[0]+i*tile,top,end-24+j*20],max:[b.min[0]+(i+1)*tile,top+0.3,end-4+j*20]},0.82);
       }
     }
-    count=vertices.length/7;
+    count=vertices.length/11;
     bindGeometry(buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
   }
   setBoxes(boxes);
@@ -160,7 +183,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
-  function draw(p,fov=100,target=null) {
+  function draw(p,fov=100,target=null,shadowCaster=null) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=sampleSkybox(skybox,(now()-skyStarted)/1000);
     if(skybox!=='black') {
@@ -177,6 +200,10 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     gl.uniform2f(scale,scaleX,f);
     gl.uniform3f(skyHorizon,...preset.horizon);gl.uniform3f(skyZenith,...preset.zenith);gl.uniform3f(skyGround,...preset.ground);
     gl.uniform1f(fogGain,skybox==='black'?0:1);
+    gl.uniform1f(shadersGain,shadersEnabled?1:0);
+    const light=sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
+    gl.uniform3f(lightDirection,...light.direction);gl.uniform3f(lightColour,...light.colour);gl.uniform3f(ambientColour,...light.ambient);gl.uniform1f(lightPower,light.power);
+    gl.uniform4f(playerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(shadowOpacity,shadow?.opacity||0);
     gl.uniform1f(targetActive,target?1:0);
     if(target) {
       gl.uniform3f(targetMin,...target.min);gl.uniform3f(targetMax,...target.max);
@@ -187,10 +214,11 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if(glowCount) {
       gl.uniform1f(targetActive,0);
       gl.uniform1f(fogGain,0);
+      gl.uniform1f(shadersGain,0);
       bindGeometry(glowBuffer);gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
       gl.drawArrays(gl.TRIANGLES,0,glowCount);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
   }
-  return {draw,setBoxes,setSkybox,get boxes(){return currentBoxes;},get skybox(){return skybox;}};
+  return {draw,setBoxes,setSkybox,setShaders,get boxes(){return currentBoxes;},get skybox(){return skybox;},get shaders(){return shadersEnabled;}};
 }
