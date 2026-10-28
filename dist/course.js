@@ -19,6 +19,9 @@ export const COURSE = [
   { min: [180, 106, -2730], max: [420, 132, -2520], roof: true },
   box(300, -2870, 72, 140, 48),
   box(300, -3115, 400, 290, 48, { finish: true, label: 'FINISH' }),
+  ...lessonSign(140,-150,0,'01 / BUNNY HOP',['W = GET MOVING','SPACE = KEEP HOPPING','RELEASE W IN THE AIR']),
+  ...lessonSign(-125,-1490,0,'02 / AIR STRAFE',['RELEASE W IN THE AIR','A + MOUSE LEFT','D + MOUSE RIGHT']),
+  ...lessonSign(410,-2220,0,'03 / CONTROL',['SHIFT = WALK SLOWLY','CTRL / C = CROUCH','DUCK UNDER THE ROOF']),
 ];
 export const PRACTICE = [
   box(0,-600,2200,2200,0,{label:'SANDBOX / MOVEMENT LAB'}),
@@ -37,10 +40,10 @@ export const SPAWNS = [
 ];
 
 const stage=(title,tip)=>({title,tip});
-const lessonSign=(x,z,floor,title,lines)=>[
-  {min:[x-120,floor+42,z-4],max:[x+120,floor+156,z],obstacle:true,sign:{title,lines}},
-  {min:[x-3,floor,z-3],max:[x+3,floor+42,z-1],obstacle:true,signPost:true},
-];
+function lessonSign(x,z,floor,title,lines) { return [
+  {min:[x-90,floor+32,z-4],max:[x+90,floor+118,z],obstacle:true,sign:{title,lines}},
+  {min:[x-3,floor,z-3],max:[x+3,floor+32,z-1],obstacle:true,signPost:true},
+]; }
 const BHOP_SCHOOL = [
   box(0,-80,600,560,0,{label:'01 / KEEP HOPPING'}),
   box(0,-475,220,140),box(0,-680,200,140),
@@ -76,8 +79,8 @@ const LADDER_RUN = [
 
 const endlessPreview = createEndless(1);
 export const MAP_LIST = [
-  { id: 'course', title: 'Starter course', timed: true,
-    description: 'The original three-part route: runway, strafes, and movement control.',
+  { id: 'course', title: 'Starter course', timed: true,features:['Tutorial signs'],
+    description: 'The original three-part route, with compact signs for hopping, strafing, and control.',
     boxes: COURSE, spawns: SPAWNS,
     stages: [stage('Find your momentum.', 'Build speed on the runway. Jump at the edge.'),
       stage('Carry it through the turn.', 'Release W. Match A / D with a smooth mouse turn.'),

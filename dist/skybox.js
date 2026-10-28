@@ -1,8 +1,11 @@
+import { GALAXY_ENVIRONMENT } from './galaxy-data.js';
+import { loadGalaxyEnvironment } from './galaxies.js';
 // Direction-based skies stay at infinity and use the world's camera lens.
 export const SKYBOXES = Object.freeze({
   black: { label:'Default · Black', zenith:[0,0,0], horizon:[0,0,0], ground:[0,0,0] },
   cycle: { label:'Day / night cycle · 20 min' },
   blackhole: { label:'Black hole · End-inspired' },
+  galaxies: { label:'Galaxies · HDRI' },
 });
 
 export function normaliseSkybox(value) {
@@ -23,16 +26,17 @@ function skyEase(value) { const t=Math.max(0,Math.min(1,value));return t*t*(3-2*
 const BLACK_HOLE_SKY = {
   zenith:[.006,.008,.018],horizon:[.025,.026,.039],ground:[.003,.004,.009],
   cloud:[0,0,0],sun:[0,0,0],sunDirection:[0,1,0],moonDirection:[0,-1,0],
-  clouds:0,stars:1,sunVisibility:0,moonVisibility:0,cloudOffset:[0,0],blackHole:1,
+  clouds:0,stars:1,sunVisibility:0,moonVisibility:0,cloudOffset:[0,0],blackHole:1,galaxies:0,
 };
 export function sampleSkybox(value,elapsedSeconds=0) {
   const selected=normaliseSkybox(value);
   if(selected==='black')return SKYBOXES.black;
   const seconds=Number.isFinite(elapsedSeconds)?elapsedSeconds:0;
   if(selected==='blackhole')return {...BLACK_HOLE_SKY,time:((seconds%600)+600)%600};
+  if(selected==='galaxies')return {...BLACK_HOLE_SKY,zenith:GALAXY_ENVIRONMENT.lighting.zenith,horizon:GALAXY_ENVIRONMENT.lighting.horizon,ground:GALAXY_ENVIRONMENT.lighting.ground,blackHole:0,galaxies:1,time:0};
   const time=((seconds%DAY_NIGHT_CYCLE_SECONDS)+DAY_NIGHT_CYCLE_SECONDS)%DAY_NIGHT_CYCLE_SECONDS;
   const phase=time/DAY_NIGHT_CYCLE_SECONDS*4,index=Math.floor(phase),blend=skyEase(phase-index);
-  const from=SKY_PHASES[index],to=SKY_PHASES[(index+1)%4],frame={blackHole:0};
+  const from=SKY_PHASES[index],to=SKY_PHASES[(index+1)%4],frame={blackHole:0,galaxies:0};
   for(const key of ['zenith','horizon','ground','cloud','sun'])frame[key]=from[key].map((n,i)=>n+(to[key][i]-n)*blend);
   for(const key of ['clouds','stars'])frame[key]=from[key]+(to[key]-from[key])*blend;
   const angle=time/DAY_NIGHT_CYCLE_SECONDS*Math.PI*2,sine=Math.sin(angle);
@@ -131,6 +135,7 @@ export const SKY_FRAGMENT_GLSL = `
   uniform vec3 uCloudColour; uniform vec3 uSunColour; uniform vec3 uSunDirection; uniform vec3 uMoonDirection;
   uniform vec2 uCloudOffset;
   uniform float uClouds; uniform float uStars; uniform float uSunVisibility; uniform float uMoonVisibility; uniform float uSkyTime; uniform float uBlackHole;
+  uniform sampler2D uGalaxyMap; uniform float uGalaxies; uniform float uGalaxyOffset;
   varying vec2 vClip;
   ${SKY_GRADIENT_GLSL}
   float skyHash(vec2 p){
@@ -148,6 +153,10 @@ export const SKY_FRAGMENT_GLSL = `
     vec2 plane=vClip/uSkyScale;
     float forward=cp-plane.y*sp;
     vec3 direction=normalize(vec3(plane.x*cy+forward*sy,plane.y*cp+sp,plane.x*sy-forward*cy));
+    if(uGalaxies>0.5){
+      vec2 uv=vec2(fract(atan(direction.z,direction.x)*0.15915494+0.5+uGalaxyOffset),acos(clamp(direction.y,-1.0,1.0))*0.31830989);
+      gl_FragColor=vec4(texture2D(uGalaxyMap,uv).rgb,1.0);return;
+    }
     if(uBlackHole>0.5){gl_FragColor=vec4(blackHoleSky(direction,uSkyTime),1.0);return;}
     vec3 colour=backgroundGradient(direction,uHorizon,uZenith,uGround);
     float above=smoothstep(-0.015,0.06,direction.y);
@@ -178,7 +187,7 @@ export const SKY_FRAGMENT_GLSL = `
   }
 `;
 
-export function createSkyRenderer(gl) {
+export function createSkyRenderer(gl,{loadGalaxy=loadGalaxyEnvironment}={}) {
   function compile(type,source) {
     const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
     if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));
@@ -190,12 +199,27 @@ export function createSkyRenderer(gl) {
   if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
   const buffer=gl.createBuffer(),position=gl.getAttribLocation(program,'aClip');
   gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
-  const names=['uSkyAngles','uSkyScale','uHorizon','uZenith','uGround','uCloudColour','uSunColour','uSunDirection','uMoonDirection','uCloudOffset','uClouds','uStars','uSunVisibility','uMoonVisibility','uSkyTime','uBlackHole'];
+  const names=['uSkyAngles','uSkyScale','uHorizon','uZenith','uGround','uCloudColour','uSunColour','uSunDirection','uMoonDirection','uCloudOffset','uClouds','uStars','uSunVisibility','uMoonVisibility','uSkyTime','uBlackHole','uGalaxyMap','uGalaxies','uGalaxyOffset'];
   const uniforms=Object.fromEntries(names.map(name=>[name,gl.getUniformLocation(program,name)]));
-  return {draw(camera,scaleX,scaleY,preset){
+  const galaxyTexture=gl.createTexture();let galaxyReady=false,galaxyLoading=null;
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galaxyTexture);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  return {get galaxiesReady(){return galaxyReady;},loadGalaxies(){
+    if(galaxyReady)return Promise.resolve();
+    if(!galaxyLoading)galaxyLoading=Promise.resolve().then(()=>loadGalaxy()).then(({width,height,pixels})=>{
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galaxyTexture);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,width,height,0,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+      gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);galaxyReady=true;
+    }).catch(error=>{galaxyLoading=null;throw error;});
+    return galaxyLoading;
+  },draw(camera,scaleX,scaleY,preset){
     gl.useProgram(program);gl.disable(gl.DEPTH_TEST);gl.depthMask(false);
     gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
     gl.uniform2f(uniforms.uSkyAngles,camera.yaw,camera.pitch);gl.uniform2f(uniforms.uSkyScale,scaleX,scaleY);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galaxyTexture);gl.uniform1i(uniforms.uGalaxyMap,0);
+    gl.uniform1f(uniforms.uGalaxies,preset.galaxies);gl.uniform1f(uniforms.uGalaxyOffset,GALAXY_ENVIRONMENT.lighting.uvOffset);
     for(const [name,value] of [['uHorizon',preset.horizon],['uZenith',preset.zenith],['uGround',preset.ground],
       ['uCloudColour',preset.cloud],['uSunColour',preset.sun],['uSunDirection',preset.sunDirection],['uMoonDirection',preset.moonDirection]])gl.uniform3f(uniforms[name],...value);
     gl.uniform2f(uniforms.uCloudOffset,...preset.cloudOffset);

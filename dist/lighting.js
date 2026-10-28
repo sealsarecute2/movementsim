@@ -1,8 +1,10 @@
 import { BLACK_HOLE_DIRECTION } from './skybox.js';
+import { GALAXY_ENVIRONMENT } from './galaxy-data.js';
 
 const unitLight=vector=>{const length=Math.hypot(...vector);return vector.map(n=>n/length);};
 const FIXED_LIGHT=unitLight([-.45,.85,.27]);
 export function sampleSceneLight(skybox,sky) {
+  if(skybox==='galaxies')return GALAXY_ENVIRONMENT.lighting;
   if(skybox==='blackhole')return {direction:BLACK_HOLE_DIRECTION,colour:[1,.86,.68],ambient:[.31,.32,.39],power:1.05};
   if(skybox!=='cycle')return {direction:FIXED_LIGHT,colour:[1,.97,.91],ambient:[.32,.34,.38],power:.85};
   const daylight=sky.sunDirection[1]>=0,direction=daylight?sky.sunDirection:sky.moonDirection;

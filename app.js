@@ -15,7 +15,7 @@ const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
 let renderer, rendererReady = true;
-try { renderer = createRenderer(canvas, MAPS.course.boxes); }
+try { renderer = createRenderer(canvas, MAPS.course.boxes,{onSkyStatus:message=>{$('skybox-status').textContent=message;}}); }
 catch (error) {
   rendererReady=false;renderer={draw(){},setBoxes(){}};
   $('menu-description').textContent=error.message+' Sound previews and leaderboards are still available.';

@@ -54,7 +54,7 @@ To climb a ladder, move into its cyan rails and rungs. Use W/S and look up or do
 
 | Map | What to expect |
 | --- | --- |
-| Starter course | A short route for practising jumps, turns, and careful movement |
+| Starter course | A short route with compact signs for jumping, strafing, and careful movement |
 | Bhop School | Four lessons with signs explaining jumping, air strafing, control, and checkpoints |
 | Ladder Run | Two ladder climbs linked by rooftop jumps and checkpoint decks |
 | Sandbox | An open floor with obstacles and a ladder for practising freely |
@@ -79,11 +79,13 @@ Refreshing the page restores your timed or community-map run at its checkpoint, 
 
 Open **Settings** to change mouse sensitivity, field of view, your crosshair, the background, or sound volume. These preferences save automatically in your browser.
 
-**Background** offers **Black** (the default), **Day / night cycle**, and **Black hole**. Turning on the day/night cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
+**Background** offers **Black** (the default), **Day / night cycle**, **Black hole**, and **Galaxies**. Turning on the day/night cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
 
 **Black hole** adds a dark centre, glowing rings, a swirling accretion disk, and a warped star field. It is an original browser effect inspired by the look of IterationT's Minecraft End sky. Choose it in **Settings → Background**; it works on every map.
 
-Enable **Settings → Shaders** for directional lighting on the boxes and a soft, round player shadow. The day/night cycle uses the sun by day and moon by night; the black-hole background lights the course from the black hole. Black uses a fixed light. Your shadow stays directly beneath you on platform tops and grows softer as you jump. Shaders start off, and your choice saves automatically.
+**Galaxies** uses Alex Melas's space HDRI, with pink and purple lighting sampled from its bright galaxies. The optimized background downloads only when selected (about 5.5 MB) and is reused when you switch maps. Enable **Shaders** to see the coloured light on the boxes. [Sky credits and license](backgrounds/CREDITS.md).
+
+Enable **Settings → Shaders** for directional lighting on the boxes and a soft, round player shadow. The day/night cycle uses the sun by day and moon by night; the black-hole background lights the course from the black hole, and Galaxies adds two coloured light sources. Black uses a fixed light. Your shadow stays directly beneath you on platform tops and grows softer as you jump. Shaders start off, and your choice saves automatically.
 
 **Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
 

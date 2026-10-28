@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SKYBOXES, normaliseSkybox, sampleSkybox, DAY_NIGHT_CYCLE_SECONDS } from '../dist/skybox.js';
 import { createRenderer } from '../dist/renderer.js';
+import { GALAXY_ENVIRONMENT } from '../dist/galaxy-data.js';
 
-function fixture(t) {
+function fixture(t,options={}) {
   const previousWindow=globalThis.window;globalThis.window={devicePixelRatio:1};
   t.after(()=>{if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;});
-  const uploads=[],draws=[],programs=[],pointers=new Map(),enabled=new Set();let current,depth=true,writeDepth=true,blend=false;
+  const uploads=[],textureUploads=[],draws=[],programs=[],pointers=new Map(),enabled=new Set();let current,depth=true,writeDepth=true,blend=false;
   const gl={VERTEX_SHADER:1,FRAGMENT_SHADER:2,COMPILE_STATUS:3,LINK_STATUS:4,ARRAY_BUFFER:5,STATIC_DRAW:6,
     FLOAT:7,DEPTH_TEST:8,BLEND:9,COLOR_BUFFER_BIT:16,DEPTH_BUFFER_BIT:32,TRIANGLES:10,ONE:11,
     createShader:type=>({type}),shaderSource:(shader,source)=>{shader.source=source;},compileShader(){},getShaderParameter:()=>true,
@@ -18,6 +19,8 @@ function fixture(t) {
     vertexAttribPointer:(loc,count)=>pointers.set(loc,count),getUniformLocation:(program,name)=>({program,name}),
     uniform1f:(u,x)=>{u.program.uniforms[u.name]=x;},uniform2f:(u,...v)=>{u.program.uniforms[u.name]=v;},uniform3f:(u,...v)=>{u.program.uniforms[u.name]=v;},
     uniform4f:(u,...v)=>{u.program.uniforms[u.name]=v;},
+    uniform1i:(u,x)=>{u.program.uniforms[u.name]=x;},createTexture:()=>({}),activeTexture(){},bindTexture(){},texParameteri(){},generateMipmap(){},
+    texImage2D(...args){textureUploads.push({width:args[3],height:args[4],pixels:args[8]});},
     enable:cap=>{if(cap===8)depth=true;if(cap===9)blend=true;},disable:cap=>{if(cap===8)depth=false;if(cap===9)blend=false;},
     depthMask:value=>{writeDepth=value;},clearColor(...value){this.background=value;},clear(){},viewport(){},blendFunc(){},
     drawArrays(mode,first,count){draws.push({sky:current.shaders.some(s=>s.source.includes('attribute vec2 aClip')),count,
@@ -25,19 +28,42 @@ function fixture(t) {
   };
   const canvas={clientWidth:1280,clientHeight:720,width:0,height:0,getContext:()=>gl};
   let clock=0;
-  const box={min:[-100,-20,-100],max:[100,0,100]},renderer=createRenderer(canvas,[box],{now:()=>clock});
+  const box={min:[-100,-20,-100],max:[100,0,100]},renderer=createRenderer(canvas,[box],{now:()=>clock,...options});
   const camera={x:0,y:0,z:80,yaw:.6,pitch:.2,duckAmount:0};
-  return {renderer,camera,box,gl,draws,programs,uploads,setTime:seconds=>{clock=seconds*1000;}};
+  return {renderer,camera,box,gl,draws,programs,uploads,textureUploads,setTime:seconds=>{clock=seconds*1000;}};
 }
 
-test('black, the day/night cycle and the black hole are selectable; old settings fall back to black',()=>{
-  assert.deepEqual(Object.keys(SKYBOXES),['black','cycle','blackhole']);
+test('black, the cycle, the black hole and galaxies are selectable; old settings fall back to black',()=>{
+  assert.deepEqual(Object.keys(SKYBOXES),['black','cycle','blackhole','galaxies']);
   for(const value of [undefined,null,'unknown','__proto__',3,'dawn','midday','dusk','midnight'])assert.equal(normaliseSkybox(value),'black');
   assert.equal(normaliseSkybox('cycle'),'cycle');
   assert.equal(sampleSkybox('black',450),SKYBOXES.black);
   const html=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
   const select=html.match(/<select id="skybox-select">(.*?)<\/select>/s)[1];
-  assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['black','cycle','blackhole']);
+  assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['black','cycle','blackhole','galaxies']);
+});
+test('the galaxy texture downloads only when selected, uploads once, and uses its sampled coloured lights',async t=>{
+  let loads=0;const statuses=[],pixels=new Uint8Array(16);
+  const f=fixture(t,{loadGalaxy:async()=>{loads++;return {width:2,height:2,pixels};},onSkyStatus:message=>statuses.push(message)});
+  f.renderer.setSkybox('cycle');f.renderer.draw(f.camera);assert.equal(loads,0);
+  f.renderer.setSkybox('galaxies');assert.equal(statuses.at(-1),'Loading galaxies…');
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(loads,1);assert.equal(f.textureUploads.at(-1).pixels,pixels);
+  assert.match(statuses.at(-1),/Enable Shaders/);f.renderer.setShaders(true);assert.match(statuses.at(-1),/lighting is on/);
+  f.draws.length=0;f.renderer.draw(f.camera);
+  const [sky,world]=f.draws;assert.equal(sky.uniforms.uGalaxies,1);assert.equal(sky.uniforms.uGalaxyMap,0);
+  assert.equal(sky.uniforms.uGalaxyOffset,GALAXY_ENVIRONMENT.lighting.uvOffset);
+  assert.deepEqual(world.uniforms.uLightColour,GALAXY_ENVIRONMENT.lighting.colour);assert.deepEqual(world.uniforms.uFillColour,GALAXY_ENVIRONMENT.lighting.fillColour);
+  f.renderer.setSkybox('black');f.renderer.setSkybox('galaxies');await new Promise(resolve=>setImmediate(resolve));assert.equal(loads,1);
+  f.renderer.setSkybox('cycle');f.draws.length=0;f.renderer.draw(f.camera);assert.deepEqual(f.draws[1].uniforms.uFillColour,[0,0,0]);
+});
+test('failed galaxy downloads can retry and stale loading messages do not replace a different sky selection',async t=>{
+  let reject,loads=0;const statuses=[];
+  const f=fixture(t,{loadGalaxy:()=>{loads++;if(loads===1)return new Promise((_,fail)=>{reject=fail;});return Promise.resolve({width:1,height:1,pixels:new Uint8Array(4)});},onSkyStatus:message=>statuses.push(message)});
+  f.renderer.setSkybox('galaxies');await Promise.resolve();reject(Error('offline'));await new Promise(resolve=>setImmediate(resolve));
+  assert.match(statuses.at(-1),/retry/);
+  f.renderer.setSkybox('galaxies');f.renderer.setSkybox('black');await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(loads,2);assert.equal(statuses.at(-1),'');assert.equal(f.renderer.skybox,'black');
+  f.renderer.setSkybox('galaxies');assert.match(statuses.at(-1),/ready/);assert.equal(loads,2);
 });
 test('the black hole uses a night palette, a bounded animation clock and its own rendering pass',t=>{
   const start=sampleSkybox('blackhole',0);

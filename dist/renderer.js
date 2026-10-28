@@ -28,6 +28,7 @@ export const WORLD_FRAGMENT_GLSL = `
     uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
+    uniform vec3 uFillDirection; uniform vec3 uFillColour;
     uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
@@ -41,7 +42,8 @@ export const WORLD_FRAGMENT_GLSL = `
         vec3 ambient=uAmbientColour*mix(0.65,1.2,normal.y*0.5+0.5);
         vec3 halfLight=normalize(uLightDirection+normalize(uFogEye-vWorld)+vec3(0.0001));
         float gloss=pow(max(dot(normal,halfLight),0.0),28.0)*0.12*uLightPower;
-        color=vColor*(ambient+uLightColour*diffuse*uLightPower)+uLightColour*gloss;
+        float fill=max(dot(normal,uFillDirection),0.0);
+        color=vColor*(ambient+uLightColour*diffuse*uLightPower+uFillColour*fill)+uLightColour*gloss;
         if(vTop>0.5&&uShadowOpacity>0.0&&abs(vWorld.y-uPlayerShadow.y)<0.5){
           float distance=length(vWorld.xz-uPlayerShadow.xz)/max(uPlayerShadow.w,1.0);
           float shadow=1.0-smoothstep(0.15,1.0,distance);
@@ -63,7 +65,7 @@ export const WORLD_FRAGMENT_GLSL = `
       gl_FragColor=vec4(mix(fog,color,fade),1.0);
     }`;
 
-export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
+export function createRenderer(canvas, boxes, {now=()=>performance.now(),onSkyStatus=()=>{},loadGalaxy}={}) {
   const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
   if (!gl) throw new Error('WebGL is unavailable. Enable hardware acceleration and reload.');
   function shader(type, source) {
@@ -96,15 +98,21 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   const fogEye=gl.getUniformLocation(program,'uFogEye');
   const lightDirection=gl.getUniformLocation(program,'uLightDirection'),lightColour=gl.getUniformLocation(program,'uLightColour');
   const ambientColour=gl.getUniformLocation(program,'uAmbientColour'),lightPower=gl.getUniformLocation(program,'uLightPower');
+  const fillDirection=gl.getUniformLocation(program,'uFillDirection'),fillColour=gl.getUniformLocation(program,'uFillColour');
   const shadersGain=gl.getUniformLocation(program,'uShadersGain'),playerShadow=gl.getUniformLocation(program,'uPlayerShadow'),shadowOpacity=gl.getUniformLocation(program,'uShadowOpacity');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
   let skybox='black',skyRenderer=null,skyStarted=0,shadersEnabled=false;
-  function setShaders(value) { shadersEnabled=value===true; }
+  const galaxyStatus=()=>onSkyStatus(shadersEnabled?'Galaxies ready. Coloured lighting is on.':'Galaxies ready. Enable Shaders for coloured lighting.');
+  function setShaders(value) { shadersEnabled=value===true;if(skybox==='galaxies'&&skyRenderer?.galaxiesReady)galaxyStatus(); }
   function setSkybox(value) {
     const next=normaliseSkybox(value);
-    if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
+    if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl,{loadGalaxy});
     if(next!=='black'&&skybox!==next)skyStarted=now();
     skybox=next;
+    if(next==='galaxies'){
+      if(skyRenderer.galaxiesReady)galaxyStatus();
+      else{onSkyStatus('Loading galaxies…');void skyRenderer.loadGalaxies().then(()=>{if(skybox==='galaxies')galaxyStatus();}).catch(()=>{if(skybox==='galaxies')onSkyStatus('Could not load galaxies. Select the background again to retry.');});}
+    }else onSkyStatus('');
   }
   let vertices = [], count = 0, currentBoxes = boxes;
   let glowCount = 0, glowKey = '';
@@ -206,6 +214,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     gl.uniform1f(shadersGain,shadersEnabled?1:0);
     const light=sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
     gl.uniform3f(lightDirection,...light.direction);gl.uniform3f(lightColour,...light.colour);gl.uniform3f(ambientColour,...light.ambient);gl.uniform1f(lightPower,light.power);
+    gl.uniform3f(fillDirection,...(light.fillDirection||[0,1,0]));gl.uniform3f(fillColour,...(light.fillColour||[0,0,0]));
     gl.uniform4f(playerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(shadowOpacity,shadow?.opacity||0);
     gl.uniform1f(targetActive,target?1:0);
     if(target) {

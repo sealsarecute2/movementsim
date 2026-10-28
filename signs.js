@@ -21,8 +21,8 @@ const SIGN_GLYPHS = {
 export function buildSignMesh(board) {
   const rows=[board.sign.title,...board.sign.lines].map(line=>line.toUpperCase());
   const width=board.max[0]-board.min[0],height=board.max[1]-board.min[1];
-  const size=Math.min(1.6,(width-24)/Math.max(1,...rows.map(line=>line.length*6-1)),(height-24)/(rows.length*11-4));
-  const vertices=[],z=board.max[2]+.08,left=board.min[0]+12,top=board.max[1]-12;
+  const size=Math.min(1.6,(width-16)/Math.max(1,...rows.map(line=>line.length*6-1)),(height-16)/(rows.length*11-4));
+  const vertices=[],z=board.max[2]+.3,left=board.min[0]+8,top=board.max[1]-8;
   const quad=(x,y,w,h,colour)=>{
     const corners=[[x,y,z],[x,y-h,z],[x+w,y-h,z],[x+w,y,z]];
     for(const i of [0,1,2,0,2,3])vertices.push(...corners[i],...colour,0,0,0,1,-1);

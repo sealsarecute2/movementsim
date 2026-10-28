@@ -39,7 +39,17 @@ test('Bhop School signs explain the actual controls and Ladder Run requires two 
  }
 });
 test('Starter geometry and spawns retain the original layout exactly',()=>{
- assert.equal(createHash('sha256').update(JSON.stringify({COURSE,SPAWNS})).digest('hex'),'b9ddcba81a281ca4b397640b78a4f78200a51207f5108a329e8b712a7c719f1b');
+ const original=COURSE.filter(b=>!b.sign&&!b.signPost);
+ assert.equal(createHash('sha256').update(JSON.stringify({COURSE:original,SPAWNS})).digest('hex'),'b9ddcba81a281ca4b397640b78a4f78200a51207f5108a329e8b712a7c719f1b');
+});
+test('Starter has a compact teaching sign for each section, matching the smaller course-wide boards',()=>{
+ const signs=COURSE.filter(b=>b.sign);assert.equal(signs.length,SPAWNS.length);
+ const text=signs.flatMap(b=>b.sign.lines).join('\n');
+ for(const instruction of ['SPACE = KEEP HOPPING','RELEASE W','A + MOUSE LEFT','D + MOUSE RIGHT','CTRL / C'])assert.ok(text.includes(instruction));
+ for(const map of MAP_LIST)for(const board of map.boxes.filter(b=>b.sign)){
+  assert.equal(board.max[0]-board.min[0],180);assert.equal(board.max[1]-board.min[1],86);
+  const mesh=buildSignMesh(board);assert.ok(mesh.length>100);assert.ok(mesh.every(Number.isFinite));
+ }
 });
 for(const map of MAP_LIST.filter(m=>!m.endless))test(`${map.title}: saved spawns have standing clearance and solid support`,()=>{
  assert.equal(map.spawns.length,map.stages.length);
