@@ -11,12 +11,13 @@ import * as leaderboardModule from '../dist/leaderboard.js';
 import * as skyboxModule from '../dist/skybox.js';
 import * as menuModule from '../dist/menu.js';
 import * as musicModule from '../dist/menu-music.js';
+import * as sourceRuntimeModule from '../dist/source-runtime.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
 // Exercise the real app event handlers with a browser API test double. Rendering
 // is stubbed here; these checks verify input, run progression and pause behavior.
-function boot(stored = {}, search = '', renderError = null) {
+function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) {
   function element() {
     const listeners=new Map(),classes=new Set();
     return {dataset:{},setAttribute(name,value){this[name]=value;},textContent:'',innerHTML:'',style:{setProperty(name,value){this[name]=value;}},disabled:false,
@@ -42,7 +43,8 @@ function boot(stored = {}, search = '', renderError = null) {
     addEventListener(){},load(){this.loads++;this.paused=true;this.currentTime=0;this.ended=false;},
     play(){this.plays++;this.paused=false;return Promise.resolve();},pause(){this.pauses++;this.paused=true;}};
   class TestMenuMusic extends musicModule.MenuMusic {constructor(options){super({...options,createAudio:()=>musicAudio});}}
-  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,MenuMusic:TestMenuMusic,document,window,
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,MenuMusic:TestMenuMusic,document,window,
+    AbortController,fetch:sourceOptions.fetch,loadSourceMap:sourceOptions.load,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
@@ -552,4 +554,41 @@ test('page navigation pauses a captured run and restoring the page leaves it pau
  const app=boot();app.element('play').fire('click');app.lock();app.window.fire('pagehide');
  assert.equal(app.read('playing'),false);assert.equal(app.read('menuMode'),'pause');assert.equal(app.document.pointerLockElement,null);
  app.window.fire('pageshow');assert.equal(app.read('playing'),false);
+});
+
+function sourceFixture(id) {
+ const boxes=[{min:[-200,-100,-200],max:[200,0,200]}];
+ const source={id,title:id,boxes,entities:[],triggers:[],buttons:[],destinations:new Map(),killHeight:-600,
+  spawns:[{x:0,y:0,z:0,yaw:0},{x:100,y:0,z:0,yaw:0}],stages:[{title:'Section 1',tip:'Hop.',target:'1a'},{title:'Section 2',tip:'Hop.',target:'1b'}]};
+ boxes.sourceMap=source;
+ return source;
+}
+const localSourceFile={size:8,arrayBuffer:async()=>new ArrayBuffer(8)};
+test('local map imports select the decoded world and checkpoint respawns reset its trigger state',async()=>{
+ const source=sourceFixture('source-integration');
+ const app=boot({},'',null,{load:async()=>source});
+ try {
+  await app.context.selectCommunityMap({id:source.id,title:source.title},localSourceFile);
+  assert.equal(app.read('map'),source.id);assert.equal(app.read('boxes'),source.boxes);
+  assert.equal(app.element('leaderboard-button').disabled,true);assert.match(app.element('source-map-status').textContent,/ready/);
+  app.element('play').fire('click');app.lock();assert.equal(app.read('playing'),true);
+  app.read('checkpoint=1;reset(false)');assert.equal(app.read('player.x'),100);assert.equal(app.read('sourceRuntime.stage'),1);
+  app.read("chooseMap('course')");assert.equal(app.read('sourceRuntime'),null);assert.equal(app.element('leaderboard-button').disabled,false);
+ } finally {delete course.MAPS[source.id];}
+});
+test('a failed download leaves native maps playable and a subsequent local import can succeed',async()=>{
+ const source=sourceFixture('source-retry');const app=boot({},'',null,{fetch:async()=>({ok:false}),load:async()=>source});
+ try {
+  await app.context.selectCommunityMap({id:source.id,title:source.title,archive:'missing.zip'});
+  assert.equal(app.read('map'),'course');assert.match(app.element('source-map-status').textContent,/download failed/);assert.equal(app.element('import-source-map').disabled,false);
+  await app.context.selectCommunityMap({id:source.id,title:source.title},localSourceFile);assert.equal(app.read('map'),source.id);
+ } finally {delete course.MAPS[source.id];}
+});
+test('selecting a native map while decoding prevents a stale import from replacing the selection',async()=>{
+ let resolve,signalStarted;const started=new Promise(r=>{signalStarted=r;}),source=sourceFixture('source-cancel');
+ const app=boot({},'',null,{load:()=>{signalStarted();return new Promise(r=>{resolve=r;});}});
+ const request=app.context.selectCommunityMap({id:source.id,title:source.title},localSourceFile);
+ await started;
+ app.read("chooseMap('free')");resolve(source);await request;
+ assert.equal(app.read('map'),'free');assert.equal(course.MAPS[source.id],undefined);assert.equal(app.element('import-source-map').disabled,false);
 });

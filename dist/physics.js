@@ -62,8 +62,26 @@ function bounds(p) {
 function overlaps(a, b) {
   return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
 }
-function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&overlaps(b, o)); }
+function planeExtent(plane,height) {
+  const n=plane.normal;
+  return plane.distance+16*(Math.abs(n[0])+Math.abs(n[2]))-Math.min(0,n[1])*height;
+}
+function brushOverlap(p,brush) {
+  const height=p.ducked?54:72;
+  return brush.planes.every(plane=>p.x*plane.normal[0]+p.y*plane.normal[1]+p.z*plane.normal[2]<planeExtent(plane,height)-EPS);
+}
+function supportHeight(p,box) {
+  if(!box.planes)return box.max[1];
+  return Math.min(...box.planes.filter(plane=>plane.normal[1]>.7).map(plane=>(planeExtent(plane,p.ducked?54:72)-p.x*plane.normal[0]-p.z*plane.normal[2])/plane.normal[1]));
+}
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
 export function support(p, boxes, distance = 0.08) {
+  if(boxes.nearby)boxes=boxes.nearby(p);
+  if(boxes.some(b=>b.planes))return boxes.find(b=>{
+    if(b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
+    const top=supportHeight(p,b);
+    return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance&&(!b.planes||b.planes.every(plane=>plane.normal[1]>.7||p.x*plane.normal[0]+top*plane.normal[1]+p.z*plane.normal[2]<=planeExtent(plane,p.ducked?54:72)+EPS));
+  });
   return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
     p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
@@ -75,6 +93,18 @@ function sweep(p, delta, boxes, includeLadders = false) {
   const height = p.ducked ? 54 : 72;
   for (const b of boxes) {
     if(b.ladder&&!includeLadders)continue;
+    if(b.planes) {
+      let enter=-Infinity,leave=1,normal=null,valid=true;
+      for(const plane of b.planes) {
+        const n=plane.normal,start=p.x*n[0]+p.y*n[1]+p.z*n[2]-planeExtent(plane,height),motion=delta[0]*n[0]+delta[1]*n[1]+delta[2]*n[2];
+        if(Math.abs(motion)<1e-12){if(start>EPS){valid=false;break;}continue;}
+        const time=-start/motion;
+        if(motion<0){if(time>enter){enter=time;normal=n;}}else leave=Math.min(leave,time);
+        if(enter>leave){valid=false;break;}
+      }
+      if(valid&&normal&&enter>=-EPS&&enter<=leave&&enter<best.t&&enter<=1)best={t:Math.max(0,enter),normal,box:b};
+      continue;
+    }
     const lo = [b.min[0] - 16, b.min[1] - height, b.min[2] - 16];
     const hi = [b.max[0] + 16, b.max[1], b.max[2] + 16];
     const pos = [p.x, p.y, p.z];
@@ -107,7 +137,7 @@ function slide(p, dt, boxes) {
     const hit = sweep(p, delta, boxes);
     p.x += delta[0] * hit.t; p.y += delta[1] * hit.t; p.z += delta[2] * hit.t;
     if (!hit.box) break;
-    if (hit.normal[1] === 1) { groundBox = hit.box; impact = Math.max(impact, -p.vy); }
+    if (hit.normal[1] > .7) { groundBox = hit.box; impact = Math.max(impact, -p.vy); }
     if (hit.normal[0] || hit.normal[2]) hitWall = true;
     const dot = p.vx * hit.normal[0] + p.vy * hit.normal[1] + p.vz * hit.normal[2];
     p.vx -= dot * hit.normal[0]; p.vy -= dot * hit.normal[1]; p.vz -= dot * hit.normal[2];
@@ -125,7 +155,7 @@ function move(p, dt, boxes, canStep) {
     if (!blocked(step, boxes)) {
       const stepped = slide(step, dt, boxes);
       const down = sweep(step, [0, -RULES.stepHeight - 0.1, 0], boxes);
-      if (down.box && down.normal[1] === 1) {
+      if (down.box && down.normal[1] > .7) {
         step.y -= (RULES.stepHeight + 0.1) * down.t;
         const distance = q => (q.x - before.x) ** 2 + (q.z - before.z) ** 2;
         if (distance(step) > distance(direct) + EPS) {
@@ -186,6 +216,7 @@ function ladderMove(p,input,boxes,dt,jumpEdge) {
   return true;
 }
 export function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
+  if(boxes.nearby)boxes=boxes.nearby(p,dt);
   p.time += dt;
   const jumpEdge=!!input.jumpPressed||!!input.jumpHeld&&!p.jumpHeldLast;
   p.jumpHeldLast=!!input.jumpHeld;
@@ -203,7 +234,7 @@ export function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   if(ladderMove(p,input,boxes,dt,jumpEdge))return p;
   const ground = p.vy <= 0 ? support(p, boxes) : null;
   if (p.grounded && !ground) p.grounded = false;
-  if (p.grounded) { p.y = ground.max[1]; p.groundBox = ground; }
+  if (p.grounded) { p.y = supportHeight(p,ground); p.groundBox = ground; }
   const fresh = p.validPress > p.usedPress && p.time - p.validPress <= RULES.bhopHalfWindow;
   const heldAuto = mode.autoBhop && input.jumpHeld;
   if (p.grounded && (fresh || heldAuto)) {
@@ -235,7 +266,7 @@ export function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   if (!wasGrounded) p.vy -= RULES.gravity * dt / 2;
   const landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
   if (landed) {
-    p.grounded = true; p.vy = 0; p.y = landed.max[1]; p.groundBox = landed;
+    p.grounded = true; p.vy = 0; p.y = supportHeight(p,landed); p.groundBox = landed;
     if (!wasGrounded) {
       p.landTime = p.time; p.landImpact = result.impact; p.lastLandSpeed = speed(p);
       const buffered = p.validPress > p.usedPress && p.time - p.validPress <= RULES.bhopHalfWindow;

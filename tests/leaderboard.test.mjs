@@ -42,8 +42,8 @@ test('a rebuild preserves owner-edited root records and updates the preview copy
   const folder=mkdtempSync(join(tmpdir(),'movement-leaderboard-build-'));
   try {
     copyFileSync(new URL('../build-standalone.py',import.meta.url),join(folder,'build-standalone.py'));
-    for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/music','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
-    for(const name of ['index.html','style.css','endless.js','course.js','physics.js','skybox.js','renderer.js','game-audio.js','leaderboard.js','menu.js','menu-music.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
+    for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/music','dist/maps','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
+    for(const name of ['index.html','style.css','endless.js','course.js','physics.js','skybox.js','source-map.js','source-runtime.js','source-renderer.js','renderer.js','game-audio.js','leaderboard.js','menu.js','menu-music.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
     writeFileSync(join(folder,'leaderboards/course.txt'),'Seal | 12.345 | classic\n');writeFileSync(join(folder,'dist/leaderboards/course.txt'),'# stale preview\n');writeFileSync(join(folder,'dist/leaderboards/endless.txt'),'# retired\n');
     const result=spawnSync('python3',[join(folder,'build-standalone.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
     assert.equal(existsSync(join(folder,'dist/leaderboards/endless.txt')),false);

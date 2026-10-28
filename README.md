@@ -16,7 +16,15 @@ Normal WASD movement has footsteps; holding Shift or crouching makes footsteps s
 
 ## Courses and ladders
 
-The available maps are **Starter course**, **Endless**, and **Sandbox**. Starter keeps its original geometry, spawns, checkpoints, and finish. The eight additional timed courses and their optional shortcut routes have been removed for now. Map selection shows section counts without difficulty labels. Only Starter has a cloud leaderboard. Cyan rails and rungs identify ladders; blue edges identify the next checkpoint or finish.
+The native practice maps are **Starter course**, **Endless**, and **Sandbox**. Starter keeps its original geometry, spawns, checkpoints, and finish. The eight additional timed courses and their optional shortcut routes have been removed for now. Map selection shows section counts without difficulty labels. Only Starter has a cloud leaderboard. Cyan rails and rungs identify ladders; blue edges identify the next checkpoint or finish.
+
+## Community maps
+
+Open **Play → Community maps → bhop_lego**, wait for the download to finish, then click **Start course**. This loads Tony Montana's original Counter-Strike: Source map, with LEGO textures by Man Walker, from the unmodified original release archive. Its 25 main-route section pads become browser checkpoints. Choose **Bhop practice** for uncapped movement; use **Q** to restart and **E** to return to your saved section. The map's delayed reset zones and push triggers are active. Click a nearby boost button with the knife to activate it. The archive is about 22 MB and downloads only when selected.
+
+**Import .bsp / .zip** also opens compatible local Source 1 maps (BSP versions 19 and 20). Files stay in memory on your device; they are not uploaded or saved between visits. Reimport a local map after reloading. Maps without a recognized finish can be explored without recording a timed best. CS:GO, CS2, compressed BSP lumps, and every Source entity type are not supported.
+
+The importer draws original brush geometry and embedded base textures, with convex brush collision and movement triggers. This is a browser compatibility layer, not a full Source engine: lightmaps, studio-model props, moving brush mechanisms, water physics and collectible/bonus scripts are not emulated. The bundled bhop_lego is for its main route. Community maps do not add cloud leaderboards. See [map credits and license](maps/CREDITS.md) for attribution and the author's CC BY-NC-ND 4.0 terms; the map archive itself is unchanged.
 
 Move into a ladder to attach. W/S and your viewing angle control ascent and descent; A/D move along its face. Looking upward while pushing into it climbs faster. Release movement to hold position, move beyond an edge to leave, or press Space / the wheel to push off. Holding Space before a catch does not repeatedly kick you away. A ladder can catch a fall, cancels falling wind, and has no ground footsteps. Walk/crouch slow climbing. Climbing onto the top uses the same collision controller as the rest of the game.
 

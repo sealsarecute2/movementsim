@@ -55,3 +55,11 @@ export const MAP_LIST = [
     spawns: [SPAWNS[0]], stages: [stage('Make your own line.', 'A wide floor for strafing, hops, and stopping practice.')] },
 ];
 export const MAPS = Object.fromEntries(MAP_LIST.map(map => [map.id, map]));
+
+// Community archives load only when selected; native practice maps stay instant.
+export const COMMUNITY_MAPS = [{
+  id:'bhop_lego',title:'bhop_lego',author:'Tony Montana',textures:'Man Walker',
+  archive:'maps/bhop_lego.zip',thumbnail:'maps/bhop_lego.webp',
+  source:'https://gamebanana.com/mods/125406',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  entryTarget:'1a',stageTargets:['1a','1b','1c','1d','1e','1f','2a','2b','2c','3a','3b','3c','4a','4b','4c','4d','5a','5b','6a','6b','6c','6d','7a','7b','7c'],
+}];

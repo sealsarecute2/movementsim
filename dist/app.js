@@ -1,5 +1,5 @@
 import { DT, PRESETS, createPlayer, step, speed, support, platformAirspace } from './physics.js';
-import { MAPS, MAP_LIST } from './course.js';
+import { MAPS, MAP_LIST, COMMUNITY_MAPS } from './course.js';
 import { createEndless } from './endless.js';
 import { createRenderer } from './renderer.js';
 import { normaliseSkybox } from './skybox.js';
@@ -7,6 +7,8 @@ import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
 import { loadLeaderboard, leaderboardRows } from './leaderboard.js';
 import { mapPreviewSVG, createMenuSlideshow, captureMapScreenshot } from './menu.js';
 import { MenuMusic } from './menu-music.js';
+import { loadSourceMap } from './source-map.js';
+import { createSourceRuntime } from './source-runtime.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -20,6 +22,7 @@ catch (error) {
 }
 let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
 let endless = null;
+let sourceRuntime=null,sourceLoadGeneration=0,sourceLoadController=null;
 let menuMode='main', mainView='home', slideshow=null, capturedMaps=0, screenshotCanvas=null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 1, fov = 100;
@@ -148,6 +151,7 @@ function reset(full=true) {
   }
   const previousPeak=player.peakSpeed;
   player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
+  sourceRuntime?.reset(checkpoint);
   if(endless) {
     endless.update(player);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
@@ -243,8 +247,11 @@ function choosePreset(value,resetRun=true) {
 }
 function chooseMap(value,resetRun=true) {
   if(!Object.hasOwn(MAPS,value)) return;
+  sourceLoadGeneration++;sourceLoadController?.abort();
+  $('source-map-status').textContent='Community maps download when selected. Local imports stay on your device.';
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
+  sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
   const selected=MAPS[map], count=selected.spawns.length-1;
   $('selected-map-title').textContent=selected.title;
   $('pause-map').textContent=selected.title+' / '+PRESETS[preset].title;
@@ -255,12 +262,46 @@ function chooseMap(value,resetRun=true) {
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
-  $('map-meta').textContent=selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
+  $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
+  $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}${selected.textureAuthor?' · Textures: '+selected.textureAuthor:''}. Browser compatibility: main route, original textures and movement triggers; some Source-only props and bonus scripts are unavailable.`:'';
+  $('map-source-link').classList.toggle('hidden',!selected.source);
+  if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=selected.id!=='course';
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
   saveSettings(); updateHud();
+}
+async function selectCommunityMap(metadata,file=null) {
+  if(playing||lockPending)pause();
+  if(MAPS[metadata.id]&&!file){chooseMap(metadata.id);return;}
+  sourceLoadController?.abort();const generation=++sourceLoadGeneration;
+  const controller=new AbortController();sourceLoadController=controller;
+  const status=$('source-map-status');status.textContent=`Loading ${metadata.title}…`;
+  $('import-source-map').disabled=true;
+  try {
+    let input;
+    if(file){if(file.size>180*1024*1024)throw Error('Map files must be smaller than 180 MB.');input=await file.arrayBuffer();}
+    else{
+      const response=await fetch(metadata.archive,{signal:controller.signal});
+      if(!response.ok)throw Error('The map download failed. Select the map to retry.');
+      const total=Number(response.headers.get('content-length'))||0;
+      if(total>180*1024*1024)throw Error('This map archive is too large.');
+      if(response.body?.getReader){
+        const reader=response.body.getReader(),chunks=[];let received=0;
+        while(true){const {done,value}=await reader.read();if(done)break;received+=value.length;if(received>180*1024*1024){await reader.cancel();throw Error('This map archive is too large.');}chunks.push(value);status.textContent=`Loading ${metadata.title} · ${(received/1048576).toFixed(1)}${total?' / '+(total/1048576).toFixed(1):''} MB`;}
+        input=new Uint8Array(received);let offset=0;for(const chunk of chunks){input.set(chunk,offset);offset+=chunk.length;}
+      } else input=await response.arrayBuffer();
+    }
+    if(generation!==sourceLoadGeneration)return;
+    status.textContent=`Preparing ${metadata.title}…`;
+    const imported=await loadSourceMap(input,metadata);
+    if(generation!==sourceLoadGeneration)return;
+    MAPS[metadata.id]={id:metadata.id,title:metadata.title,timed:!!imported.finish,community:true,author:metadata.author,textureAuthor:metadata.textures,source:metadata.source,
+      description:metadata.author?'The original community map by '+metadata.author+'.':'A locally imported Source map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+    chooseMap(metadata.id);status.textContent=`${metadata.title} ready. Choose Bhop practice for uncapped movement.`;
+  } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
+  finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
 function finishRun() {
   if(completed)return;
@@ -274,6 +315,7 @@ function finishRun() {
   $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
   $('finish-time').textContent=format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
+  $('finish-leaderboard').classList.toggle('hidden',map!=='course');
   gameAudio?.finish();
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
 }
@@ -290,7 +332,7 @@ function updateHud() {
   ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');
   const selected=MAPS[map], currentStage=selected.stages[selected.endless?0:checkpoint];
-  ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
+  ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:selected.community?'IMPORTED MAP':'SANDBOX';
   ui['stage-name'].textContent=selected.endless?`${endless?.sectionTitle||'Endless'} · ${Math.floor(endless?.distance||0)} u`:currentStage.title;
   ui['stage-tip'].textContent=selected.endless?endless?.tip||currentStage.tip:currentStage.tip;
   document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',i<=checkpoint));
@@ -312,6 +354,22 @@ function tick() {
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
   gameAudio?.movement(previousDraw,player,input);
+  if(sourceRuntime){
+    const first=MAPS[map].spawns[0];
+    if(!runActive&&Math.hypot(player.x-first.x,player.z-first.z)>96)runActive=true;
+    if(runActive)runTime+=DT;
+    for(const event of sourceRuntime.step(player,previousDraw,DT)){
+      if(event.type==='teleport'){
+        previousDraw={...player};
+        const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
+        if(runActive&&index<=checkpoint)respawns++;
+      }
+      if(event.type==='checkpoint'){checkpoint=event.stage;gameAudio?.checkpoint();toast(`SECTION ${MAPS[map].stages[checkpoint].target.toUpperCase()} SAVED — E TO RETURN`,true);}
+      if(event.type==='finish'){finishRun();return;}
+    }
+    if(player.y<boxes.sourceMap.killHeight){respawns++;reset(false);toast('BACK AT CHECKPOINT — TIMER CONTINUES');}
+    return;
+  }
   let timerStart=runActive?0:1, timerEnd=1, finished=false;
   if(!runActive) {
     const start=endless?endless.platform(0):boxes[0];
@@ -403,6 +461,16 @@ $('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-c
 $('map-grid').addEventListener('click',event=>{
   const card=event.target.closest('[data-map]');if(card)chooseMap(card.dataset.map);
 });
+$('community-map-grid').innerHTML=COMMUNITY_MAPS.map(m=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview"><img src="${m.thumbnail}" alt="${m.title}" loading="lazy"></span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>COMMUNITY</span>${m.author}</span></button>`).join('');
+$('community-map-grid').addEventListener('click',event=>{
+  const card=event.target.closest('[data-map]'),metadata=COMMUNITY_MAPS.find(m=>m.id===card?.dataset.map);if(metadata)void selectCommunityMap(metadata);
+});
+$('import-source-map').addEventListener('click',()=>$('source-map-file').click());
+$('source-map-file').addEventListener('change',()=>{
+  const file=$('source-map-file').files?.[0];if(file)void selectCommunityMap({id:'local-map',title:file.name.replace(/\.(bsp|zip)$/i,'').slice(0,80)},file);
+  $('source-map-file').value='';
+});
+document.addEventListener('pointerdown',event=>{if(playing&&(event.button===0||event.button===2))sourceRuntime?.interact(player);});
 $('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
 const slides=Array.from(document.querySelectorAll('.gallery-slide'));
 if(slides.length&&rendererReady)screenshotCanvas=document.createElement('canvas');
@@ -528,4 +596,6 @@ const requestedMap=new URLSearchParams(window.location?.search||'').get('course'
 chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
 syncLookSettings();captureButtons();showMain('home',false);
 reset();requestAnimationFrame(frame);
+const requestedCommunity=COMMUNITY_MAPS.find(m=>m.id===(requestedMap||settings.map));
+if(requestedCommunity)void selectCommunityMap(requestedCommunity);
 if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';

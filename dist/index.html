@@ -49,10 +49,15 @@
         </section>
         <section id="maps-view" class="menu-view hidden" aria-labelledby="maps-title">
           <button id="maps-back" class="menu-back" type="button">← MAIN MENU</button>
-          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">01 COURSE</span></div>
+          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">FIND YOUR NEXT RUN</span></div>
           <fieldset class="physics-setting"><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic" type="button">CS-style</button><button data-preset="practice" type="button">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset>
           <div id="map-grid" class="map-grid" role="group" aria-label="Choose a course"></div>
+          <div class="community-heading"><h3>COMMUNITY MAPS</h3><button id="import-source-map" class="text-button" type="button">Import .bsp / .zip ↗</button></div>
+          <input id="source-map-file" type="file" accept=".bsp,.zip" hidden>
+          <div id="community-map-grid" class="map-grid community-grid" role="group" aria-label="Choose a community map"></div>
+          <p id="source-map-status" class="input-note" role="status" aria-live="polite">Community maps download when selected. Local imports stay on your device.</p>
           <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
+          <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>

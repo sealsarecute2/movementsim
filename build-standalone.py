@@ -6,14 +6,15 @@ import shutil
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-for filename in ('index.html', 'style.css', 'endless.js', 'course.js', 'physics.js', 'skybox.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'app.js'):
+modules = ('endless.js', 'course.js', 'physics.js', 'skybox.js', 'source-map.js', 'source-runtime.js', 'source-renderer.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'app.js')
+for filename in ('index.html', 'style.css', *modules):
     (root / filename).write_text((dist / filename).read_text())
 for filename in ('favicon.ico', 'favicon.svg'):
     shutil.copyfile(dist / filename, root / filename)
-for directory in ('butterfly', 'vendor', 'sounds', 'music'):
+for directory in ('butterfly', 'vendor', 'sounds', 'music', 'maps'):
     shutil.copytree(dist / directory, root / directory, dirs_exist_ok=True)
 pieces = []
-for filename in ('endless.js', 'course.js', 'physics.js', 'skybox.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'app.js'):
+for filename in modules:
     source = (dist / filename).read_text()
     source = re.sub(r'^import .*?;\n', '', source, flags=re.MULTILINE)
     source = re.sub(r'^export ', '', source, flags=re.MULTILINE)

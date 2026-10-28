@@ -258,6 +258,15 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 
 .map-grid.single-map { grid-template-columns: minmax(0, 1fr); }
 .map-grid.single-map .map-preview { height: 7rem; }
+.community-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1.25rem 0 .65rem; }
+.community-heading h3 { margin:0; color:#81919d; font-size:.7rem; letter-spacing:.16em; }
+.community-heading button { padding:.4rem 0; font-size:.65rem; color:#a8bdcc; }
+.community-grid { grid-template-columns:minmax(0,1fr); }
+.community-grid .map-preview { height:7rem; }
+.map-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+.map-credit,.map-source-link { font-size:max(10px,.6rem); line-height:1.6; color:#8394a1; }
+.map-credit:empty { display:none; }
+.map-source-link { display:inline-block; margin:.1rem 0 .75rem; color:#9ac9ec; }
 
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
@@ -301,10 +310,15 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
         </section>
         <section id="maps-view" class="menu-view hidden" aria-labelledby="maps-title">
           <button id="maps-back" class="menu-back" type="button">← MAIN MENU</button>
-          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">01 COURSE</span></div>
+          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">FIND YOUR NEXT RUN</span></div>
           <fieldset class="physics-setting"><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic" type="button">CS-style</button><button data-preset="practice" type="button">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset>
           <div id="map-grid" class="map-grid" role="group" aria-label="Choose a course"></div>
+          <div class="community-heading"><h3>COMMUNITY MAPS</h3><button id="import-source-map" class="text-button" type="button">Import .bsp / .zip ↗</button></div>
+          <input id="source-map-file" type="file" accept=".bsp,.zip" hidden>
+          <div id="community-map-grid" class="map-grid community-grid" role="group" aria-label="Choose a community map"></div>
+          <p id="source-map-status" class="input-note" role="status" aria-live="polite">Community maps download when selected. Local imports stay on your device.</p>
           <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
+          <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
@@ -549,6 +563,14 @@ const MAP_LIST = [
 ];
 const MAPS = Object.fromEntries(MAP_LIST.map(map => [map.id, map]));
 
+// Community archives load only when selected; native practice maps stay instant.
+const COMMUNITY_MAPS = [{
+  id:'bhop_lego',title:'bhop_lego',author:'Tony Montana',textures:'Man Walker',
+  archive:'maps/bhop_lego.zip',thumbnail:'maps/bhop_lego.webp',
+  source:'https://gamebanana.com/mods/125406',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  entryTarget:'1a',stageTargets:['1a','1b','1c','1d','1e','1f','2a','2b','2c','3a','3b','3c','4a','4b','4c','4d','5a','5b','6a','6b','6c','6d','7a','7b','7c'],
+}];
+
 // Independent Source-style movement recreation. No Valve code or assets included.
 // Projected air acceleration follows the model in Valve's public Source SDK.
 // CS2 subtick timing / landing penalties are approximated, not engine-identical.
@@ -613,8 +635,26 @@ function bounds(p) {
 function overlaps(a, b) {
   return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
 }
-function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&overlaps(b, o)); }
+function planeExtent(plane,height) {
+  const n=plane.normal;
+  return plane.distance+16*(Math.abs(n[0])+Math.abs(n[2]))-Math.min(0,n[1])*height;
+}
+function brushOverlap(p,brush) {
+  const height=p.ducked?54:72;
+  return brush.planes.every(plane=>p.x*plane.normal[0]+p.y*plane.normal[1]+p.z*plane.normal[2]<planeExtent(plane,height)-EPS);
+}
+function supportHeight(p,box) {
+  if(!box.planes)return box.max[1];
+  return Math.min(...box.planes.filter(plane=>plane.normal[1]>.7).map(plane=>(planeExtent(plane,p.ducked?54:72)-p.x*plane.normal[0]-p.z*plane.normal[2])/plane.normal[1]));
+}
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
 function support(p, boxes, distance = 0.08) {
+  if(boxes.nearby)boxes=boxes.nearby(p);
+  if(boxes.some(b=>b.planes))return boxes.find(b=>{
+    if(b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
+    const top=supportHeight(p,b);
+    return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance&&(!b.planes||b.planes.every(plane=>plane.normal[1]>.7||p.x*plane.normal[0]+top*plane.normal[1]+p.z*plane.normal[2]<=planeExtent(plane,p.ducked?54:72)+EPS));
+  });
   return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
     p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
@@ -626,6 +666,18 @@ function sweep(p, delta, boxes, includeLadders = false) {
   const height = p.ducked ? 54 : 72;
   for (const b of boxes) {
     if(b.ladder&&!includeLadders)continue;
+    if(b.planes) {
+      let enter=-Infinity,leave=1,normal=null,valid=true;
+      for(const plane of b.planes) {
+        const n=plane.normal,start=p.x*n[0]+p.y*n[1]+p.z*n[2]-planeExtent(plane,height),motion=delta[0]*n[0]+delta[1]*n[1]+delta[2]*n[2];
+        if(Math.abs(motion)<1e-12){if(start>EPS){valid=false;break;}continue;}
+        const time=-start/motion;
+        if(motion<0){if(time>enter){enter=time;normal=n;}}else leave=Math.min(leave,time);
+        if(enter>leave){valid=false;break;}
+      }
+      if(valid&&normal&&enter>=-EPS&&enter<=leave&&enter<best.t&&enter<=1)best={t:Math.max(0,enter),normal,box:b};
+      continue;
+    }
     const lo = [b.min[0] - 16, b.min[1] - height, b.min[2] - 16];
     const hi = [b.max[0] + 16, b.max[1], b.max[2] + 16];
     const pos = [p.x, p.y, p.z];
@@ -658,7 +710,7 @@ function slide(p, dt, boxes) {
     const hit = sweep(p, delta, boxes);
     p.x += delta[0] * hit.t; p.y += delta[1] * hit.t; p.z += delta[2] * hit.t;
     if (!hit.box) break;
-    if (hit.normal[1] === 1) { groundBox = hit.box; impact = Math.max(impact, -p.vy); }
+    if (hit.normal[1] > .7) { groundBox = hit.box; impact = Math.max(impact, -p.vy); }
     if (hit.normal[0] || hit.normal[2]) hitWall = true;
     const dot = p.vx * hit.normal[0] + p.vy * hit.normal[1] + p.vz * hit.normal[2];
     p.vx -= dot * hit.normal[0]; p.vy -= dot * hit.normal[1]; p.vz -= dot * hit.normal[2];
@@ -676,7 +728,7 @@ function move(p, dt, boxes, canStep) {
     if (!blocked(step, boxes)) {
       const stepped = slide(step, dt, boxes);
       const down = sweep(step, [0, -RULES.stepHeight - 0.1, 0], boxes);
-      if (down.box && down.normal[1] === 1) {
+      if (down.box && down.normal[1] > .7) {
         step.y -= (RULES.stepHeight + 0.1) * down.t;
         const distance = q => (q.x - before.x) ** 2 + (q.z - before.z) ** 2;
         if (distance(step) > distance(direct) + EPS) {
@@ -737,6 +789,7 @@ function ladderMove(p,input,boxes,dt,jumpEdge) {
   return true;
 }
 function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
+  if(boxes.nearby)boxes=boxes.nearby(p,dt);
   p.time += dt;
   const jumpEdge=!!input.jumpPressed||!!input.jumpHeld&&!p.jumpHeldLast;
   p.jumpHeldLast=!!input.jumpHeld;
@@ -754,7 +807,7 @@ function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   if(ladderMove(p,input,boxes,dt,jumpEdge))return p;
   const ground = p.vy <= 0 ? support(p, boxes) : null;
   if (p.grounded && !ground) p.grounded = false;
-  if (p.grounded) { p.y = ground.max[1]; p.groundBox = ground; }
+  if (p.grounded) { p.y = supportHeight(p,ground); p.groundBox = ground; }
   const fresh = p.validPress > p.usedPress && p.time - p.validPress <= RULES.bhopHalfWindow;
   const heldAuto = mode.autoBhop && input.jumpHeld;
   if (p.grounded && (fresh || heldAuto)) {
@@ -786,7 +839,7 @@ function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   if (!wasGrounded) p.vy -= RULES.gravity * dt / 2;
   const landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
   if (landed) {
-    p.grounded = true; p.vy = 0; p.y = landed.max[1]; p.groundBox = landed;
+    p.grounded = true; p.vy = 0; p.y = supportHeight(p,landed); p.groundBox = landed;
     if (!wasGrounded) {
       p.landTime = p.time; p.landImpact = result.impact; p.lastLandSpeed = speed(p);
       const buffered = p.validPress > p.usedPress && p.time - p.validPress <= RULES.bhopHalfWindow;
@@ -906,6 +959,354 @@ function createSkyRenderer(gl) {
   }};
 }
 
+// Read original Source 1 maps without rewriting or executing their contents.
+// Binary structures: ValveSoftware/source-sdk-2013/src/public/bspfile.h.
+const sourceText = new TextDecoder('windows-1252');
+const sourcePoint = v => [v[0], v[2], -v[1]];
+const sourceVector = s => (s || '0 0 0').trim().split(/\s+/).map(Number);
+function sourceSpawn(entity) {
+  const [x,y,z] = sourcePoint(sourceVector(entity.origin));
+  const angles = sourceVector(entity.angles);
+  return {x,y,z,yaw:(90-angles[1])*Math.PI/180,pitch:-angles[0]*Math.PI/180};
+}
+
+function parseSourceEntities(text) {
+  const entities=[];
+  for(const block of text.matchAll(/\{([^{}]*)\}/g)) {
+    const entity={outputs:[]};
+    for(const pair of block[1].matchAll(/"([^"\r\n]+)"\s*"([^"\r\n]*)"/g)) {
+      const [,key,value]=pair;
+      if(key.startsWith('On'))entity.outputs.push({event:key,value});
+      else entity[key]=value;
+    }
+    entities.push(entity);
+  }
+  return entities;
+}
+
+// ZIP contents stay in memory. Never extract paths or run embedded scripts.
+async function unpackSourceArchive(input) {
+  const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
+  if(bytes.length>180*1024*1024)throw Error('Map files must be smaller than 180 MB.');
+  if(sourceText.decode(bytes.subarray(0,4))==='VBSP')return bytes;
+  const {unzipSync}=await import('./vendor/fflate.module.js');
+  let selected=false;
+  const files=unzipSync(bytes,{filter:file=>{
+    if(!selected&&/\.bsp$/i.test(file.name)) {
+      if(file.originalSize>180*1024*1024)throw Error('The map inside this archive is too large.');
+      selected=true;return true;
+    }
+    return false;
+  }});
+  const map=Object.values(files)[0];
+  if(!map)throw Error('Choose a Source .bsp map or a .zip containing one.');
+  return map;
+}
+
+async function loadSourceMap(input,options={}) {
+  const bytes=await unpackSourceArchive(input);
+  const map=parseSourceBsp(bytes,options);
+  const {unzipSync}=await import('./vendor/fflate.module.js');
+  let assetBytes=0;
+  const assets=unzipSync(map.pak,{filter:f=>{
+    if(!/^materials\//i.test(f.name)||!/\.(vmt|vtf)$/i.test(f.name)||f.originalSize>=16*1024*1024)return false;
+    assetBytes+=f.originalSize;if(assetBytes>128*1024*1024)throw Error('This map contains too many texture assets.');return true;
+  }});
+  const files=new Map(Object.entries(assets).map(([k,v])=>[k.replace(/\\/g,'/').toLowerCase(),v]));
+  for(const material of map.materials) {
+    const vmt=files.get('materials/'+material.name.toLowerCase()+'.vmt');
+    const text=vmt?sourceText.decode(vmt):'';
+    const texture=/"?\$basetexture"?\s+"?([^"\r\n}]+)"?/i.exec(text)?.[1].trim().replace(/\\/g,'/');
+    material.translucent=/\$(translucent|alphatest)"?\s+"?1/i.test(text);
+    material.unlit=/unlitgeneric|\$selfillum"?\s+"?1/i.test(text);
+    const vtf=files.get('materials/'+(texture||material.name).toLowerCase()+'.vtf');
+    if(vtf)try{material.image=decodeSourceTexture(vtf);}catch{/* Reflectivity is the fallback for unsupported textures. */}
+  }
+  delete map.pak;
+  return map;
+}
+
+function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null}={}) {
+  const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
+  if(bytes.length<1036||sourceText.decode(bytes.subarray(0,4))!=='VBSP')throw Error('This is not a Source 1 BSP map.');
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const i32=o=>view.getInt32(o,true),u16=o=>view.getUint16(o,true),i16=o=>view.getInt16(o,true),f32=o=>view.getFloat32(o,true);
+  const version=i32(4);
+  if(![19,20].includes(version))throw Error('This importer supports Counter-Strike: Source BSP versions 19 and 20.');
+  const lumps=Array.from({length:64},(_,i)=>{
+    const o=8+i*16,offset=i32(o),length=i32(o+4),version=i32(o+8);
+    if(offset<0||length<0||offset+length>bytes.length)throw Error('The BSP contains an invalid section.');
+    if(length&&sourceText.decode(bytes.subarray(offset,offset+4))==='LZMA')throw Error('This BSP has compressed sections. Use an uncompressed CS:S release.');
+    return {offset,length,version};
+  });
+  const records=(index,size,read)=>{
+    const {offset,length}=lumps[index];
+    if(length%size||length/size>1000000)throw Error('The BSP has an unsupported section layout.');
+    return Array.from({length:length/size},(_,i)=>read(offset+i*size,i));
+  };
+  const vec=o=>[f32(o),f32(o+4),f32(o+8)];
+  const entities=parseSourceEntities(sourceText.decode(bytes.subarray(lumps[0].offset,lumps[0].offset+lumps[0].length)));
+  const planes=records(1,20,o=>({normal:sourcePoint(vec(o)),distance:f32(o+12)}));
+  const vertices=records(3,12,o=>vec(o));
+  const texinfo=records(6,72,o=>({u:[...vec(o),f32(o+12)],v:[...vec(o+16),f32(o+28)],flags:i32(o+64),material:i32(o+68)}));
+  const stringData=bytes.subarray(lumps[43].offset,lumps[43].offset+lumps[43].length);
+  const strings=records(44,4,o=>{const start=i32(o);let end=start;while(end<stringData.length&&stringData[end])end++;return sourceText.decode(stringData.subarray(start,end));});
+  const materials=records(2,32,o=>({name:strings[i32(o+12)]||'unknown',colour:vec(o).map(v=>Math.max(.12,Math.min(1,Math.sqrt(Math.max(0,v))))),width:i32(o+16)||1,height:i32(o+20)||1}));
+  const faces=records(7,56,o=>({plane:u16(o),side:bytes[o+2],first:i32(o+4),count:i16(o+8),texture:i16(o+10)}));
+  const edges=records(12,4,o=>[u16(o),u16(o+2)]),surfedges=records(13,4,o=>i32(o));
+  const models=records(14,48,o=>({min:sourcePoint(vec(o)),max:sourcePoint(vec(o+12)),head:i32(o+36),first:i32(o+40),count:i32(o+44)}));
+  const nodes=records(5,32,o=>[i32(o+4),i32(o+8)]);
+  const leaves=records(10,lumps[10].version===0?56:32,o=>({first:u16(o+24),count:u16(o+26)}));
+  const leafbrushes=records(17,2,o=>u16(o));
+  const sides=records(19,8,o=>u16(o));
+  const brushes=records(18,12,o=>({first:i32(o),count:i32(o+4),contents:i32(o+8)}));
+  for(const model of models)for(let axis=0;axis<3;axis++)[model.min[axis],model.max[axis]]=[Math.min(model.min[axis],model.max[axis]),Math.max(model.min[axis],model.max[axis])];
+  function modelBrushes(index) {
+    const found=new Set(),visited=new Set(),pending=[models[index]?.head];
+    while(pending.length) {
+      const n=pending.pop();if(n===undefined||visited.has(n))continue;visited.add(n);
+      if(n<0){const leaf=leaves[-n-1];if(leaf)for(let i=0;i<leaf.count;i++)found.add(leafbrushes[leaf.first+i]);}
+      else if(nodes[n])pending.push(...nodes[n]);
+    }
+    return found;
+  }
+  function collisionBrush(index,offset=[0,0,0]) {
+    const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
+    const boundary=sides.slice(brush.first,brush.first+brush.count).map(p=>planes[p]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
+    if(boundary.some(p=>!p||!Number.isFinite(p.distance)))throw Error('Invalid collision planes.');
+    const min=[-Infinity,-Infinity,-Infinity],max=[Infinity,Infinity,Infinity];
+    for(const p of boundary)for(let a=0;a<3;a++)if(Math.abs(Math.abs(p.normal[a])-1)<1e-5&&p.normal.every((n,i)=>i===a||Math.abs(n)<1e-5)) {
+      if(p.normal[a]>0)max[a]=Math.min(max[a],p.distance);else min[a]=Math.max(min[a],-p.distance);
+    }
+    if([...min,...max].some(n=>!Number.isFinite(n))||min.some((n,i)=>n>=max[i]))return null;
+    return {min,max,planes:boundary};
+  }
+  const modelEntities=new Map(entities.filter(e=>/^\*\d+$/.test(e.model||'')).map(e=>[Number(e.model.slice(1)),e]));
+  const modelOffset=index=>index?sourcePoint(sourceVector(modelEntities.get(index)?.origin)):[0,0,0];
+  const entityBounds=e=>{
+    const index=Number(e.model.slice(1)),model=models[index];if(!model)return null;
+    const offset=modelOffset(index);return {min:model.min.map((n,i)=>n+offset[i]),max:model.max.map((n,i)=>n+offset[i])};
+  };
+  const solidModels=new Set([0]);
+  for(const [index,e] of modelEntities)if(['func_brush','func_wall','func_button','func_door','func_breakable','func_detail'].includes(e.classname)&&e.StartDisabled!=='1'&&e.Solidity!=='1')solidModels.add(index);
+  const boxes=[];for(const index of solidModels)for(const b of modelBrushes(index)){const brush=collisionBrush(b,modelOffset(index));if(brush)boxes.push(brush);}
+  if(!boxes.length)throw Error('No supported solid geometry was found in this map.');
+  const batches=new Map();
+  // Trigger volumes are invisible. Their model geometry must not become walls.
+  for(let index=0;index<models.length;index++) {
+    const model=models[index],e=modelEntities.get(index),offset=modelOffset(index);
+    if(index&&(!e||e.classname.startsWith('trigger_')||e.StartDisabled==='1'))continue;
+    if(index&&!solidModels.has(index)&&!['func_illusionary','func_rotating'].includes(e.classname))continue;
+    for(let f=model.first;f<model.first+model.count;f++) {
+      const face=faces[f],tex=texinfo[face?.texture];
+      if(!tex||face.count<3||(tex.flags&(0x80|0x4|0x2))||!materials[tex.material]||/^tools\//i.test(materials[tex.material].name))continue;
+      const normal=planes[face.plane]?.normal||[0,1,0];
+      const shade=.7+.3*Math.max(0,normal[1]*(face.side?-1:1));
+      let batch=batches.get(tex.material);if(!batch)batches.set(tex.material,batch=[]);
+      const polygon=[];
+      for(let j=0;j<face.count;j++) {
+        const edge=surfedges[face.first+j],v=vertices[edges[Math.abs(edge)]?.[edge>=0?0:1]];
+        if(!v)throw Error('Invalid map face.');
+        polygon.push([...sourcePoint(v).map((n,i)=>n+offset[i]),(v[0]*tex.u[0]+v[1]*tex.u[1]+v[2]*tex.u[2]+tex.u[3])/materials[tex.material].width,(v[0]*tex.v[0]+v[1]*tex.v[1]+v[2]*tex.v[2]+tex.v[3])/materials[tex.material].height,shade]);
+      }
+      for(let j=1;j<polygon.length-1;j++)batch.push(...polygon[0],...polygon[j],...polygon[j+1]);
+    }
+  }
+  const mesh=[...batches].map(([material,data])=>({material,data:new Float32Array(data)}));
+  const destinations=new Map(entities.filter(e=>e.classname==='info_teleport_destination').map(e=>[e.targetname,sourceSpawn(e)]));
+  const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>e.classname==='info_player_terrorist'||e.classname==='info_player_start')||{origin:'0 0 0'});
+  const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
+  const spawns=targets.map(name=>({...destinations.get(name)||initial}));
+  const stages=targets.map((name,i)=>({title:stageTargets?'Section '+name.toUpperCase():title,tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name}));
+  const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap(e=>{
+    const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];
+  });
+  const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
+  const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
+  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,finish:destinations.get('end'),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  boxes.sourceMap=sourceMap;
+  // Keep the broadphase near the player; full maps contain thousands of brushes.
+  const cells=new Map(),cellSize=512,large=[];
+  for(const b of boxes) {
+    const x0=Math.floor(b.min[0]/cellSize),x1=Math.floor(b.max[0]/cellSize),z0=Math.floor(b.min[2]/cellSize),z1=Math.floor(b.max[2]/cellSize);
+    if((x1-x0+1)*(z1-z0+1)>256){large.push(b);continue;}
+    for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){const key=x+','+z;if(!cells.has(key))cells.set(key,[]);cells.get(key).push(b);}
+  }
+  boxes.nearby=(p,dt=.004)=>{
+    const pad=80+Math.max(Math.abs(p.vx),Math.abs(p.vz))*dt*2,found=new Set(large);
+    for(let x=Math.floor((p.x-pad)/cellSize);x<=Math.floor((p.x+pad)/cellSize);x++)for(let z=Math.floor((p.z-pad)/cellSize);z<=Math.floor((p.z+pad)/cellSize);z++)for(const b of cells.get(x+','+z)||[])if(p.y+80>=b.min[1]&&p.y+Math.min(0,p.vy*dt)-24<=b.max[1])found.add(b);
+    return [...found];
+  };
+  return sourceMap;
+}
+
+// Decode DXT1 / DXT5 VTF textures at a bounded mip level for WebGL 1.
+function decodeSourceTexture(bytes,maxSize=512) {
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  if(sourceText.decode(bytes.subarray(0,4))!=='VTF\0')throw Error('Invalid VTF.');
+  const u16=o=>view.getUint16(o,true),u32=o=>view.getUint32(o,true);
+  let width=u16(16),height=u16(18);const format=u32(52),mips=bytes[56],frames=u16(24)||1;
+  if(![13,15].includes(format)||width>8192||height>8192||!width||!height||mips<1||mips>14||frames>64)throw Error('Unsupported VTF texture.');
+  const blockBytes=format===13?8:16,size=(w,h)=>Math.max(1,Math.ceil(w/4))*Math.max(1,Math.ceil(h/4))*blockBytes;
+  const lowW=bytes[61],lowH=bytes[62],lowFormat=u32(57);
+  let offset=u32(12)+(lowW&&lowH?(lowFormat===13?8:16)*Math.ceil(lowW/4)*Math.ceil(lowH/4):0);
+  // Newer VTFs may locate image data through their resource table.
+  if(u32(8)>=3&&bytes.length>=80){const count=u32(68);if(count>128)throw Error('Invalid VTF resource table.');for(let i=0;i<count;i++){const o=80+i*8;if(o+8<=bytes.length&&bytes[o]===0x30&&bytes[o+1]===0&&bytes[o+2]===0)offset=u32(o+4);}}
+  let level=0;while((width>>level)>maxSize||(height>>level)>maxSize)level++;
+  for(let mip=mips-1;mip>level;mip--)offset+=size(Math.max(1,width>>mip),Math.max(1,height>>mip))*frames;
+  width=Math.max(1,width>>level);height=Math.max(1,height>>level);
+  if(offset+size(width,height)>bytes.length)throw Error('Truncated VTF.');
+  const rgba=new Uint8Array(width*height*4),rgb565=n=>[(n>>11)*255/31,((n>>5)&63)*255/63,(n&31)*255/31];
+  for(let y=0;y<height;y+=4)for(let x=0;x<width;x+=4) {
+    const alpha=format===15,colourOffset=offset+(alpha?8:0),c0=u16(colourOffset),c1=u16(colourOffset+2),a=rgb565(c0),b=rgb565(c1);
+    const colours=[a,b,c0>c1||alpha?a.map((v,i)=>(2*v+b[i])/3):a.map((v,i)=>(v+b[i])/2),c0>c1||alpha?a.map((v,i)=>(v+2*b[i])/3):[0,0,0]];
+    const codes=u32(colourOffset+4),alphas=alpha?[bytes[offset],bytes[offset+1]]:[255,255];
+    if(alpha){if(alphas[0]>alphas[1])for(let i=1;i<=6;i++)alphas.push(((7-i)*alphas[0]+i*alphas[1])/7);else{for(let i=1;i<=4;i++)alphas.push(((5-i)*alphas[0]+i*alphas[1])/5);alphas.push(0,255);}}
+    for(let p=0;p<16;p++) {
+      const px=x+p%4,py=y+(p>>2);if(px>=width||py>=height)continue;
+      const c=(codes>>>(p*2))&3,d=(py*width+px)*4;
+      rgba.set(colours[c].map(Math.round),d);
+      const bit=p*3,word=alpha?(bytes[offset+2+(bit>>3)]|((bytes[offset+3+(bit>>3)]||0)<<8)):0;
+      rgba[d+3]=alpha?alphas[(word>>(bit&7))&7]:c===3&&c0<=c1?0:255;
+    }
+    offset+=blockBytes;
+  }
+  return {width,height,rgba};
+}
+
+// Interpret movement entities only; map strings are never executable code.
+function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
+  let enter=0,exit=1;
+  for(const [axis,key] of ['x','y','z'].entries()) {
+    const low=box.min[axis]-(axis===1?height:radius),high=box.max[axis]+(axis===1?0:radius),delta=to[key]-from[key];
+    if(Math.abs(delta)<1e-9){if(from[key]<=low||from[key]>=high)return null;}
+    else{const a=(low-from[key])/delta,b=(high-from[key])/delta;enter=Math.max(enter,Math.min(a,b));exit=Math.min(exit,Math.max(a,b));if(enter>exit)return null;}
+  }
+  return {enter,exit};
+}
+
+function createSourceRuntime(map) {
+  const named=new Map();
+  for(const e of map.entities)if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
+  let disabled,time,actorName,pending,inside,cooldown,current,finished;
+  const matches=(pattern,value)=>pattern==='*'||pattern===value||pattern.endsWith('*')&&value.startsWith(pattern.slice(0,-1));
+  function filter(name,depth=0) {
+    if(!name)return true;if(depth>10)return false;
+    const e=named.get(name)?.[0];if(!e)return false;
+    let pass=false;
+    if(e.classname==='filter_activator_name')pass=matches(e.filtername||'',actorName);
+    else if(e.classname==='filter_activator_class')pass=matches(e.filterclass||'','player');
+    else if(e.classname==='filter_multi'){
+      const results=Object.entries(e).filter(([k])=>/^Filter\d+$/i.test(k)).map(([,v])=>filter(v,depth+1));
+      pass=e.filtertype==='1'?results.some(Boolean):results.every(Boolean);
+    }
+    return e.Negated==='1'?!pass:pass;
+  }
+  function execute(output) {
+    const [target,input,parameter]=output.split(/\x1b|,/);
+    if(target==='!activator'&&input==='AddOutput'){
+      const match=/^targetname\s+(.+)$/i.exec(parameter);if(match)actorName=match[1];
+    } else if(input==='Enable'||input==='Disable'){
+      for(const e of named.get(target)||[])if(input==='Enable')disabled.delete(e.hammerid);else disabled.add(e.hammerid);
+    }
+    // Ignore Source console commands, filesystem requests and other inputs.
+  }
+  function fire(entity,event) {
+    for(const output of entity.outputs||[])if(output.event===event) {
+      const pieces=output.value.split(/\x1b|,/),delay=Math.max(0,Number(pieces[3])||0);
+      if(delay)pending.push({at:time+delay,value:output.value});else execute(output.value);
+    }
+  }
+  function reset(stage=0) {
+    disabled=new Set(map.triggers.filter(t=>t.StartDisabled==='1').map(t=>t.hammerid));
+    time=0;actorName='';pending=[];inside=new Set();cooldown=0;current=stage;finished=false;
+  }
+  reset();
+  return {reset,get stage(){return current;},get actorName(){return actorName;},
+    interact(player) {
+      const eye={x:player.x,y:player.y+64,z:player.z},cp=Math.cos(player.pitch);
+      const end={x:eye.x+Math.sin(player.yaw)*cp*110,y:eye.y+Math.sin(player.pitch)*110,z:eye.z-Math.cos(player.yaw)*cp*110};
+      for(const button of map.buttons)if(sourceTriggerCrossing(eye,end,button,0,0)) {fire(button,'OnDamaged');fire(button,'OnPressed');return true;}
+      return false;
+    },
+    step(player,previous,dt) {
+      time+=dt;cooldown=Math.max(0,cooldown-dt);
+      const due=pending.filter(p=>p.at<=time);pending=pending.filter(p=>p.at>time);for(const p of due)execute(p.value);
+      const touching=new Set(),events=[];
+      for(const trigger of map.triggers) {
+        if(disabled.has(trigger.hammerid)||!sourceTriggerCrossing(previous,player,trigger,player.ducked?54:72))continue;
+        touching.add(trigger.hammerid);
+        if(!filter(trigger.filtername))continue;
+        if(trigger.classname==='trigger_multiple'){
+          if(!inside.has(trigger.hammerid)){fire(trigger,'OnStartTouch');fire(trigger,'OnStartTouchAll');fire(trigger,'OnTrigger');}
+        } else if(trigger.classname==='trigger_push'){
+          const [pitch,yaw]=(trigger.pushdir||'0 0 0').split(/\s+/).map(v=>Number(v)*Math.PI/180),force=(Number(trigger.speed)||0)*dt;
+          player.vx+=Math.cos(pitch)*Math.cos(yaw)*force;player.vy-=Math.sin(pitch)*force;player.vz-=Math.cos(pitch)*Math.sin(yaw)*force;
+        } else if(trigger.classname==='trigger_teleport'&&!cooldown){
+          const destination=map.destinations.get(trigger.target);
+          if(destination){Object.assign(player,destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ducked:false,duckAmount:0});cooldown=.08;actorName='';pending=[];events.push({type:'teleport',target:trigger.target});break;}
+        }
+      }
+      inside=touching;
+      for(let i=current+1;i<map.spawns.length;i++){
+        const s=map.spawns[i];if(Math.hypot(player.x-s.x,player.z-s.z)<88&&Math.abs(player.y-s.y)<70){current=i;events.push({type:'checkpoint',stage:i});break;}
+      }
+      if(map.finish&&!finished&&current===map.spawns.length-1&&Math.hypot(player.x-map.finish.x,player.z-map.finish.z)<112&&Math.abs(player.y-map.finish.y)<100){finished=true;events.push({type:'finish'});}
+      return events;
+    },
+  };
+}
+
+// Textured BSP faces use the game's WebGL context and camera.
+function createSourceRenderer(gl) {
+  const vertex=`attribute vec3 aPosition;attribute vec2 aUV;attribute float aShade;
+    uniform vec3 uEye;uniform vec2 uAngles;uniform vec2 uScale;
+    varying vec2 vUV;varying float vShade;varying float vDistance;
+    void main(){vec3 p=aPosition-uEye;float cy=cos(uAngles.x),sy=sin(uAngles.x),cp=cos(uAngles.y),sp=sin(uAngles.y);
+      float right=p.x*cy+p.z*sy,forward=p.x*sy-p.z*cy;
+      float up=p.y*cp-forward*sp,depth=forward*cp+p.y*sp;
+      gl_Position=vec4(right*uScale.x,up*uScale.y,1.0001*depth-2.0001,depth);
+      vUV=aUV;vShade=aShade;vDistance=length(p);}`;
+  const fragment=`precision mediump float;uniform sampler2D uTexture;uniform vec3 uColour;uniform float uTextured;uniform float uUnlit;
+    varying vec2 vUV;varying float vShade;varying float vDistance;
+    void main(){vec4 tex=mix(vec4(uColour,1.0),texture2D(uTexture,vUV),uTextured);if(tex.a<.35)discard;
+      gl_FragColor=vec4(tex.rgb*mix(vShade,1.0,uUnlit)*(1.0-smoothstep(9000.0,18000.0,vDistance)),1.0);}`;
+  const shader=(type,text)=>{const s=gl.createShader(type);gl.shaderSource(s,text);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;};
+  const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+  const attributes=[['aPosition',3,0],['aUV',2,12],['aShade',1,20]].map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
+  const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTexture','uColour','uTextured','uUnlit'].map(n=>[n,gl.getUniformLocation(program,n)]));
+  let current=null,batches=[];
+  const white=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,white);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
+  return {
+    setMap(map) {
+      if(map===current)return;
+      for(const b of batches){gl.deleteBuffer(b.buffer);if(b.texture!==white)gl.deleteTexture(b.texture);}batches=[];current=map;
+      for(const mesh of map.mesh){
+        const material=map.materials[mesh.material],buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,mesh.data,gl.STATIC_DRAW);
+        let texture=white;
+        if(material.image){
+          const image=material.image;texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);
+          gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,image.width,image.height,0,gl.RGBA,gl.UNSIGNED_BYTE,image.rgba);
+          const pot=n=>(n&(n-1))===0;
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,pot(image.width)&&pot(image.height)?gl.REPEAT:gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,pot(image.width)&&pot(image.height)?gl.REPEAT:gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+        }
+        batches.push({buffer,texture,material,count:mesh.data.length/6});
+      }
+    },
+    draw(p,scaleX,scaleY) {
+      gl.useProgram(program);gl.uniform3f(uniforms.uEye,p.x,p.y+64-p.duckAmount*18,p.z);gl.uniform2f(uniforms.uAngles,p.yaw,p.pitch);gl.uniform2f(uniforms.uScale,scaleX,scaleY);gl.uniform1i(uniforms.uTexture,0);gl.activeTexture(gl.TEXTURE0);
+      for(const a of attributes)gl.enableVertexAttribArray(a.loc);
+      for(const batch of batches){
+        gl.bindBuffer(gl.ARRAY_BUFFER,batch.buffer);for(const a of attributes)gl.vertexAttribPointer(a.loc,a.count,gl.FLOAT,false,24,a.offset);
+        gl.bindTexture(gl.TEXTURE_2D,batch.texture);gl.uniform3f(uniforms.uColour,...batch.material.colour);gl.uniform1f(uniforms.uTextured,batch.material.image?1:0);gl.uniform1f(uniforms.uUnlit,batch.material.unlit?1:0);gl.drawArrays(gl.TRIANGLES,0,batch.count);
+      }
+      for(const a of attributes)gl.disableVertexAttribArray(a.loc);
+    },
+  };
+}
+
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 function verticalFov(fov = 100) {
@@ -988,7 +1389,7 @@ function createRenderer(canvas, boxes) {
     if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
     skybox=next;
   }
-  let vertices = [], count = 0, currentBoxes = boxes;
+  let vertices = [], count = 0, currentBoxes = boxes, sourceRenderer=null;
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
     const key=target?[...target.min,...target.max].join(','):'';
@@ -1027,6 +1428,7 @@ function createRenderer(canvas, boxes) {
   }
   function setBoxes(next) {
     currentBoxes = next; vertices=[];
+    if(next.sourceMap){sourceRenderer??=createSourceRenderer(gl);sourceRenderer.setMap(next.sourceMap);count=0;return;}
     for(const b of next) {
       if(b.ladder) {
         const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
@@ -1074,7 +1476,9 @@ function createRenderer(canvas, boxes) {
       skyRenderer.draw(p,scaleX,f,preset);
       for(const {loc} of attributes)gl.enableVertexAttribArray(loc);
     }
+    if(currentBoxes.sourceMap){sourceRenderer.draw(p,scaleX,f);return;}
     gl.useProgram(program);
+    for(const {loc} of attributes)gl.enableVertexAttribArray(loc);
     const height=64-p.duckAmount*18;
     gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
     gl.uniform3f(fogEye,p.x,p.y+height,p.z);
@@ -1482,6 +1886,7 @@ catch (error) {
 }
 let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
 let endless = null;
+let sourceRuntime=null,sourceLoadGeneration=0,sourceLoadController=null;
 let menuMode='main', mainView='home', slideshow=null, capturedMaps=0, screenshotCanvas=null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 1, fov = 100;
@@ -1610,6 +2015,7 @@ function reset(full=true) {
   }
   const previousPeak=player.peakSpeed;
   player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
+  sourceRuntime?.reset(checkpoint);
   if(endless) {
     endless.update(player);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
@@ -1705,8 +2111,11 @@ function choosePreset(value,resetRun=true) {
 }
 function chooseMap(value,resetRun=true) {
   if(!Object.hasOwn(MAPS,value)) return;
+  sourceLoadGeneration++;sourceLoadController?.abort();
+  $('source-map-status').textContent='Community maps download when selected. Local imports stay on your device.';
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
+  sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
   const selected=MAPS[map], count=selected.spawns.length-1;
   $('selected-map-title').textContent=selected.title;
   $('pause-map').textContent=selected.title+' / '+PRESETS[preset].title;
@@ -1717,12 +2126,46 @@ function chooseMap(value,resetRun=true) {
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
-  $('map-meta').textContent=selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
+  $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
+  $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}${selected.textureAuthor?' · Textures: '+selected.textureAuthor:''}. Browser compatibility: main route, original textures and movement triggers; some Source-only props and bonus scripts are unavailable.`:'';
+  $('map-source-link').classList.toggle('hidden',!selected.source);
+  if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=selected.id!=='course';
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
   saveSettings(); updateHud();
+}
+async function selectCommunityMap(metadata,file=null) {
+  if(playing||lockPending)pause();
+  if(MAPS[metadata.id]&&!file){chooseMap(metadata.id);return;}
+  sourceLoadController?.abort();const generation=++sourceLoadGeneration;
+  const controller=new AbortController();sourceLoadController=controller;
+  const status=$('source-map-status');status.textContent=`Loading ${metadata.title}…`;
+  $('import-source-map').disabled=true;
+  try {
+    let input;
+    if(file){if(file.size>180*1024*1024)throw Error('Map files must be smaller than 180 MB.');input=await file.arrayBuffer();}
+    else{
+      const response=await fetch(metadata.archive,{signal:controller.signal});
+      if(!response.ok)throw Error('The map download failed. Select the map to retry.');
+      const total=Number(response.headers.get('content-length'))||0;
+      if(total>180*1024*1024)throw Error('This map archive is too large.');
+      if(response.body?.getReader){
+        const reader=response.body.getReader(),chunks=[];let received=0;
+        while(true){const {done,value}=await reader.read();if(done)break;received+=value.length;if(received>180*1024*1024){await reader.cancel();throw Error('This map archive is too large.');}chunks.push(value);status.textContent=`Loading ${metadata.title} · ${(received/1048576).toFixed(1)}${total?' / '+(total/1048576).toFixed(1):''} MB`;}
+        input=new Uint8Array(received);let offset=0;for(const chunk of chunks){input.set(chunk,offset);offset+=chunk.length;}
+      } else input=await response.arrayBuffer();
+    }
+    if(generation!==sourceLoadGeneration)return;
+    status.textContent=`Preparing ${metadata.title}…`;
+    const imported=await loadSourceMap(input,metadata);
+    if(generation!==sourceLoadGeneration)return;
+    MAPS[metadata.id]={id:metadata.id,title:metadata.title,timed:!!imported.finish,community:true,author:metadata.author,textureAuthor:metadata.textures,source:metadata.source,
+      description:metadata.author?'The original community map by '+metadata.author+'.':'A locally imported Source map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+    chooseMap(metadata.id);status.textContent=`${metadata.title} ready. Choose Bhop practice for uncapped movement.`;
+  } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
+  finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
 function finishRun() {
   if(completed)return;
@@ -1736,6 +2179,7 @@ function finishRun() {
   $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
   $('finish-time').textContent=format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
+  $('finish-leaderboard').classList.toggle('hidden',map!=='course');
   gameAudio?.finish();
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
 }
@@ -1752,7 +2196,7 @@ function updateHud() {
   ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');
   const selected=MAPS[map], currentStage=selected.stages[selected.endless?0:checkpoint];
-  ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:'SANDBOX';
+  ui['progress-count'].textContent=selected.endless?`BLOCK ${endless?.furthestBlock||0}`:selected.timed?`${String(checkpoint+1).padStart(2,'0')} / ${String(selected.stages.length).padStart(2,'0')}`:selected.community?'IMPORTED MAP':'SANDBOX';
   ui['stage-name'].textContent=selected.endless?`${endless?.sectionTitle||'Endless'} · ${Math.floor(endless?.distance||0)} u`:currentStage.title;
   ui['stage-tip'].textContent=selected.endless?endless?.tip||currentStage.tip:currentStage.tip;
   document.querySelectorAll('.stages i').forEach((el,i)=>el.classList.toggle('active',i<=checkpoint));
@@ -1774,6 +2218,22 @@ function tick() {
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
   gameAudio?.movement(previousDraw,player,input);
+  if(sourceRuntime){
+    const first=MAPS[map].spawns[0];
+    if(!runActive&&Math.hypot(player.x-first.x,player.z-first.z)>96)runActive=true;
+    if(runActive)runTime+=DT;
+    for(const event of sourceRuntime.step(player,previousDraw,DT)){
+      if(event.type==='teleport'){
+        previousDraw={...player};
+        const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
+        if(runActive&&index<=checkpoint)respawns++;
+      }
+      if(event.type==='checkpoint'){checkpoint=event.stage;gameAudio?.checkpoint();toast(`SECTION ${MAPS[map].stages[checkpoint].target.toUpperCase()} SAVED — E TO RETURN`,true);}
+      if(event.type==='finish'){finishRun();return;}
+    }
+    if(player.y<boxes.sourceMap.killHeight){respawns++;reset(false);toast('BACK AT CHECKPOINT — TIMER CONTINUES');}
+    return;
+  }
   let timerStart=runActive?0:1, timerEnd=1, finished=false;
   if(!runActive) {
     const start=endless?endless.platform(0):boxes[0];
@@ -1865,6 +2325,16 @@ $('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-c
 $('map-grid').addEventListener('click',event=>{
   const card=event.target.closest('[data-map]');if(card)chooseMap(card.dataset.map);
 });
+$('community-map-grid').innerHTML=COMMUNITY_MAPS.map(m=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview"><img src="${m.thumbnail}" alt="${m.title}" loading="lazy"></span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>COMMUNITY</span>${m.author}</span></button>`).join('');
+$('community-map-grid').addEventListener('click',event=>{
+  const card=event.target.closest('[data-map]'),metadata=COMMUNITY_MAPS.find(m=>m.id===card?.dataset.map);if(metadata)void selectCommunityMap(metadata);
+});
+$('import-source-map').addEventListener('click',()=>$('source-map-file').click());
+$('source-map-file').addEventListener('change',()=>{
+  const file=$('source-map-file').files?.[0];if(file)void selectCommunityMap({id:'local-map',title:file.name.replace(/\.(bsp|zip)$/i,'').slice(0,80)},file);
+  $('source-map-file').value='';
+});
+document.addEventListener('pointerdown',event=>{if(playing&&(event.button===0||event.button===2))sourceRuntime?.interact(player);});
 $('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
 const slides=Array.from(document.querySelectorAll('.gallery-slide'));
 if(slides.length&&rendererReady)screenshotCanvas=document.createElement('canvas');
@@ -1990,6 +2460,8 @@ const requestedMap=new URLSearchParams(window.location?.search||'').get('course'
 chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
 syncLookSettings();captureButtons();showMain('home',false);
 reset();requestAnimationFrame(frame);
+const requestedCommunity=COMMUNITY_MAPS.find(m=>m.id===(requestedMap||settings.map));
+if(requestedCommunity)void selectCommunityMap(requestedCommunity);
 if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';
 
 </script>
