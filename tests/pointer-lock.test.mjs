@@ -9,6 +9,7 @@ import { verticalFov } from '../dist/renderer.js';
 import * as audioModule from '../dist/game-audio.js';
 import * as leaderboardModule from '../dist/leaderboard.js';
 import * as skyboxModule from '../dist/skybox.js';
+import * as menuModule from '../dist/menu.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -17,7 +18,7 @@ const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>matc
 function boot(stored = {}, search = '', renderError = null) {
   function element() {
     const listeners=new Map(),classes=new Set();
-    return {textContent:'',innerHTML:'',style:{setProperty(name,value){this[name]=value;}},disabled:false,
+    return {dataset:{},setAttribute(name,value){this[name]=value;},textContent:'',innerHTML:'',style:{setProperty(name,value){this[name]=value;}},disabled:false,
       classList:{add:k=>classes.add(k),remove:k=>classes.delete(k),
         contains:k=>classes.has(k),toggle:(k,on)=>on?classes.add(k):classes.delete(k)},
       addEventListener:(name,fn)=>listeners.set(name,fn),
@@ -36,7 +37,7 @@ function boot(stored = {}, search = '', renderError = null) {
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
-  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,document,window,
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,document,window,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
@@ -84,9 +85,9 @@ test('losing focus cancels a pending capture and a late grant cannot start play'
 });
 test('course select resets the run and renders the selected course and section count',()=>{
   const app=boot();
-  assert.match(app.element('map-select').innerHTML,/Needleworks/);
+  assert.match(app.element('map-grid').innerHTML,/Needleworks/);
   app.read("runTime=30;checkpoint=2;keys.add('Space')");
-  app.element('map-select').value='circuit';app.element('map-select').fire('change');
+  app.element('map-grid').fire('click',{target:{closest:()=>({dataset:{map:'circuit'}})}});
   assert.equal(app.read('map'),'circuit');assert.equal(app.read('runTime'),0);
   assert.equal(app.read('checkpoint'),0);assert.equal(app.read('keys.size'),0);
   assert.equal(app.element('progress-count').textContent,'01 / 04');
@@ -136,11 +137,11 @@ test('saved course restores its spawn and next-course button advances and captur
   app.lock();assert.equal(app.document.body.classList.contains('playing'),true);
 });
 test('every course is selectable and starts without requiring a previous completion',()=>{
-  for(const map of course.MAP_LIST) {
+  for(const map of course.MAP_LIST.filter(m=>m.timed)) {
     const app=boot();
-    assert.ok(app.element('map-select').innerHTML.includes(`value="${map.id}"`));
-    assert.ok(!app.element('map-select').innerHTML.includes('disabled'));
-    app.element('map-select').value=map.id;app.element('map-select').fire('change');
+    assert.ok(app.element('map-grid').innerHTML.includes(`data-map="${map.id}"`));
+    assert.ok(!app.element('map-grid').innerHTML.includes('disabled'));
+    app.element('map-grid').fire('click',{target:{closest:()=>({dataset:{map:map.id}})}});
     app.element('play').fire('click');app.lock();
     assert.equal(app.read('playing'),true,map.title);
     app.read("keys.add('KeyW');for(let i=0;i<64;i++)tick()");
@@ -220,8 +221,8 @@ test('the dedicated Endless button starts play directly and the Endless link ove
   const app=boot();app.element('play-endless').fire('click');
   assert.equal(app.read('map'),'endless');assert.equal(app.requests(),1);
   app.lock();assert.equal(app.read('playing'),true);
-  app.read('runTime=12;pause()');app.element('play-endless').fire('click');app.lock();
-  assert.equal(app.read('runTime'),12,'the button resumes an existing endless run');
+  app.read('runTime=12;pause()');app.element('continue').fire('click');app.lock();
+  assert.equal(app.read('runTime'),12,'Continue resumes the paused endless run');
   const linked=boot({'movement-lab-settings-v1':JSON.stringify({map:'skyline'})},'?course=endless');
   assert.equal(linked.read('map'),'endless');
   const invalid=boot({},'?course=invalid');assert.equal(invalid.read('map'),'course');
@@ -230,8 +231,8 @@ test('the published entry page contains the complete build and visible Endless b
   const entry=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const standalone=readFileSync(new URL('../movement-lab.html',import.meta.url),'utf8');
   assert.equal(entry,standalone);
-  assert.match(entry,/<button id="play-endless"[^>]*>PLAY ENDLESS/);
-  assert.match(entry,/<option value="endless">Endless<\/option>/);
+  assert.match(entry,/<button id="play-endless"[^>]*>[\s\S]*?<strong>ENDLESS<\/strong>/);
+  assert.match(entry,/<div id="map-grid"/);
   assert.ok(!/<script[^>]+src=/.test(entry),'the entry point must not combine separately cached app modules');
   const script=entry.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
   new vm.Script(script);
@@ -426,4 +427,73 @@ test('unknown saved skies fall back to black and settings remain usable without 
   const fallback=boot({},'',new Error('No graphics'));
   fallback.element('skybox-select').value='midnight';fallback.element('skybox-select').fire('change');
   assert.equal(JSON.parse(fallback.storage.get('movement-lab-settings-v1')).skybox,'midnight');
+});
+
+test('main navigation opens map selection and full settings, while Escape returns home',()=>{
+  const app=boot();
+  assert.equal(app.read('menuMode'),'main');assert.equal(app.read('mainView'),'home');
+  assert.equal(app.element('pause-menu').classList.contains('hidden'),true);
+  app.element('open-map-select').fire('click');
+  assert.equal(app.read('mainView'),'maps');assert.equal(app.requests(),0);
+  assert.equal(app.element('maps-view').classList.contains('hidden'),false);
+  assert.equal(app.element('home-view').classList.contains('hidden'),true);
+  app.element('maps-back').fire('click');app.element('open-settings').fire('click');
+  assert.equal(app.read('mainView'),'settings');
+  app.document.fire('keydown',{code:'Escape'});assert.equal(app.read('mainView'),'home');
+});
+test('Continue preserves a paused run and Back to Main clears the run and input',()=>{
+  const app=boot();app.element('play').fire('click');app.lock();
+  app.read("runTime=19;checkpoint=1;runActive=true;respawns=2;keys.add('KeyW')");
+  app.document.fire('keydown',{code:'Escape'});
+  assert.equal(app.read('menuMode'),'pause');assert.equal(app.read('runTime'),19);
+  assert.equal(app.element('main-menu').classList.contains('hidden'),true);
+  assert.equal(app.element('pause-menu').classList.contains('hidden'),false);
+  app.element('continue').fire('click');app.lock();
+  assert.equal(app.read('checkpoint'),1);assert.equal(app.read('runTime'),19);
+  app.document.fire('keydown',{code:'Escape'});app.element('back-to-main').fire('click');
+  assert.equal(app.read('menuMode'),'main');assert.equal(app.read('mainView'),'home');
+  for(const expr of ['runTime','checkpoint','respawns','keys.size'])assert.equal(app.read(expr),0,expr);
+  for(const expr of ['started','runActive','playing','lockPending','completed'])assert.equal(app.read(expr),false,expr);
+  assert.equal(app.document.pointerLockElement,null);
+  assert.equal(app.read('player.z'),course.MAPS.course.spawns[0].z);
+  app.element('open-map-select').fire('click');app.element('play').fire('click');app.lock();
+  assert.equal(app.read('runTime'),0);assert.equal(app.read('checkpoint'),0);
+});
+test('Sandbox launches directly, and Play returns to scored map selection',()=>{
+  const app=boot();app.element('play-sandbox').fire('click');
+  assert.equal(app.requests(),1);assert.equal(app.read('map'),'free');
+  app.lock();assert.equal(app.read('playing'),true);
+  app.document.fire('keydown',{code:'Escape'});app.element('back-to-main').fire('click');
+  app.element('open-map-select').fire('click');
+  assert.equal(app.read('map'),'course');assert.equal(app.read('mainView'),'maps');
+});
+test('main and pause look settings stay synchronized and persist',()=>{
+  const app=boot();
+  app.element('pause-sensitivity').value='1.75';app.element('pause-sensitivity').fire('input');
+  app.element('pause-fov').value='112';app.element('pause-fov').fire('input');
+  assert.equal(app.element('sensitivity').value,1.75);assert.equal(app.element('fov').value,112);
+  app.element('sensitivity').value='2.5';app.element('sensitivity').fire('input');
+  assert.equal(app.element('pause-sensitivity').value,2.5);
+  assert.equal(app.element('pause-sensitivity-value').textContent,'2.50×');
+  const restored=boot({'movement-lab-settings-v1':app.storage.get('movement-lab-settings-v1')});
+  assert.equal(restored.element('pause-fov').value,112);assert.equal(restored.read('sensitivity'),2.5);
+});
+test('settings from a completed course return to main without leaving a resumable run',()=>{
+  const app=boot();app.read('runTime=12;finishRun()');app.element('finish-settings').fire('click');
+  assert.equal(app.read('mainView'),'settings');assert.equal(app.read('started'),false);
+  assert.equal(app.read('completed'),false);assert.equal(app.read('runTime'),0);
+  assert.equal(app.element('finish').classList.contains('hidden'),true);
+});
+test('returning from Endless saves distance and clears the route for the next run',()=>{
+  const app=boot();app.element('play-endless').fire('click');app.lock();
+  app.read('player.z=-3210;endless.update(player,null);runTime=15;checkpoint=2;pause()');
+  app.element('back-to-main').fire('click');
+  assert.equal(app.read('endless.distance'),0);assert.equal(app.read('runTime'),0);
+  assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:classic'],3210);
+});
+test('Endless leaderboard keeps the selected course and a modal Escape does not change views',()=>{
+  const app=boot();app.element('open-map-select').fire('click');
+  app.read("chooseMap('needles')");app.element('endless-leaderboard').fire('click');
+  assert.equal(app.read('map'),'needles');assert.equal(app.read('leaderboardMap'),'endless');
+  app.document.fire('keydown',{code:'Escape'});assert.equal(app.read('mainView'),'maps');
 });

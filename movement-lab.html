@@ -130,16 +130,135 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
   #toast.checkpoint-notice { bottom: 13rem; }
 }
 
+/* Main menu: a left navigation column and real map screenshots on the right. */
+.overlay[data-menu=main] { background: #090a0b; }
+.main-menu { min-height: 100dvh; position: relative; isolation: isolate; }
+.main-panel.menu { width: min(39vw, 37rem); max-width: none; margin: 0 0 0 max(var(--edge), 5vw); padding: 3.5rem 0 2.5rem; }
+.main-menu-open .topbar, .main-menu-open .bottom-hud, .main-menu-open .run-stats, .main-menu-open #crosshair { visibility: hidden; }
+.menu-wordmark { display: flex; align-items: center; gap: 1rem; font-size: .75rem; font-weight: 600; letter-spacing: .12em; }
+.menu-wordmark small { display: block; margin-top: .375rem; color: #72777c; font-size: max(9px, .5rem); letter-spacing: .08em; font-weight: 400; }
+.main-panel .intro { margin: 1rem 0 0; color: #c7a988; }
+#home-view { padding-top: clamp(2rem, 9vh, 7rem); }
+#home-view > .eyebrow { letter-spacing: .2em; color: #7e868d; }
+.main-panel #menu-title { margin: 1rem 0 1.5rem; font-size: 6.5rem; line-height: .86; letter-spacing: -.02em; }
+.main-panel #menu-title span { color: #777d82; }
+.home-description { color: #8b9298; font-size: max(11px, .6875rem); line-height: 1.9; margin-bottom: 2.25rem; }
+.main-navigation { border-top: 1px solid #303438; }
+.main-navigation button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 1rem .25rem; border: 0; border-bottom: 1px solid #303438; background: transparent; text-align: left; transition: padding .2s, color .2s; font: 600 2.1rem 'Barlow Condensed', Impact, sans-serif; letter-spacing: .02em; }
+.main-navigation button small { display: inline-block; vertical-align: middle; width: 2.5rem; color: #697078; font: max(9px, .5625rem) 'IBM Plex Mono', monospace; }
+.main-navigation button b { font-family: sans-serif; font-size: 1.375rem; font-weight: 400; color: #858d95; }
+.main-navigation button:hover { padding-left: .75rem; color: #a6d9ff; background: #ffffff04; }
+.main-navigation button:hover b { color: #a6d9ff; }
+.menu-footnote { color: #555e66; font-size: max(9px, .5rem); letter-spacing: .13em; margin: 2rem 0 0; }
+.menu-gallery { position: fixed; inset: 0 0 0 46%; overflow: hidden; background: #111820; z-index: -1; }
+.gallery-slides, .gallery-shade, .gallery-slide { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gallery-slide { object-fit: cover; opacity: 0; transform: scale(1.05) translateX(-.7%); transition: opacity 1.4s ease, transform 8s ease-out; }
+.gallery-slide.is-active.is-ready { opacity: 1; transform: scale(1.13) translateX(.7%); }
+.gallery-shade { background: linear-gradient(90deg, #090a0b 0%, #090a0b30 18%, transparent 45%), linear-gradient(0deg, #05080ded, transparent 40%, #080d1422); pointer-events: none; }
+.gallery-caption { position: absolute; bottom: 3.5rem; left: 12%; right: 7%; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
+.gallery-caption .eyebrow { color: #a0b1c0; letter-spacing: .16em; }
+.gallery-caption h2 { margin: .625rem 0; font: 600 3.5rem/.95 'Barlow Condensed', Impact, sans-serif; text-transform: uppercase; }
+.gallery-caption p { color: #8b9aa7; font-size: max(10px, .625rem); line-height: 1.6; }
+.gallery-navigation { display: flex; align-items: center; gap: .375rem; padding-bottom: .75rem; }
+.gallery-navigation > span { white-space: nowrap; color: #899aa9; font-size: max(9px, .5625rem); margin-right: .625rem; }
+.gallery-navigation button { background: #0c141b80; border-color: #ffffff30; width: 2.5rem; height: 2.5rem; font-size: 1.125rem; }
+.gallery-navigation button:hover { border-color: #a6d9ff; }
+.menu-back { padding: .375rem 0; border: 0; background: none; color: #929ca5; font-size: max(10px, .5625rem); letter-spacing: .08em; }
+.menu-back:hover { color: #fff; background: none; }
+#maps-view, #settings-view { margin-top: 2rem; }
+.view-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .875rem 0 1.125rem; }
+.view-heading h2 { font: 700 3rem/.95 'Barlow Condensed', Impact, sans-serif; margin: 0; letter-spacing: -.01em; }
+.view-heading > .eyebrow { font-size: max(9px, .5rem); text-align: right; }
+.physics-setting { margin-bottom: 1rem; }
+.physics-setting .segmented { max-width: 23rem; }
+.physics-setting p { color: #737e87; font-size: max(9px, .5rem); margin: .5rem 0 0; }
+.map-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .625rem; }
+.map-card { min-width: 0; padding: 0 0 .625rem; text-align: left; border: 1px solid #30383f; background: #11161a; transition: border-color .18s, background .18s; }
+.map-card:hover { background: #19232b; border-color: #748a9c; }
+.map-card.selected { border-color: #83caff; background: #172530; box-shadow: inset 0 -2px #83caff; }
+.map-preview { display: block; height: 4.125rem; overflow: hidden; background: radial-gradient(ellipse at center, #24313c, #11161b); border-bottom: 1px solid #ffffff0c; }
+.map-preview svg { display: block; width: 100%; height: 100%; }
+.preview-grid { stroke: #bdcbd311; stroke-width: .5; fill: none; }
+.preview-route { fill: none; stroke: #91abc25c; stroke-width: .7; stroke-dasharray: 2 2; }
+.preview-platform { fill: #78858d; stroke: #c7d5dc; stroke-width: .35; }
+.preview-start { fill: #d4e4eb; stroke: #fff; stroke-width: .5; }
+.preview-checkpoint, .preview-finish { fill: #4baceb; stroke: #b3e3ff; stroke-width: .65; }
+.preview-roof { fill: #19232b; fill-opacity: .65; stroke: #c4a47d; stroke-width: .7; stroke-dasharray: 2 1; }
+.preview-spawn { fill: #fff; stroke: #263541; stroke-width: .6; }
+.map-card-title { display: block; margin: .5rem .625rem .375rem; font: 600 1rem/1.1 'Barlow Condensed', Impact, sans-serif; letter-spacing: .015em; }
+.map-card-meta { margin: 0 .625rem; color: #8c9aa5; display: flex; justify-content: space-between; gap: .25rem; font-size: max(9px, .5rem); }
+.map-card-meta > span { color: #54616d; }
+.selected-map { margin: 1rem 0 .75rem; }
+.selected-map > div { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.selected-map h3 { font: 600 1.25rem 'Barlow Condensed', Impact, sans-serif; margin: 0; }
+#map-meta { color: #82909a; font-size: max(9px, .5rem); margin: 0; text-align: right; }
+.selected-map .map-description { color: #7c8993; line-height: 1.7; margin: .375rem 0 0; }
+.map-actions { display: grid; grid-template-columns: 1.15fr 1fr; gap: .5rem; }
+.map-actions .play { padding: .875rem 1rem; }
+.map-actions .leaderboard-open { margin: 0; padding: .875rem .75rem; align-items: center; font-size: max(9px, .5rem); }
+.main-panel #play-endless { margin-top: 1rem; padding: .875rem 1rem; border: 1px solid #5e8099; background: linear-gradient(110deg, #213748, #111e28); text-align: left; }
+#play-endless strong { display: block; font: 600 1.75rem/.95 'Barlow Condensed', Impact, sans-serif; letter-spacing: .04em; }
+.main-panel #play-endless small { display: block; margin-top: .375rem; font-size: max(9px, .5rem); line-height: 1.5; color: #94afc1; letter-spacing: 0; }
+.main-panel #play-endless b { font-size: 2.75rem; color: #9ac8e9; line-height: 1; font-weight: 400; }
+.main-panel #play-endless:hover { border-color: #a6d9ff; background: #243e51; }
+#endless-leaderboard { margin-top: .625rem; font-size: max(9px, .5rem); }
+.main-panel .input-note { margin-bottom: 0; }
+.settings-heading { font-size: max(10px, .625rem); font-weight: 500; letter-spacing: .12em; color: #ced8e0; margin: 1.5rem 0 0; }
+#settings-view .settings-row { margin-top: 1rem; }
+#settings-view summary { color: #ced8e0; padding: 1rem 0; }
+#settings-view .knife-settings { border-top: 1px solid #30363c; padding-top: 1rem; margin-top: 1.25rem; }
+#settings-view .sound-settings { margin-bottom: 0; }
+/* Pause retains the current world behind a smaller, focused set of controls. */
+.overlay[data-menu=pause] { background: linear-gradient(90deg, #080a0df5 0%, #080a0de0 38%, #0008 68%, #0003); }
+.pause-menu.menu { width: 30rem; max-width: calc(100% - 2 * var(--edge)); margin: clamp(6rem, 15vh, 10rem) 0 2.5rem max(var(--edge), 5vw); }
+.pause-menu #pause-title { font-size: 5rem; line-height: .9; margin: 1rem 0; }
+.pause-map { color: #8b9aa6; font-size: max(10px, .625rem); margin: 0 0 2rem; }
+.pause-controls .controls-grid { border: 0; margin-top: 0; padding-top: .375rem; padding-bottom: .75rem; }
+.pause-controls .knife-controls { margin-top: .5rem; }
+.pause-controls summary { color: #b6c0c8; letter-spacing: .08em; }
+.back-to-main { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: .875rem 1rem; background: #11171c; font-size: max(10px, .625rem); letter-spacing: .04em; }
+.menu button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 900px) {
+  .menu-gallery { position: relative; inset: auto; height: max(13rem, 28vh); width: 100%; }
+  .gallery-shade { background: linear-gradient(0deg, #090a0b, #090a0b11 80%); }
+  .gallery-slide { object-position: center 45%; }
+  .gallery-caption { left: var(--edge); right: var(--edge); bottom: 1.5rem; }
+  .gallery-caption h2 { font-size: 2.5rem; }
+  .gallery-caption p { display: none; }
+  .gallery-navigation { padding-bottom: 0; }
+  .main-panel.menu { width: auto; max-width: 42rem; margin: 0 auto; padding: 1.5rem var(--edge) 2.5rem; }
+  .menu-wordmark { font-size: .6875rem; }
+  #home-view { padding-top: 2rem; }
+  .main-panel #menu-title { font-size: 5.5rem; }
+  .main-navigation button { font-size: 2rem; padding: 1rem .25rem; }
+  .home-description { margin-bottom: 1.5rem; }
+  .pause-menu.menu { margin-left: var(--edge); }
+}
+@media (max-width: 480px) {
+  .map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .selected-map > div { display: block; }
+  #map-meta { text-align: left; margin-top: .375rem; }
+  .map-actions { grid-template-columns: 1fr; }
+  .map-actions .leaderboard-open { padding: .75rem 1rem; }
+  .gallery-caption h2 { font-size: 2rem; }
+  .gallery-navigation > span { display: none; }
+  .gallery-caption .eyebrow { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-slide { animation: none !important; transition: none; transform: none; }
+  .main-navigation button, .map-card { transition: none; }
+}
+
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 </head>
-<body>
+<body class="main-menu-open">
   <div class="fps-counter" aria-label="Frames per second"><span id="fps">—</span> FPS</div>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
-    <div class="session"><span class="dot"></span><span id="preset-badge">CS-STYLE</span><span class="divider">/</span><span id="map-badge">COURSE 01</span><button id="menu-button" aria-label="Open settings">ESC <span>≡</span></button></div>
+    <div class="session"><span class="dot"></span><span id="preset-badge">CS-STYLE</span><span class="divider">/</span><span id="map-badge">COURSE 01</span><button id="menu-button" aria-label="Pause game">ESC <span>≡</span></button></div>
   </header>
   <div id="crosshair" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div>
   <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p><span id="best-label">BEST</span> <span id="best">—</span></p></aside>
@@ -149,35 +268,75 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
     <div class="speed-panel"><div class="speed-readout"><strong id="speed">0</strong><span>u/s</span></div><div class="speed-track"><i id="speed-fill"></i><b></b></div><div class="speed-labels"><span id="motion-state">ON GROUND</span><span id="gain">250 MAX RUN</span></div><div class="hop-stats"><span>HOPS <b id="hops">00</b></span><span>PEAK <b id="peak">000</b></span><span>JUMP <b id="jump-speed">000</b></span></div></div>
     <div class="course-panel"><div class="eyebrow"><span id="course-title">STARTER COURSE</span> <span id="progress-count">01 / 03</span></div><strong id="stage-name">Find your momentum.</strong><div class="stages" id="stage-markers"><i class="active"></i><i></i><i></i></div><p id="stage-tip">Build speed on the runway. Jump at the edge.</p></div>
   </div>
-  <div id="overlay" class="overlay">
-    <main class="menu">
-      <h1 id="menu-title">MOVEMENT LAB</h1>
-      <p class="intro" id="menu-description" role="status"></p>
-      <div class="selectors"><fieldset><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic">CS-style</button><button data-preset="practice">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset><fieldset><legend><label for="map-select">COURSE</label></legend><select id="map-select" aria-describedby="map-meta map-description"><option value="course">Starter course</option><option value="endless">Endless</option></select><button id="play-endless" type="button">PLAY ENDLESS <span>∞</span></button><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></fieldset></div>
-      <p id="map-description" class="map-description">The original three-part route: runway, strafes, and movement control.</p>
-      <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
+  <div id="overlay" class="overlay" data-menu="main">
+    <section id="main-menu" class="main-menu" aria-label="Main menu">
+      <aside class="menu-gallery" aria-label="Map screenshot slideshow">
+        <div id="gallery-slides" class="gallery-slides"></div>
+        <div class="gallery-shade"></div>
+        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 09</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
+      </aside>
+      <main class="menu main-panel">
+        <div class="menu-wordmark"><span class="brand-icon">M<span>↗</span></span><span>MOVEMENT LAB <small>CS-STYLE MOVEMENT TRAINER</small></span></div>
+        <p class="intro" id="menu-description" role="status"></p>
+        <section id="home-view" class="menu-view" aria-labelledby="menu-title">
+          <span class="eyebrow">PRECISION IN MOTION</span>
+          <h1 id="menu-title">MOVEMENT<br><span>LAB.</span></h1>
+          <p class="home-description">A place to find your flow.<br>Practice hops, strafes, and total control.</p>
+          <nav class="main-navigation" aria-label="Main menu">
+            <button id="open-map-select" type="button"><span><small>01</small> PLAY</span><b>↗</b></button>
+            <button id="play-sandbox" type="button"><span><small>02</small> SANDBOX</span><b>↗</b></button>
+            <button id="open-settings" type="button"><span><small>03</small> SETTINGS</span><b>↗</b></button>
+          </nav>
+          <p class="menu-footnote">BUILT FOR THE NEXT CLEAN RUN.</p>
+        </section>
+        <section id="maps-view" class="menu-view hidden" aria-labelledby="maps-title">
+          <button id="maps-back" class="menu-back" type="button">← MAIN MENU</button>
+          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">09 COURSES</span></div>
+          <fieldset class="physics-setting"><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic" type="button">CS-style</button><button data-preset="practice" type="button">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset>
+          <div id="map-grid" class="map-grid" role="group" aria-label="Choose a course"></div>
+          <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
+          <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
+          <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
+          <button id="endless-leaderboard" class="text-button" type="button">Endless leaderboard ↗</button>
+          <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
+        </section>
+        <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
+          <button id="settings-back" class="menu-back" type="button">← MAIN MENU</button>
+          <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="eyebrow">SAVED AUTOMATICALLY</span></div>
+          <h3 class="settings-heading">LOOK &amp; FEEL</h3>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="dawn">Dawn</option><option value="midday">Midday</option><option value="dusk">Dusk</option><option value="midnight">Midnight</option></select></div>
-      <details class="crosshair-settings"><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
+      <details class="crosshair-settings" open><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
         <div class="crosshair-top"><label for="crosshair-style">STYLE<select id="crosshair-style"><option value="default">Default</option><option value="dot">Dot</option><option value="cross">Cross</option></select></label><div class="crosshair-preview-stage" role="img" aria-label="Live crosshair preview"><div id="crosshair-preview" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div></div></div>
         <fieldset class="crosshair-colour"><legend>COLOUR <output id="crosshair-colour-value">#DDDDDD</output></legend><label class="rgb-row" for="crosshair-red"><span>R</span><input id="crosshair-red" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair red"><output id="crosshair-red-value">221</output></label><label class="rgb-row" for="crosshair-green"><span>G</span><input id="crosshair-green" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair green"><output id="crosshair-green-value">221</output></label><label class="rgb-row" for="crosshair-blue"><span>B</span><input id="crosshair-blue" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair blue"><output id="crosshair-blue-value">221</output></label></fieldset>
         <label class="crosshair-scale" for="crosshair-scale">SCALE <output id="crosshair-scale-value">1.00×</output><input id="crosshair-scale" type="range" min="0.5" max="3" step="0.05" value="1"></label>
       </div></details>
       <div class="knife-settings"><label><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
       <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
-      <details class="sound-settings"><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
+      <details class="sound-settings" open><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
         <label class="sound-toggle"><input id="movement-sounds" type="checkbox" checked> CS2 jump, footsteps, landing &amp; fall wind</label>
         <div class="sound-choice"><label for="checkpoint-sound">CHECKPOINT CHIME<select id="checkpoint-sound"><option value="pulse">Pulse · clean two-note chime</option><option value="glass">Glass · soft, bright shimmer</option><option value="arcade">Arcade · short rising melody</option><option value="off">Off</option></select></label><button id="checkpoint-preview" type="button">▶ Preview</button></div>
         <label class="volume-label" for="audio-volume">MOVEMENT &amp; CHIME VOLUME <output id="audio-volume-value">65%</output><input id="audio-volume" type="range" min="0" max="100" step="1" value="65"></label>
         <p id="audio-status" role="status">Choose a chime to hear it. Your choice is saved.</p>
       </div></details>
-      <button id="play" class="play">PLAY <span>↗</span></button>
-      <button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button>
-      <p id="input-note" class="input-note">Click Play to capture the mouse. Esc pauses.</p>
-      <details><summary>Movement notes <span>+</span></summary><div class="notes"><p>Release W in the air. Hold A while turning left or D while turning right. Both presets support hold-Space hopping.</p><p>The timer starts when you leave the starting platform's airspace. Pass over checkpoint and finish platforms to activate them, even while airborne.</p><p>Source-style browser recreation; CS2 subtick and landing behavior are approximated. <a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Movement reference ↗</a></p></div></details>
+        </section>
+      </main>
+    </section>
+    <main id="pause-menu" class="menu pause-menu hidden" aria-labelledby="pause-title">
+      <span class="eyebrow">TAKE A BREATH</span><h1 id="pause-title">PAUSED</h1>
+      <p id="pause-map" class="pause-map">Starter course</p>
+      <button id="continue" class="play" type="button">CONTINUE <span>↗</span></button>
+      <p id="pause-input-note" class="input-note" role="status">Continue captures the mouse. Esc pauses.</p>
+      <details class="pause-controls" open><summary>CONTROLS <span>+</span></summary>
+      <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
+        <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Attack · <kbd>R</kbd> Cancel inspect</p>
+      </details>
+      <div class="settings-row"><label for="pause-sensitivity">SENSITIVITY <output id="pause-sensitivity-value">1.00×</output><input id="pause-sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="pause-fov">FOV <output id="pause-fov-value">100</output><input id="pause-fov" type="range" min="80" max="120" step="1" value="100"></label></div>
+      <button id="back-to-main" class="back-to-main" type="button">BACK TO MAIN MENU <span>↗</span></button>
+      <p class="input-note">Ends the current run.</p>
     </main>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Change settings</button></div></div>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
   <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module">
 
@@ -1190,6 +1349,67 @@ async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, s
   return parseLeaderboard(text, { preset, endless: courseId === 'endless' });
 }
 
+// Render the actual collision geometry as a compact, horizontal top-down route.
+function mapPreviewSVG(map) {
+  const platforms=map.boxes.filter(box=>!box.roof);
+  const minX=Math.min(...platforms.map(b=>b.min[0])),maxX=Math.max(...platforms.map(b=>b.max[0]));
+  const minZ=Math.min(...platforms.map(b=>b.min[2])),maxZ=Math.max(...platforms.map(b=>b.max[2]));
+  const scale=Math.min(288/Math.max(1,maxZ-minZ),76/Math.max(1,maxX-minX));
+  const x=z=>160+((minZ+maxZ)/2-z)*scale,y=x=>50+(x-(minX+maxX)/2)*scale;
+  const route=platforms.map(b=>`${x((b.min[2]+b.max[2])/2)},${y((b.min[0]+b.max[0])/2)}`).join(' ');
+  const shapes=map.boxes.map((b,i)=>`<rect x="${x(b.max[2])}" y="${y(b.min[0])}" width="${Math.max(.7,(b.max[2]-b.min[2])*scale)}" height="${Math.max(.7,(b.max[0]-b.min[0])*scale)}" class="${b.roof?'preview-roof':b.finish?'preview-finish':b.checkpoint?'preview-checkpoint':i===0?'preview-start':'preview-platform'}"/>`).join('');
+  return `<svg viewBox="0 0 320 100" aria-hidden="true" focusable="false"><path d="M0 25H320M0 50H320M0 75H320M40 0V100M80 0V100M120 0V100M160 0V100M200 0V100M240 0V100M280 0V100" class="preview-grid"/><polyline points="${route}" class="preview-route"/>${shapes}<circle cx="${x(map.spawns[0].z)}" cy="${y(map.spawns[0].x)}" r="2" class="preview-spawn"/></svg>`;
+}
+
+function mapScreenshotCamera(map) {
+  const visible=map.boxes.filter(b=>!b.roof).slice(0,9);
+  const left=Math.min(...visible.map(b=>b.min[0])),right=Math.max(...visible.map(b=>b.max[0]));
+  const near=Math.max(...visible.map(b=>b.max[2])),far=Math.min(...visible.map(b=>b.min[2]));
+  const top=Math.max(...visible.map(b=>b.max[1]));
+  const x=(left+right)/2,z=(near+far)/2,extent=Math.max(650,(near-far)*.65,(right-left)*1.1);
+  const eye={x:x-extent*.85,y:top+extent*.8,z:z+extent*.7};
+  return {...eye,y:eye.y-64,yaw:Math.atan2(x-eye.x,eye.z-z),
+    pitch:Math.atan2(top-eye.y,Math.hypot(x-eye.x,z-eye.z)),duckAmount:0};
+}
+
+// Capture one real WebGL frame, then restore the player's geometry and sky.
+// Images are generated once per visit, without extra WebGL contexts or downloads.
+function captureMapScreenshot({renderer,canvas,map,restoreBoxes,restoreSkybox,skybox='dawn',snapshot}) {
+  try {
+    renderer.setBoxes(map.boxes);renderer.setSkybox(skybox);
+    renderer.draw(mapScreenshotCamera(map),85,map.boxes.find(b=>b.checkpoint)||map.boxes.find(b=>b.finish));
+    const context=snapshot.getContext('2d');
+    if(!context)return null;
+    const ratio=Math.min(1,1200/Math.max(canvas.width,canvas.height));
+    snapshot.width=Math.max(1,Math.round(canvas.width*ratio));snapshot.height=Math.max(1,Math.round(canvas.height*ratio));
+    context.drawImage(canvas,0,0,snapshot.width,snapshot.height);
+    return snapshot.toDataURL('image/jpeg',.88);
+  } finally {
+    renderer.setBoxes(restoreBoxes);renderer.setSkybox(restoreSkybox);
+  }
+}
+
+// A single animation clock keeps the gallery asleep while a run is active.
+function createMenuSlideshow({slides,maps,title,count,reducedMotion=false}) {
+  let current=0,previous=null;
+  function show(index) {
+    current=(index+slides.length)%slides.length;previous=null;
+    slides.forEach((slide,i)=>{
+      slide.classList.toggle('is-active',i===current);
+      slide.setAttribute('aria-hidden',String(i!==current));
+    });
+    title.textContent=maps[current].title;
+    count.textContent=`${String(current+1).padStart(2,'0')} / ${String(slides.length).padStart(2,'0')}`;
+  }
+  show(0);
+  return {show,next(){show(current+1);},previous(){show(current-1);},
+    step(now,active=true) {
+      if(!active||reducedMotion) {previous=null;return;}
+      if(previous===null)previous=now;
+      else if(now-previous>=6500)show(current+1);
+    },get current(){return current;}};
+}
+
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -1203,13 +1423,14 @@ catch (error) {
 }
 let preset = 'classic', map = 'course', boxes = MAPS.course.boxes, player = createPlayer(MAPS.course.spawns[0]);
 let endless = null;
+let menuMode='main', mainView='home', slideshow=null, capturedMaps=0, screenshotCanvas=null;
 let playing = false, started = false, completed = false, lockPending = false, checkpoint = 0, runTime = 0;
 let runActive = false, respawns = 0, pendingJump = false, sensitivity = 1, fov = 100;
 let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw = {...player};
 let bests = {}, settings = {};
 let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
-let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0;
+let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
 if(!bests||typeof bests!=='object') bests={};
@@ -1262,7 +1483,7 @@ async function activateGameAudio() {
   catch {$('audio-status').textContent='Sound was blocked. Press Preview to retry.';return null;}
 }
 async function refreshLeaderboard() {
-  const request=++leaderboardRequest, selected=MAPS[map], mode=preset;
+  const request=++leaderboardRequest, selected=MAPS[leaderboardMap||map], mode=preset;
   $('leaderboard-title').textContent=selected.title;
   $('leaderboard-mode').textContent=PRESETS[mode].title;
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
@@ -1274,8 +1495,10 @@ async function refreshLeaderboard() {
     $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
   } catch {if(request===leaderboardRequest)$('leaderboard-status').textContent='Could not load records. Try Refresh.';}
 }
-function openLeaderboard() {
-  if(!MAPS[map].timed&&!MAPS[map].endless)return;
+function openLeaderboard(value=map) {
+  const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
+  if(!MAPS[selected].timed&&!MAPS[selected].endless)return;
+  leaderboardMap=selected;
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
 }
@@ -1324,36 +1547,58 @@ function reset(full=true) {
   knife?.equip();
   updateHud();
 }
+function captureButtons(pending=false) {
+  for(const id of ['play','continue','play-endless','play-sandbox']) $(id).disabled=!rendererReady||pending;
+  $('play').innerHTML=pending?'CAPTURING MOUSE…':'START COURSE <span>↗</span>';
+  $('continue').innerHTML=pending?'CAPTURING MOUSE…':'CONTINUE <span>↗</span>';
+}
+function showMain(view='home',focus=true) {
+  if(lockPending){lockPending=false;captureButtons();}
+  menuMode='main';mainView=view;
+  overlay.dataset.menu='main';overlay.classList.remove('hidden');
+  $('main-menu').classList.remove('hidden');$('pause-menu').classList.add('hidden');
+  document.body.classList.add('main-menu-open');
+  for(const name of ['home','maps','settings']) $(name+'-view').classList.toggle('hidden',name!==view);
+  overlay.scrollTop=0;
+  if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':'settings-back').focus();
+}
+function showPause() {
+  menuMode='pause';overlay.dataset.menu='pause';overlay.classList.remove('hidden');
+  $('main-menu').classList.add('hidden');$('pause-menu').classList.remove('hidden');
+  document.body.classList.remove('main-menu-open');$('continue').focus();
+}
+function returnToMain(view='home') {
+  saveEndlessBest();playing=false;lockPending=false;started=false;clearInput();
+  document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);
+  if(document.pointerLockElement===canvas)document.exitPointerLock();
+  reset();captureButtons();showMain(view);
+}
 function pause() {
   if(completed) return;
-  saveEndlessBest();
-  playing=false; lockPending=false; clearInput(); document.body.classList.remove('playing');
-  gameAudio?.stopAll();
-  knife?.draw(0);
-  $('play').disabled=false;
-  overlay.classList.remove('hidden');
-  if(document.pointerLockElement===canvas) document.exitPointerLock();
-  if(started) {
-    $('play').innerHTML='RESUME <span>↗</span>';
-  }
+  saveEndlessBest();playing=false;lockPending=false;clearInput();
+  document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);captureButtons();
+  if(started)showPause();else showMain(mainView);
+  if(document.pointerLockElement===canvas)document.exitPointerLock();
 }
 function beginSession() {
   // Start only after the browser confirms pointer lock: the cursor stays hidden
   // and movementX/movementY keep working beyond the edges of the screen.
   if(document.pointerLockElement!==canvas) return;
   if(!started) knife?.equip();
-  lockPending=false; $('play').disabled=false;
+  lockPending=false;captureButtons();
   playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
   $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
-  overlay.classList.add('hidden'); document.body.classList.add('playing');
+  overlay.classList.add('hidden');document.body.classList.remove('main-menu-open');document.body.classList.add('playing');
 }
 function mouseCaptureFailed() {
   if(!lockPending) return;
-  lockPending=false; playing=false; clearInput(); $('play').disabled=false;
+  lockPending=false;playing=false;clearInput();captureButtons();
   overlay.classList.remove('hidden'); document.body.classList.remove('playing');
-  $('play').innerHTML=(started?'RESUME':'PLAY')+' <span>↗</span>';
-  $('input-note').textContent='Mouse capture was blocked. Open this page directly in a desktop browser, then click Enter again.';
-  toast('Click Enter to capture the mouse. Check that your browser allows pointer lock.');
+  if(started)showPause();else showMain(mainView);
+  $('pause-input-note').textContent='Mouse capture was blocked. Click Continue to retry.';
+  $('menu-description').textContent='Mouse capture was blocked. Click a start button to retry.';
+  $('input-note').textContent='Mouse capture was blocked. Open this page directly in a desktop browser, then click Start Course again.';
+  toast('Mouse capture was blocked. Check that your browser allows pointer lock.');
 }
 function play() {
   if(!rendererReady||lockPending) return;
@@ -1361,8 +1606,9 @@ function play() {
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
   if(document.pointerLockElement===canvas) {beginSession();return;}
-  lockPending=true; $('play').disabled=true;
-  $('play').textContent='CAPTURING MOUSE…';
+  lockPending=true;captureButtons(true);
+  $('pause-input-note').textContent='Allow mouse capture if your browser asks.';
+  if(rendererReady)$('menu-description').textContent='';
   $('input-note').textContent='Allow mouse capture if your browser asks. Esc releases the mouse.';
   if(!canvas.requestPointerLock) {mouseCaptureFailed();return;}
   try {
@@ -1379,6 +1625,7 @@ function choosePreset(value,resetRun=true) {
   preset=value;
   document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===value));
   $('preset-badge').textContent=PRESETS[preset].title.toUpperCase();
+  $('pause-map').textContent=MAPS[map].title+' / '+PRESETS[preset].title;
   $('preset-description').textContent=preset==='classic'?'Capped speed · standard air control':'Uncapped speed · strong air control';
   if(resetRun) reset();
   saveSettings(); updateHud();
@@ -1388,7 +1635,12 @@ function chooseMap(value,resetRun=true) {
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
   const selected=MAPS[map], count=selected.spawns.length-1;
-  $('map-select').value=map;
+  $('selected-map-title').textContent=selected.title;
+  $('pause-map').textContent=selected.title+' / '+PRESETS[preset].title;
+  document.querySelectorAll('[data-map]').forEach(card=>{
+    card.classList.toggle('selected',card.dataset.map===map);
+    card.setAttribute('aria-pressed',String(card.dataset.map===map));
+  });
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
@@ -1510,11 +1762,42 @@ function frame(now) {
   }
   const target=completed?null:endless?endless.platform((checkpoint+1)*8):
     MAPS[map].timed?boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish):null;
+  const galleryVisible=menuMode==='main'&&!overlay.classList.contains('hidden')&&!document.hidden;
+  if(rendererReady&&galleryVisible&&capturedMaps<timedMaps.length&&screenshotCanvas) {
+    const i=capturedMaps++, image=slides[i];
+    try {
+      const shot=captureMapScreenshot({renderer,canvas,map:timedMaps[i],restoreBoxes:boxes,restoreSkybox:skybox,
+        skybox:['dawn','midday','dusk','midnight'][i%4],snapshot:screenshotCanvas});
+      if(shot){image.src=shot;image.classList.add('is-ready');}
+    } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
+  }
   renderer.draw(camera,fov,target);knife?.draw(elapsed,fov);updateHud();
+  slideshow?.step(now,galleryVisible);
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('continue').addEventListener('click',play);
+$('open-map-select').addEventListener('click',()=>{
+  if(!MAPS[map].timed)chooseMap('course');showMain('maps');
+});
+$('open-settings').addEventListener('click',()=>showMain('settings'));
+$('maps-back').addEventListener('click',()=>showMain());
+$('settings-back').addEventListener('click',()=>showMain());
+$('back-to-main').addEventListener('click',()=>returnToMain());
+$('play-sandbox').addEventListener('click',()=>{if(lockPending)return;chooseMap('free');play();});
+$('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless'));
+const timedMaps=MAP_LIST.filter(m=>m.timed);
+$('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.difficulty}</span></button>`).join('');
+$('map-grid').addEventListener('click',event=>{
+  const card=event.target.closest('[data-map]');if(card)chooseMap(card.dataset.map);
+});
+$('gallery-slides').innerHTML=timedMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
+const slides=Array.from(document.querySelectorAll('.gallery-slide'));
+if(slides.length&&rendererReady)screenshotCanvas=document.createElement('canvas');
+if(slides.length)slideshow=createMenuSlideshow({slides,maps:timedMaps,title:$('gallery-title'),count:$('gallery-count'),reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches});
+$('gallery-next').addEventListener('click',()=>slideshow?.next());
+$('gallery-previous').addEventListener('click',()=>slideshow?.previous());
 $('leaderboard-button').addEventListener('click',openLeaderboard);
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
@@ -1546,17 +1829,15 @@ $('audio-volume').addEventListener('input',()=>{
   audioVolume=Number($('audio-volume').value)/100;gameAudio?.setVolume(audioVolume);
   $('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;saveSettings();
 });
-$('play-endless').addEventListener('click',()=>{if(map!=='endless')chooseMap('endless');play();});
-$('menu-button').addEventListener('click',()=>playing?pause():$('play').focus());
+$('play-endless').addEventListener('click',()=>{if(lockPending)return;chooseMap('endless');play();});
+$('menu-button').addEventListener('click',()=>{if(playing)pause();else if(started)showPause();else showMain();});
 $('again').addEventListener('click',()=>{reset();play();});
-$('finish-settings').addEventListener('click',()=>{reset();pause();});
+$('finish-settings').addEventListener('click',()=>returnToMain('settings'));
 $('next-course').addEventListener('click',()=>{
   const courses=MAP_LIST.filter(m=>m.timed), index=courses.findIndex(m=>m.id===map);
   chooseMap(courses[(index+1)%courses.length].id);play();
 });
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
-$('map-select').innerHTML=MAP_LIST.map(m=>`<option value="${m.id}">${m.title} · ${m.difficulty}</option>`).join('');
-$('map-select').addEventListener('change',()=>chooseMap($('map-select').value));
 $('knife-enabled').checked=knifeEnabled;$('knife-sounds').checked=knifeSounds;
 $('knife-enabled').addEventListener('change',()=>{
   knifeEnabled=$('knife-enabled').checked;saveSettings();
@@ -1566,13 +1847,23 @@ $('knife-enabled').addEventListener('change',()=>{
 $('knife-sounds').addEventListener('change',()=>{
   knifeSounds=$('knife-sounds').checked;knife?.audio?.setMuted(!knifeSounds);saveSettings();
 });
-for(const name of ['sensitivity','fov']) $(name).addEventListener('input',()=>{
-  if(name==='sensitivity') {sensitivity=Number($(name).value);$('sensitivity-value').textContent=sensitivity.toFixed(2)+'×';}
-  else {fov=Number($(name).value);$('fov-value').textContent=fov;}
-  saveSettings();
+function syncLookSettings() {
+  for(const prefix of ['', 'pause-']) {
+    $(prefix+'sensitivity').value=sensitivity;$(prefix+'sensitivity-value').textContent=sensitivity.toFixed(2)+'×';
+    $(prefix+'fov').value=fov;$(prefix+'fov-value').textContent=fov;
+  }
+}
+for(const prefix of ['', 'pause-'])for(const name of ['sensitivity','fov']) $(prefix+name).addEventListener('input',()=>{
+  if(name==='sensitivity')sensitivity=Math.min(5,Math.max(.1,Number($(prefix+name).value)));
+  else fov=Math.min(120,Math.max(80,Number($(prefix+name).value)));
+  syncLookSettings();saveSettings();
 });
 document.addEventListener('keydown',e=>{
-  if(e.code==='Escape') {if(playing)pause();return;}
+  if(e.code==='Escape') {
+    if($('leaderboard').open)return;
+    if(playing||lockPending)pause();else if(menuMode==='main'&&mainView!=='home')showMain();
+    return;
+  }
   if(!playing) return;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab','KeyW','KeyA','KeyS','KeyD','ControlLeft','ControlRight'].includes(e.code)) e.preventDefault();
   if(e.code==='KeyQ'&&!e.repeat) {reset();toast('NEW RUN');return;}
@@ -1608,8 +1899,7 @@ if(Number.isFinite(settings.fov))fov=Math.min(120,Math.max(80,settings.fov));
 if(PRESETS[settings.preset]) choosePreset(settings.preset,false);
 const requestedMap=new URLSearchParams(window.location?.search||'').get('course');
 chooseMap(Object.hasOwn(MAPS,requestedMap)?requestedMap:Object.hasOwn(MAPS,settings.map)?settings.map:'course',false);
-$('sensitivity').value=sensitivity;$('sensitivity-value').textContent=sensitivity.toFixed(2)+'×';
-$('fov').value=fov;$('fov-value').textContent=fov;
+syncLookSettings();captureButtons();showMain('home',false);
 reset();requestAnimationFrame(frame);
 if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';
 
