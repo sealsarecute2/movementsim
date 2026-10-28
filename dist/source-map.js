@@ -49,7 +49,7 @@ export async function loadSourceMap(input,options={}) {
   return makeParkourMap(map);
 }
 
-export function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',geometryOnly=false}={}) {
+export function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',routeSurfacesOnly=false,routeBands=null,geometryOnly=false}={}) {
   const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
   if(bytes.length<1036||sourceText.decode(bytes.subarray(0,4))!=='VBSP')throw Error('This is not a Source 1 BSP map.');
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
@@ -81,7 +81,7 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',entryT
   const nodes=records(5,32,o=>[i32(o+4),i32(o+8)]);
   const leaves=records(10,lumps[10].version===0?56:32,o=>({first:u16(o+24),count:u16(o+26)}));
   const leafbrushes=records(17,2,o=>u16(o));
-  const sides=records(19,8,o=>u16(o));
+  const sides=records(19,8,o=>({plane:u16(o),texture:i16(o+2)}));
   const brushes=records(18,12,o=>({first:i32(o),count:i32(o+4),contents:i32(o+8)}));
   for(const model of models)for(let axis=0;axis<3;axis++)[model.min[axis],model.max[axis]]=[Math.min(model.min[axis],model.max[axis]),Math.max(model.min[axis],model.max[axis])];
   function modelBrushes(index) {
@@ -95,14 +95,21 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',entryT
   }
   function collisionBrush(index,offset=[0,0,0]) {
     const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
-    const boundary=sides.slice(brush.first,brush.first+brush.count).map(p=>planes[p]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
+    const brushSides=sides.slice(brush.first,brush.first+brush.count);
+    const boundary=brushSides.map(s=>planes[s.plane]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
     if(boundary.some(p=>!p||!Number.isFinite(p.distance)))throw Error('Invalid collision planes.');
     const min=[-Infinity,-Infinity,-Infinity],max=[Infinity,Infinity,Infinity];
     for(const p of boundary)for(let a=0;a<3;a++)if(Math.abs(Math.abs(p.normal[a])-1)<1e-5&&p.normal.every((n,i)=>i===a||Math.abs(n)<1e-5)) {
       if(p.normal[a]>0)max[a]=Math.min(max[a],p.distance);else min[a]=Math.max(min[a],-p.distance);
     }
     if([...min,...max].some(n=>!Number.isFinite(n))||min.some((n,i)=>n>=max[i]))return null;
-    return {min,max,planes:boundary};
+    // Room walls and ceilings have hidden upper faces. Do not turn those
+    // invisible caps into walkable platforms in a route-only import.
+    const topVisible=brushSides.some(s=>{
+      const texture=texinfo[s.texture],material=materials[texture?.material];
+      return planes[s.plane]?.normal[1]>.999&&texture&&!(texture.flags&(0x80|0x4|0x2))&&material&&!/^tools\//i.test(material.name);
+    });
+    return {min,max,planes:boundary,...(routeSurfacesOnly?{topVisible}:{})};
   }
   const modelEntities=new Map(entities.filter(e=>/^\*\d+$/.test(e.model||'')).map(e=>[Number(e.model.slice(1)),e]));
   const modelOffset=index=>index?sourcePoint(sourceVector(modelEntities.get(index)?.origin)):[0,0,0];
@@ -146,7 +153,7 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',entryT
   });
   const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
   const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
-  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  const sourceMap={id,title,revision,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,routeSurfacesOnly,routeBands,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
   boxes.sourceMap=sourceMap;
   // Keep the broadphase near the player; full maps contain thousands of brushes.
   const cells=new Map(),cellSize=512,large=[];

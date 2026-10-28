@@ -64,7 +64,7 @@ To climb a ladder, move into its cyan rails and rungs. Use W/S and look up or do
 
 **Bhop practice** has stronger air control and no speed cap. **CS-style** has gentler air control and capped speed. Both let you hold Space to keep hopping.
 
-The community maps use plain blocks for their jumping routes. Boost pads activate automatically. On **bhop_kitsune**, follow the blue exit pad to the next stage; portals preserve your horizontal speed and save the new checkpoint. Endless has open stepping-stone sections in place of wall wraps. You can also try **Import .bsp / .zip** for compatible Source 1 maps; some maps and features are unsupported. Local imports stay in your browser and are not uploaded.
+The community maps use plain blocks for their jumping routes. Boost pads activate automatically. On **bhop_kitsune**, follow the blue exit pad to the next stage; portals preserve your horizontal speed and save the new checkpoint. Its side walls and roofs are excluded from the route. Endless has open stepping-stone sections in place of wall wraps. You can also try **Import .bsp / .zip** for compatible Source 1 maps; some maps and features are unsupported. Local imports stay in your browser and are not uploaded.
 
 ## Checkpoints, saving, and times
 

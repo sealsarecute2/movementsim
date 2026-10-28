@@ -117,11 +117,14 @@ export const COMMUNITY_MAPS = [{
   entryTarget:'1a',stageTargets:['1a','1b','1c','1d','1e','1f','2a','2b','2c','3a','3b','3c','4a','4b','4c','4d','5a','5b','6a','6b','6c','6d','7a','7b','7c'],
 },{
   id:'bhop_kitsune',title:'bhop_kitsune',author:'NoNimus (Ghost1447951)',
-  archive:'maps/bhop_kitsune.zip',geometry:'maps/bhop_kitsune.json',revision:2,thumbnail:'maps/bhop_kitsune.svg',
+  archive:'maps/bhop_kitsune.zip',geometry:'maps/bhop_kitsune.json',revision:3,thumbnail:'maps/bhop_kitsune.svg',routeSurfacesOnly:true,
   source:'https://gamebanana.com/mods/126424',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
   entryTarget:'enterredmarker',finishTarget:'exitwhitemarker',
   stageTargets:['enterredmarker','enterorangemarker','entercyanmarker','entergreenmarker','enterpurplemarker','enterwhitemarker'],
   resetTargets:['restartred','restartorange','restartcyan','restartgreen','restartpurple','restartwhite'],
   exitTargets:['exitredmarker','exitorangemarker','exitcyanmarker','exitgreenmarker','exitpurplemarker','exitwhitemarker'],
   stageTitles:['Red','Orange','Cyan','Green','Purple','White'],
+  // White descends through a narrow ramp, arch and stacked jumping pads.
+  // [end X, highest route surface, half-width] excludes the surrounding shell.
+  routeBands:{enterwhitemarker:[[-1696,8836,480],[-1152,8672,480],[256,8672,184],[320,8448,184],[960,8480,184],[1584,8074,480],[3000,6408,480]]},
 }];

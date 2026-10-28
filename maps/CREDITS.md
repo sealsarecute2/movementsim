@@ -8,6 +8,7 @@
 - Author's license: **Creative Commons Attribution–NonCommercial–NoDerivatives 4.0**, https://creativecommons.org/licenses/by-nc-nd/4.0/
 - `bhop_kitsune.zip` is the author's unmodified `kitsune_f.zip` release, including its original README and update note. MD5: `36f2da19ae5918b8b95d6d74a08fb405`.
 - The browser route keeps six main stages, five stage portals, entry boosts, safe checkpoint pads, and the final White-stage exit. The bonus and ending lobby are omitted.
+- Revision 3 keeps exposed route surfaces and excludes side walls, roofs, and their trim ledges so they cannot be used as shortcuts.
 - `bhop_kitsune.json` is the prepared plain-block compatibility view. The author's map data retain their original license.
 
 ## bhop_lego

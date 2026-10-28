@@ -42,7 +42,7 @@ const LEADERBOARD_FILES = Object.freeze({
   'ladder-run': {revision:1,file:'ladder-run.txt'},
   endless: {revision:3,file:'endless-v3.txt',endless:true},
   bhop_lego: {revision:2,file:'bhop_lego-v2.txt'},
-  bhop_kitsune: {revision:2,file:'bhop_kitsune-v2.txt'},
+  bhop_kitsune: {revision:3,file:'bhop_kitsune-v3.txt'},
 });
 
 export function hasLeaderboard(courseId, revision=1) {

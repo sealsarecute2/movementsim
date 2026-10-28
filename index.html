@@ -628,13 +628,16 @@ const COMMUNITY_MAPS = [{
   entryTarget:'1a',stageTargets:['1a','1b','1c','1d','1e','1f','2a','2b','2c','3a','3b','3c','4a','4b','4c','4d','5a','5b','6a','6b','6c','6d','7a','7b','7c'],
 },{
   id:'bhop_kitsune',title:'bhop_kitsune',author:'NoNimus (Ghost1447951)',
-  archive:'maps/bhop_kitsune.zip',geometry:'maps/bhop_kitsune.json',revision:2,thumbnail:'maps/bhop_kitsune.svg',
+  archive:'maps/bhop_kitsune.zip',geometry:'maps/bhop_kitsune.json',revision:3,thumbnail:'maps/bhop_kitsune.svg',routeSurfacesOnly:true,
   source:'https://gamebanana.com/mods/126424',license:'https://creativecommons.org/licenses/by-nc-nd/4.0/',
   entryTarget:'enterredmarker',finishTarget:'exitwhitemarker',
   stageTargets:['enterredmarker','enterorangemarker','entercyanmarker','entergreenmarker','enterpurplemarker','enterwhitemarker'],
   resetTargets:['restartred','restartorange','restartcyan','restartgreen','restartpurple','restartwhite'],
   exitTargets:['exitredmarker','exitorangemarker','exitcyanmarker','exitgreenmarker','exitpurplemarker','exitwhitemarker'],
   stageTitles:['Red','Orange','Cyan','Green','Purple','White'],
+  // White descends through a narrow ramp, arch and stacked jumping pads.
+  // [end X, highest route surface, half-width] excludes the surrounding shell.
+  routeBands:{enterwhitemarker:[[-1696,8836,480],[-1152,8672,480],[256,8672,184],[320,8448,184],[960,8480,184],[1584,8074,480],[3000,6408,480]]},
 }];
 
 // Independent Source-style movement recreation. No Valve code or assets included.
@@ -1212,16 +1215,37 @@ function makeParkourMap(source) {
     if(trigger.classname==='trigger_teleport'&&targets.has(trigger.target)&&trigger.filtername&&trigger.max[1]-trigger.min[1]<=8&&width<=256&&depth<=256)
       anchors.push({x:(trigger.min[0]+trigger.max[0])/2,y:trigger.min[1],z:(trigger.min[2]+trigger.max[2])/2,target:trigger.target,bounds:trigger});
   }
+  const basins=source.triggers.filter(t=>t.classname==='trigger_teleport'&&!t.filtername&&targets.has(t.target));
+  const limits=source.routeSurfacesOnly?source.stages.map((stage,i)=>{
+    const spawn=source.spawns[i],exit=source.destinations.get(source.exitTargets[i]);
+    const basin=basins.filter(t=>t.target===resetTarget(stage)&&Math.abs((t.min[2]+t.max[2])/2-spawn.z)<600)
+      .sort((a,b)=>(b.max[0]-b.min[0])-(a.max[0]-a.min[0]))[0];
+    return {spawn,exit,basin,reset:source.destinations.get(resetTarget(stage)),bands:source.routeBands?.[stage.target]};
+  }):null;
+  function routeLimit(original) {
+    if(!limits)return null;
+    const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
+    const area=limits.find(a=>Math.abs(z-a.spawn.z)<=600);if(!area)return null;
+    const band=area.bands?.find(b=>x<b[0]),halfWidth=band?.[2]||480;
+    const ceiling=band?band[1]:x<area.reset.x-48?area.spawn.y-32:x<area.basin.min[0]?area.reset.y:x<=area.basin.max[0]?area.reset.y+32:area.exit.y;
+    return {ceiling,minZ:area.spawn.z-halfWidth,maxZ:area.spawn.z+halfWidth};
+  }
   const originalToBlock=new Map(),blocks=[];
   const addOriginal=original=>{
     if(originalToBlock.has(original))return originalToBlock.get(original);
     const block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
+    const limit=routeLimit(original);
+    if(limit){block.min[2]=Math.max(block.min[2],limit.minZ);block.max[2]=Math.min(block.max[2],limit.maxZ);}
     blocks.push(block);originalToBlock.set(original,block);return block;
   };
   // Keep stairs, beams and ordinary final-stage platforms too. Their tops sit
   // above the route's failure basins; the basin floor and room shell do not.
-  const basins=source.triggers.filter(t=>t.classname==='trigger_teleport'&&!t.filtername&&targets.has(t.target));
   for(const original of source.boxes) {
+    if(source.routeSurfacesOnly&&!original.topVisible)continue;
+    if(source.routeSurfacesOnly){
+      const limit=routeLimit(original);
+      if(!limit||original.max[1]>limit.ceiling+.02||original.max[2]<=limit.minZ||original.min[2]>=limit.maxZ)continue;
+    }
     const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
     const width=original.max[0]-original.min[0],depth=original.max[2]-original.min[2];
     const maximum=source.exitTargets?1024:512;
@@ -1240,7 +1264,7 @@ function makeParkourMap(source) {
   }
   if(!anchors.length&&!basins.length)for(const b of source.boxes)if(b.max[0]-b.min[0]<=1024&&b.max[2]-b.min[2]<=1024&&b.max[1]-b.min[1]<=512&&b.planes.some(p=>p.normal[1]>.999))addOriginal(b);
   function blockAt(point,fallback=null) {
-    const candidates=source.boxes.filter(b=>point.x>=b.min[0]-.01&&point.x<=b.max[0]+.01&&point.z>=b.min[2]-.01&&point.z<=b.max[2]+.01&&point.y>=b.max[1]-.1&&point.y-b.max[1]<=32)
+    const candidates=source.boxes.filter(b=>(!source.routeSurfacesOnly||b.topVisible)&&point.x>=b.min[0]-.01&&point.x<=b.max[0]+.01&&point.z>=b.min[2]-.01&&point.z<=b.max[2]+.01&&point.y>=b.max[1]-.1&&point.y-b.max[1]<=32)
       .sort((a,b)=>b.max[1]-a.max[1]||(a.max[0]-a.min[0])*(a.max[2]-a.min[2])-(b.max[0]-b.min[0])*(b.max[2]-b.min[2]));
     const original=candidates[0];
     if(originalToBlock.has(original)&&original)return originalToBlock.get(original);
@@ -1282,7 +1306,7 @@ function makeParkourMap(source) {
       return {min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed,...(entry>=0?{entry:true}:{})};
     });
   for(const boost of boosts)if(!boost.entry){const pad={min:[boost.min[0],boost.min[1]-24,boost.min[2]],max:[boost.max[0],boost.min[1],boost.max[2]],label:'BOOST',boost:true};blocks.push(pad);}
-  return hydrateParkourMap({id:source.id,title:source.title,greybox:true,revision:2,boxes:blocks,spawns,stages:source.stages.map(s=>({...s,tip:'Follow the blue checkpoint. E returns to your saved pad. Q restarts the route.'})),
+  return hydrateParkourMap({id:source.id,title:source.title,greybox:true,revision:source.revision||2,boxes:blocks,spawns,stages:source.stages.map(s=>({...s,tip:'Follow the blue checkpoint. E returns to your saved pad. Q restarts the route.'})),
     checkpointPads:checkpointPads.map(b=>blocks.indexOf(b)),finishPad:finishPad?blocks.indexOf(finishPad):null,sectionFalls,boosts,
     ...(portals.length?{portals:portals.map(({pad,...portal})=>({...portal,exitPad:blocks.indexOf(pad)}))}:{})});
 }
@@ -1367,7 +1391,7 @@ async function loadSourceMap(input,options={}) {
   return makeParkourMap(map);
 }
 
-function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',geometryOnly=false}={}) {
+function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',routeSurfacesOnly=false,routeBands=null,geometryOnly=false}={}) {
   const bytes=input instanceof Uint8Array?input:new Uint8Array(input);
   if(bytes.length<1036||sourceText.decode(bytes.subarray(0,4))!=='VBSP')throw Error('This is not a Source 1 BSP map.');
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
@@ -1399,7 +1423,7 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=n
   const nodes=records(5,32,o=>[i32(o+4),i32(o+8)]);
   const leaves=records(10,lumps[10].version===0?56:32,o=>({first:u16(o+24),count:u16(o+26)}));
   const leafbrushes=records(17,2,o=>u16(o));
-  const sides=records(19,8,o=>u16(o));
+  const sides=records(19,8,o=>({plane:u16(o),texture:i16(o+2)}));
   const brushes=records(18,12,o=>({first:i32(o),count:i32(o+4),contents:i32(o+8)}));
   for(const model of models)for(let axis=0;axis<3;axis++)[model.min[axis],model.max[axis]]=[Math.min(model.min[axis],model.max[axis]),Math.max(model.min[axis],model.max[axis])];
   function modelBrushes(index) {
@@ -1413,14 +1437,21 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=n
   }
   function collisionBrush(index,offset=[0,0,0]) {
     const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
-    const boundary=sides.slice(brush.first,brush.first+brush.count).map(p=>planes[p]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
+    const brushSides=sides.slice(brush.first,brush.first+brush.count);
+    const boundary=brushSides.map(s=>planes[s.plane]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
     if(boundary.some(p=>!p||!Number.isFinite(p.distance)))throw Error('Invalid collision planes.');
     const min=[-Infinity,-Infinity,-Infinity],max=[Infinity,Infinity,Infinity];
     for(const p of boundary)for(let a=0;a<3;a++)if(Math.abs(Math.abs(p.normal[a])-1)<1e-5&&p.normal.every((n,i)=>i===a||Math.abs(n)<1e-5)) {
       if(p.normal[a]>0)max[a]=Math.min(max[a],p.distance);else min[a]=Math.max(min[a],-p.distance);
     }
     if([...min,...max].some(n=>!Number.isFinite(n))||min.some((n,i)=>n>=max[i]))return null;
-    return {min,max,planes:boundary};
+    // Room walls and ceilings have hidden upper faces. Do not turn those
+    // invisible caps into walkable platforms in a route-only import.
+    const topVisible=brushSides.some(s=>{
+      const texture=texinfo[s.texture],material=materials[texture?.material];
+      return planes[s.plane]?.normal[1]>.999&&texture&&!(texture.flags&(0x80|0x4|0x2))&&material&&!/^tools\//i.test(material.name);
+    });
+    return {min,max,planes:boundary,...(routeSurfacesOnly?{topVisible}:{})};
   }
   const modelEntities=new Map(entities.filter(e=>/^\*\d+$/.test(e.model||'')).map(e=>[Number(e.model.slice(1)),e]));
   const modelOffset=index=>index?sourcePoint(sourceVector(modelEntities.get(index)?.origin)):[0,0,0];
@@ -1464,7 +1495,7 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',entryTarget=n
   });
   const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
   const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
-  const sourceMap={id,title,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  const sourceMap={id,title,revision,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,routeSurfacesOnly,routeBands,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
   boxes.sourceMap=sourceMap;
   // Keep the broadphase near the player; full maps contain thousands of brushes.
   const cells=new Map(),cellSize=512,large=[];
@@ -2054,7 +2085,7 @@ const LEADERBOARD_FILES = Object.freeze({
   'ladder-run': {revision:1,file:'ladder-run.txt'},
   endless: {revision:3,file:'endless-v3.txt',endless:true},
   bhop_lego: {revision:2,file:'bhop_lego-v2.txt'},
-  bhop_kitsune: {revision:2,file:'bhop_kitsune-v2.txt'},
+  bhop_kitsune: {revision:3,file:'bhop_kitsune-v3.txt'},
 });
 
 function hasLeaderboard(courseId, revision=1) {

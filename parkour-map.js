@@ -8,16 +8,37 @@ export function makeParkourMap(source) {
     if(trigger.classname==='trigger_teleport'&&targets.has(trigger.target)&&trigger.filtername&&trigger.max[1]-trigger.min[1]<=8&&width<=256&&depth<=256)
       anchors.push({x:(trigger.min[0]+trigger.max[0])/2,y:trigger.min[1],z:(trigger.min[2]+trigger.max[2])/2,target:trigger.target,bounds:trigger});
   }
+  const basins=source.triggers.filter(t=>t.classname==='trigger_teleport'&&!t.filtername&&targets.has(t.target));
+  const limits=source.routeSurfacesOnly?source.stages.map((stage,i)=>{
+    const spawn=source.spawns[i],exit=source.destinations.get(source.exitTargets[i]);
+    const basin=basins.filter(t=>t.target===resetTarget(stage)&&Math.abs((t.min[2]+t.max[2])/2-spawn.z)<600)
+      .sort((a,b)=>(b.max[0]-b.min[0])-(a.max[0]-a.min[0]))[0];
+    return {spawn,exit,basin,reset:source.destinations.get(resetTarget(stage)),bands:source.routeBands?.[stage.target]};
+  }):null;
+  function routeLimit(original) {
+    if(!limits)return null;
+    const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
+    const area=limits.find(a=>Math.abs(z-a.spawn.z)<=600);if(!area)return null;
+    const band=area.bands?.find(b=>x<b[0]),halfWidth=band?.[2]||480;
+    const ceiling=band?band[1]:x<area.reset.x-48?area.spawn.y-32:x<area.basin.min[0]?area.reset.y:x<=area.basin.max[0]?area.reset.y+32:area.exit.y;
+    return {ceiling,minZ:area.spawn.z-halfWidth,maxZ:area.spawn.z+halfWidth};
+  }
   const originalToBlock=new Map(),blocks=[];
   const addOriginal=original=>{
     if(originalToBlock.has(original))return originalToBlock.get(original);
     const block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
+    const limit=routeLimit(original);
+    if(limit){block.min[2]=Math.max(block.min[2],limit.minZ);block.max[2]=Math.min(block.max[2],limit.maxZ);}
     blocks.push(block);originalToBlock.set(original,block);return block;
   };
   // Keep stairs, beams and ordinary final-stage platforms too. Their tops sit
   // above the route's failure basins; the basin floor and room shell do not.
-  const basins=source.triggers.filter(t=>t.classname==='trigger_teleport'&&!t.filtername&&targets.has(t.target));
   for(const original of source.boxes) {
+    if(source.routeSurfacesOnly&&!original.topVisible)continue;
+    if(source.routeSurfacesOnly){
+      const limit=routeLimit(original);
+      if(!limit||original.max[1]>limit.ceiling+.02||original.max[2]<=limit.minZ||original.min[2]>=limit.maxZ)continue;
+    }
     const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
     const width=original.max[0]-original.min[0],depth=original.max[2]-original.min[2];
     const maximum=source.exitTargets?1024:512;
@@ -36,7 +57,7 @@ export function makeParkourMap(source) {
   }
   if(!anchors.length&&!basins.length)for(const b of source.boxes)if(b.max[0]-b.min[0]<=1024&&b.max[2]-b.min[2]<=1024&&b.max[1]-b.min[1]<=512&&b.planes.some(p=>p.normal[1]>.999))addOriginal(b);
   function blockAt(point,fallback=null) {
-    const candidates=source.boxes.filter(b=>point.x>=b.min[0]-.01&&point.x<=b.max[0]+.01&&point.z>=b.min[2]-.01&&point.z<=b.max[2]+.01&&point.y>=b.max[1]-.1&&point.y-b.max[1]<=32)
+    const candidates=source.boxes.filter(b=>(!source.routeSurfacesOnly||b.topVisible)&&point.x>=b.min[0]-.01&&point.x<=b.max[0]+.01&&point.z>=b.min[2]-.01&&point.z<=b.max[2]+.01&&point.y>=b.max[1]-.1&&point.y-b.max[1]<=32)
       .sort((a,b)=>b.max[1]-a.max[1]||(a.max[0]-a.min[0])*(a.max[2]-a.min[2])-(b.max[0]-b.min[0])*(b.max[2]-b.min[2]));
     const original=candidates[0];
     if(originalToBlock.has(original)&&original)return originalToBlock.get(original);
@@ -78,7 +99,7 @@ export function makeParkourMap(source) {
       return {min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed,...(entry>=0?{entry:true}:{})};
     });
   for(const boost of boosts)if(!boost.entry){const pad={min:[boost.min[0],boost.min[1]-24,boost.min[2]],max:[boost.max[0],boost.min[1],boost.max[2]],label:'BOOST',boost:true};blocks.push(pad);}
-  return hydrateParkourMap({id:source.id,title:source.title,greybox:true,revision:2,boxes:blocks,spawns,stages:source.stages.map(s=>({...s,tip:'Follow the blue checkpoint. E returns to your saved pad. Q restarts the route.'})),
+  return hydrateParkourMap({id:source.id,title:source.title,greybox:true,revision:source.revision||2,boxes:blocks,spawns,stages:source.stages.map(s=>({...s,tip:'Follow the blue checkpoint. E returns to your saved pad. Q restarts the route.'})),
     checkpointPads:checkpointPads.map(b=>blocks.indexOf(b)),finishPad:finishPad?blocks.indexOf(finishPad):null,sectionFalls,boosts,
     ...(portals.length?{portals:portals.map(({pad,...portal})=>({...portal,exitPad:blocks.indexOf(pad)}))}:{})});
 }

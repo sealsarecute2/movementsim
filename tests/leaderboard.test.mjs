@@ -67,14 +67,15 @@ test('retired courses, local imports and unknown IDs cannot load shared boards',
  let calls=0;const fetcher=async()=>{calls++;return {ok:true,text:async()=>''};};
  for(const id of ['momentum','zigzag','skyline','circuit','balance','underpass','needles','gauntlet','free','local-map','other-community','__proto__','../bhop_lego'])await assert.rejects(loadLeaderboard(id,'classic',{fetcher}),/Invalid/);
  await assert.rejects(loadLeaderboard('course','classic',{revision:2,fetcher}),/Invalid/);assert.equal(calls,0);
- for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')).sort(),['bhop-school.txt','bhop_kitsune-v2.txt','bhop_lego-v2.txt','course.txt','endless-v3.txt','ladder-run.txt']);
+ for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')).sort(),['bhop-school.txt','bhop_kitsune-v3.txt','bhop_lego-v2.txt','course.txt','endless-v3.txt','ladder-run.txt']);
 });
 test('the new native and Kitsune boards load times while Endless ranks distance under revision 3',async()=>{
  const calls=[],fetcher=async(url)=>{calls.push(url);return {ok:true,text:async()=> 'Seal | 12345 | practice\nSecond | 456 | practice'};};
  for(const id of ['bhop-school','ladder-run']){
   assert.equal(hasLeaderboard(id),true);await loadLeaderboard(id,'practice',{fetcher});assert.match(calls.at(-1),new RegExp('leaderboards/'+id+'\\.txt'));
  }
- await loadLeaderboard('bhop_kitsune','practice',{revision:2,fetcher});assert.match(calls.at(-1),/bhop_kitsune-v2\.txt/);
+ await loadLeaderboard('bhop_kitsune','practice',{revision:3,fetcher});assert.match(calls.at(-1),/bhop_kitsune-v3\.txt/);
+ for(const revision of [1,2])await assert.rejects(loadLeaderboard('bhop_kitsune','practice',{revision,fetcher}),/Invalid/);
  const records=await loadLeaderboard('endless','practice',{revision:3,fetcher});assert.equal(records[0].value,12345);assert.match(calls.at(-1),/endless-v3\.txt/);
  for(const revision of [1,2])await assert.rejects(loadLeaderboard('endless','practice',{revision,fetcher}),/Invalid/);
 });
