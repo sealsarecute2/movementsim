@@ -114,13 +114,33 @@ export function createRenderer(canvas, boxes) {
       [[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]],0.87,0],
     ];
     for(const [points,shade,top] of faces) for(const index of [0,1,2,0,2,3]) {
-      const c=base*shade; vertices.push(...points[index],c,c,c,top);
+      const rgb=Array.isArray(base)?base:[base,base,base];
+      vertices.push(...points[index],...rgb.map(c=>c*shade),top);
     }
   }
   function setBoxes(next) {
     currentBoxes = next; vertices=[];
     for(const b of next) {
-      addBox(b,b.roof?0.35:0.46);
+      if(b.ladder) {
+        const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
+        // Cyan rails and individual rungs mark the exact climbable face.
+        const front=n[2]?(n[2]>0?Z:z):0,side=n[0]?(n[0]>0?X:x):0;
+        const piece=(a,c)=>addBox({min:a,max:c},[.13,.64,.80]);
+        if(n[2]) {
+          const a=front+(n[2]>0?0:-4);
+          piece([x,y,a],[x+4,Y,a+4]);piece([X-4,y,a],[X,Y,a+4]);
+          for(let h=y+12;h<Y;h+=24)piece([x,h,a],[X,h+3,a+4]);
+        } else {
+          const a=side+(n[0]>0?0:-4);
+          piece([a,y,z],[a+4,Y,z+4]);piece([a,y,Z-4],[a+4,Y,Z]);
+          for(let h=y+12;h<Y;h+=24)piece([a,h,z],[a+4,h+3,Z]);
+        }
+        continue;
+      }
+      addBox(b,b.shortcut?[.56,.38,.13]:b.roof?0.35:0.46);
+      if(b.skipLaunch) {
+        addBox({min:[b.min[0]+3,b.max[1]+.15,b.min[2]+3],max:[b.max[0]-3,b.max[1]+.4,b.min[2]+6]},[.85,.53,.16]);
+      }
       if(b.label) {
         const cx=(b.min[0]+b.max[0])/2, top=b.max[1]+0.12;
         const start=b.min[2]+20, end=b.max[2]-20;

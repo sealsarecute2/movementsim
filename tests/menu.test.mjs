@@ -59,7 +59,7 @@ test('slideshow advances, wraps, updates its caption and stops its clock outside
   const {gallery,slides,title,count}=slideshow();
   assert.equal(gallery.current,0);assert.equal(slides.filter(s=>s.active).length,1);
   gallery.step(0);gallery.step(6499);assert.equal(gallery.current,0);
-  gallery.step(6500);assert.equal(gallery.current,1);assert.equal(title.textContent,'Momentum Mile');
+  gallery.step(6500);assert.equal(gallery.current,1);assert.equal(title.textContent,'Overdrive');
   assert.equal(count.textContent,'02 / 09');assert.equal(slides[0]['aria-hidden'],'true');
   gallery.step(7000,false);gallery.step(30000);assert.equal(gallery.current,1);
   gallery.step(36500);assert.equal(gallery.current,2);

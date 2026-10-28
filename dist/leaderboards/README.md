@@ -12,15 +12,17 @@ Use real records only. The name, time, and mode are separated by `|`. Mode is `c
 | Course | Edit its text file |
 | --- | --- |
 | Starter course | [course.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/course.txt) |
-| Momentum Mile | [momentum.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/momentum.txt) |
-| Zigzag Alley | [zigzag.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/zigzag.txt) |
-| Skyline Ascent | [skyline.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/skyline.txt) |
-| Broken Circuit | [circuit.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/circuit.txt) |
-| Balance Lab | [balance.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/balance.txt) |
-| Underpass | [underpass.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/underpass.txt) |
-| Needleworks | [needles.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/needles.txt) |
-| The Gauntlet | [gauntlet.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/gauntlet.txt) |
-| Endless | [endless.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/endless.txt) |
+| Overdrive | [momentum-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/momentum-v2.txt) |
+| Blindside | [zigzag-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/zigzag-v2.txt) |
+| Vertigo | [skyline-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/skyline-v2.txt) |
+| Switchback Foundry | [circuit-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/circuit-v2.txt) |
+| Razorwire | [balance-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/balance-v2.txt) |
+| Compression | [underpass-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/underpass-v2.txt) |
+| Deadpoint | [needles-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/needles-v2.txt) |
+| Blackout | [gauntlet-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/gauntlet-v2.txt) |
+| Endless | [endless-v2.txt](https://github.com/sealsarecute2/movementsim/edit/main/leaderboards/endless-v2.txt) |
+
+The rebuilt layouts use **v2** files so their times do not mix with old records. The original files remain as history. Starter course and its records are unchanged.
 
 Lines beginning with `#` are comments. Remove the `#` from an example only after replacing it with a real score. Sorting is automatic: fastest time wins, or longest distance on Endless. Each player's best result is kept separately in each mode.
 

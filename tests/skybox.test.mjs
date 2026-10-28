@@ -7,12 +7,12 @@ import { createRenderer } from '../dist/renderer.js';
 function fixture(t) {
   const previousWindow=globalThis.window;globalThis.window={devicePixelRatio:1};
   t.after(()=>{if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;});
-  const draws=[],programs=[],pointers=new Map(),enabled=new Set();let current,depth=true,writeDepth=true,blend=false;
+  const uploads=[],draws=[],programs=[],pointers=new Map(),enabled=new Set();let current,depth=true,writeDepth=true,blend=false;
   const gl={VERTEX_SHADER:1,FRAGMENT_SHADER:2,COMPILE_STATUS:3,LINK_STATUS:4,ARRAY_BUFFER:5,STATIC_DRAW:6,
     FLOAT:7,DEPTH_TEST:8,BLEND:9,COLOR_BUFFER_BIT:16,DEPTH_BUFFER_BIT:32,TRIANGLES:10,ONE:11,
     createShader:type=>({type}),shaderSource:(shader,source)=>{shader.source=source;},compileShader(){},getShaderParameter:()=>true,
     createProgram(){const p={shaders:[],uniforms:{}};programs.push(p);return p;},attachShader:(p,s)=>p.shaders.push(s),linkProgram(){},getProgramParameter:()=>true,
-    useProgram:p=>{current=p;},createBuffer:()=>({}),bindBuffer(){},bufferData(){},
+    useProgram:p=>{current=p;},createBuffer:()=>({}),bindBuffer(){},bufferData(target,data){uploads.push(data);},
     getAttribLocation:(p,name)=>({aPosition:0,aColor:1,aTop:2,aClip:0})[name],
     enableVertexAttribArray:loc=>enabled.add(loc),disableVertexAttribArray:loc=>enabled.delete(loc),
     vertexAttribPointer:(loc,count)=>pointers.set(loc,count),getUniformLocation:(program,name)=>({program,name}),
@@ -25,7 +25,7 @@ function fixture(t) {
   const canvas={clientWidth:1280,clientHeight:720,width:0,height:0,getContext:()=>gl};
   const box={min:[-100,-20,-100],max:[100,0,100]},renderer=createRenderer(canvas,[box]);
   const camera={x:0,y:0,z:80,yaw:.6,pitch:.2,duckAmount:0};
-  return {renderer,camera,box,gl,draws,programs};
+  return {renderer,camera,box,gl,draws,programs,uploads};
 }
 
 test('black is the default and all four named skies have distinct palettes',()=>{
@@ -75,4 +75,15 @@ test('favicon contains all browser icon sizes and is copied unchanged into the p
   }
   assert.deepEqual(sizes,[16,32,48,64,128,256]);assert.deepEqual(readFileSync(new URL('../favicon.ico',import.meta.url)),ico);
   for(const file of ['index.html','movement-lab.html'])assert.match(readFileSync(new URL('../'+file,import.meta.url),'utf8'),/rel="icon" href="favicon.ico"/);
+});
+
+test('ladders render as cyan rails and rungs on all four climbable faces',t=>{
+ const f=fixture(t);
+ for(const normal of [[0,0,1],[0,0,-1],[1,0,0],[-1,0,0]]) {
+  const z=normal[2]!==0;
+  f.renderer.setBoxes([{min:[0,0,0],max:z?[80,240,2]:[2,240,80],ladder:true,normal}]);
+  const mesh=f.uploads.at(-1);assert.ok(mesh.length>36*7*2,'individual rungs must accompany the two rails');
+  assert.ok(mesh.every(Number.isFinite));
+  for(let i=0;i<mesh.length;i+=7)assert.ok(mesh[i+5]>mesh[i+3]&&mesh[i+4]>mesh[i+3],'rungs must be cyan rather than grey');
+ }
 });

@@ -226,3 +226,23 @@ test('bundled movement WAVs match the CS2 sources and processing hashes recorded
     assert.deepEqual(bytes,readFileSync(new URL('../sounds/'+sample.file,import.meta.url)));
   }
 });
+
+test('catching a ladder stops falling wind and clears pending ground impacts and strides',async()=>{
+ const f=fixture();await f.audio.activate();await f.audio.loading;
+ const p={...createPlayer(),grounded:false,vy:-700};f.audio.movement(p,p,{});
+ const old=f.audio.fallVoice;assert.ok(old);
+ f.audio.pendingLanding={time:0,level:.7};f.audio.stepDistance=90;
+ f.audio.movement(p,{...p,ladder:{},vy:-350,time:1},{});
+ assert.equal(f.audio.fallVoice,null);assert.equal(old.source.stops.length,1);
+ assert.equal(f.audio.pendingLanding,null);assert.equal(f.audio.stepDistance,0);
+ assert.equal(f.sources.length,1,'a ladder catch emits no fake ground impact');
+});
+test('a physical ladder jump emits one ordinary jump cue',async()=>{
+ const f=fixture();await f.audio.activate();await f.audio.loading;
+ const scene=[{min:[-40,0,0],max:[40,400,2],ladder:true,normal:[0,0,1]},
+  {min:[-48,-120,-96],max:[48,400,0]}];
+ const p=createPlayer({x:0,y:100,z:18,yaw:0});p.grounded=false;
+ step(p,{forward:1},scene);const before={...p};step(p,{forward:1,jumpPressed:true},scene);
+ f.audio.movement(before,p,{jumpPressed:true});assert.equal(f.sources.length,1);
+ assert.ok(f.sources[0].buffer.file.endsWith('jump_launch_01.wav'));
+});

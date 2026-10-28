@@ -32,7 +32,7 @@ test('cloud loading only reads the selected text file and reports failures inste
 });
 test('each scored course has an editable root text file and accepts owner-published records',()=>{
   for(const map of MAP_LIST.filter(m=>m.timed||m.endless)) {
-    const root=readFileSync(new URL('../leaderboards/'+map.id+'.txt',import.meta.url),'utf8');
+    const root=readFileSync(new URL('../leaderboards/'+map.id+(map.revision>1?'-v'+map.revision:'')+'.txt',import.meta.url),'utf8');
     assert.doesNotThrow(()=>parseLeaderboard(root,{endless:!!map.endless}));
     const example=map.endless?'Real player | 12345 | classic':'Real player | 12.345 | classic';
     assert.ok(parseLeaderboard(root+'\n'+example,{endless:!!map.endless}).some(entry=>entry.name==='Real player'));
@@ -48,4 +48,15 @@ test('a rebuild preserves owner-edited root records and updates the preview copy
     const result=spawnSync('python3',[join(folder,'build-standalone.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
     assert.equal(readFileSync(join(folder,'leaderboards/course.txt'),'utf8'),'Seal | 12.345 | classic\n');assert.equal(readFileSync(join(folder,'dist/leaderboards/course.txt'),'utf8'),'Seal | 12.345 | classic\n');
   } finally {rmSync(folder,{recursive:true,force:true});}
+});
+
+test('rebuilt routes load separate revision files and Endless still parses distance',async()=>{
+ const calls=[];
+ const records=await loadLeaderboard('endless','practice',{revision:2,fetcher:async(url)=>{
+  calls.push(url);return {ok:true,text:async()=> 'Seal | 12345 | practice'};
+ }});
+ assert.match(calls[0],/^leaderboards\/endless-v2\.txt\?/);
+ assert.deepEqual(records,[{name:'Seal',value:12345}]);
+ await assert.rejects(loadLeaderboard('course','classic',{revision:'../../secret'}),/Invalid/);
+ await assert.rejects(loadLeaderboard('course','classic',{revision:-1}),/Invalid/);
 });

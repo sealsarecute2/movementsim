@@ -238,3 +238,5 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
   .gallery-slide { animation: none !important; transition: none; transform: none; }
   .main-navigation button, .map-card { transition: none; }
 }
+.preview-ladder { fill: #42dcff; stroke: #c0f6ff; stroke-width: 1; }
+.preview-wall { fill: #262f36; stroke: #b6a394; stroke-width: .65; }

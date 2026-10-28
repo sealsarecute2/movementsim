@@ -41,7 +41,7 @@ if(Number.isFinite(settings.audioVolume))audioVolume=Math.max(0,Math.min(1,setti
 for(const mode of Object.keys(PRESETS)) {
   if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
 }
-const recordKey = () => `${map}:${preset}`;
+const recordKey = () => `${map}${MAPS[map].revision>1?':v'+MAPS[map].revision:''}:${preset}`;
 const format = seconds => {
   const ms=Math.floor(Math.max(0,seconds)*1000);
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
@@ -85,7 +85,7 @@ async function refreshLeaderboard() {
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
   $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
   try {
-    const records=await loadLeaderboard(selected.id,mode);
+    const records=await loadLeaderboard(selected.id,mode,{revision:selected.revision||1});
     if(request!==leaderboardRequest)return;
     $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
     $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
@@ -240,7 +240,7 @@ function chooseMap(value,resetRun=true) {
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
-  $('map-meta').textContent=selected.endless?'Infinite · checkpoint every 8 blocks':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('map-meta').textContent=selected.endless?'Infinite · 12 section types':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:selected.difficulty;
   $('leaderboard-button').disabled=!selected.timed&&!selected.endless;
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
@@ -263,14 +263,14 @@ function finishRun() {
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
 }
 function updateHud() {
-  const s=speed(player);
+  const s=player.ladder?Math.hypot(player.vx,player.vy,player.vz):speed(player);
   ui.timer.textContent=format(runTime);
   $('best-label').textContent=MAPS[map].endless?'BEST DISTANCE':'BEST';
   ui.best.textContent=MAPS[map].endless?`${Math.floor(Math.max(bests[recordKey()]||0,endless?.distance||0))} u`:MAPS[map].timed&&Number.isFinite(bests[recordKey()])?format(bests[recordKey()]):'—';
   ui.speed.textContent=Math.round(s);ui['speed-fill'].style.width=`${Math.min(100,s/5)}%`;
-  ui['motion-state'].textContent=player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
+  ui['motion-state'].textContent=player.ladder?'ON LADDER':player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
   const gain=Math.round(s-player.lastJumpSpeed);
-  ui.gain.textContent=!player.grounded&&player.lastJumpSpeed>0?`${gain>=0?'+':''}${gain} SINCE TAKEOFF`:'250 MAX RUN';
+  ui.gain.textContent=player.ladder?(player.vy>1?'CLIMBING':player.vy< -1?'DESCENDING':'HOLDING'):!player.grounded&&player.lastJumpSpeed>0?`${gain>=0?'+':''}${gain} SINCE TAKEOFF`:'250 MAX RUN';
   ui.hops.textContent=String(player.hops).padStart(2,'0');
   ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');

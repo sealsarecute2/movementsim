@@ -248,6 +248,8 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
   .gallery-slide { animation: none !important; transition: none; transform: none; }
   .main-navigation button, .map-card { transition: none; }
 }
+.preview-ladder { fill: #42dcff; stroke: #c0f6ff; stroke-width: 1; }
+.preview-wall { fill: #262f36; stroke: #b6a394; stroke-width: .65; }
 
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
@@ -328,7 +330,7 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
       <button id="continue" class="play" type="button">CONTINUE <span>↗</span></button>
       <p id="pause-input-note" class="input-note" role="status">Continue captures the mouse. Esc pauses.</p>
       <details class="pause-controls" open><summary>CONTROLS <span>+</span></summary>
-      <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hold Space to hop</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
+      <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look / ladder angle</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hop / push off ladder</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
         <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Attack · <kbd>R</kbd> Cancel inspect</p>
       </details>
       <div class="settings-row"><label for="pause-sensitivity">SENSITIVITY <output id="pause-sensitivity-value">1.00×</output><input id="pause-sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="pause-fov">FOV <output id="pause-fov-value">100</output><input id="pause-fov" type="range" min="80" max="120" step="1" value="100"></label></div>
@@ -343,25 +345,25 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 // Each section ends on the same safe deck, so any two section types connect.
 // x, z, width, depth, height, walk, crouch. Coordinates are relative to a deck.
 const endlessSections = [
-  { name: 'Rhythm', tip: 'Hold Space and keep your turns smooth.', nodes: [
-    [0,-360,240,240], [45,-600,220,190], [-45,-840,200,180], [60,-1080,220,180],
-    [-70,-1320,200,180], [50,-1560,220,180], [0,-1800,200,180] ] },
+  { name: 'Overdrive', tip: 'Hold Space and keep your turns smooth.', nodes: [
+    [0,-360,240,240], [45,-600,100,100], [-45,-840,96,96], [60,-1080,96,96],
+    [-70,-1320,88,96], [50,-1560,80,96], [0,-1800,80,96] ] },
   { name: 'Zigzags', tip: 'Match A / D to your mouse turn.', nodes: [
-    [0,-360,240,240], [-125,-600,180,180], [125,-840,180,180], [-125,-1080,180,180],
-    [125,-1320,180,180], [-125,-1560,180,180], [125,-1800,180,180] ] },
+    [0,-360,240,240], [-100,-600,112,112], [100,-840,112,112], [-100,-1080,112,112],
+    [100,-1320,112,112], [-100,-1560,112,112], [100,-1800,112,112] ] },
   { name: 'Terraces', tip: 'Take off early enough to clear the raised edges.', nodes: [
     [0,-360,240,240], [55,-600,200,180,24], [110,-840,200,180,48], [55,-1080,220,200,72],
     [0,-1320,200,180,48], [-55,-1560,200,180,24], [0,-1800,220,200] ] },
   { name: 'Pillars', tip: 'Use small corrections and aim for the middle.', nodes: [
-    [0,-360,240,240], [-50,-600,80,110], [50,-840,80,110], [-50,-1080,80,110],
-    [50,-1320,80,110], [-50,-1560,80,110], [50,-1800,80,110] ] },
+    [0,-360,240,240], [-50,-600,40,64], [50,-840,40,64], [-50,-1080,40,64],
+    [50,-1320,40,64], [-50,-1560,40,64], [50,-1800,40,64] ] },
   { name: 'Beams', tip: 'Release Space. Hold Shift on the thin beams.', nodes: [
-    [0,-360,240,240], [0,-690,52,420,0,true], [0,-1020,180,240,0,true],
-    [200,-1020,220,52,0,true], [400,-1020,180,180,0,true],
-    [400,-1440,48,660,0,true], [400,-1800,180,180,0,true] ] },
+    [0,-360,240,240], [0,-690,24,420,0,true], [0,-1020,180,240,0,true],
+    [200,-1020,220,24,0,true], [400,-1020,180,180,0,true],
+    [400,-1440,22,660,0,true], [400,-1800,180,180,0,true] ] },
   { name: 'Tunnels', tip: 'Release Space and hold Ctrl or C under the roofs.', nodes: [
-    [0,-360,240,240], [0,-690,180,420,0,true,true], [0,-1020,240,240,0,true],
-    [100,-1260,160,160], [0,-1460,220,240], [0,-1670,160,180,0,true,true],
+    [0,-360,240,240], [0,-690,72,420,0,true,true], [0,-1020,240,240,0,true],
+    [100,-1260,160,160], [0,-1460,220,240], [0,-1670,64,180,0,true,true],
     [0,-1850,240,180,0,true] ] },
   { name: 'Switchbacks', tip: 'Set your aim for the next straight at each corner.', nodes: [
     [0,-360,240,240], [240,-360,240,240], [480,-360,240,240], [480,-720,240,240],
@@ -369,6 +371,18 @@ const endlessSections = [
   { name: 'Mixed', tip: 'Jump the terraces, crouch through the tunnel, then land the narrow block.', nodes: [
     [0,-360,240,240], [-100,-610,120,140,24], [0,-860,120,140,48], [100,-1110,240,220,24],
     [100,-1380,160,320,24,true,true], [100,-1630,240,180,24,true], [0,-1840,60,120] ] },
+  {name:'Ladder spires',tip:'Catch the cyan ladder, climb onto the balcony, then control the descending jumps.',nodes:[
+    [0,-320,180,160],[0,-480,160,160,240,false,false,'ladder'],[140,-700,72,96,240],
+    [0,-930,72,96,216],[-140,-1160,72,96,168],[0,-1410,80,110,96],[0,-1730,96,120,0]]},
+  {name:'Wall wraps',tip:'Go around the exposed end of the tall wall. A straight jump is blocked.',nodes:[
+    [-85,-330,80,90],[85,-330,64,90,0,false,false,'wrap'],[200,-570,96,110],
+    [70,-850,96,110],[-60,-1130,96,110],[70,-1410,112,120],[0,-1730,128,120]]},
+  {name:'Microsteps',tip:'Tiny raised landings require edge takeoffs. Keep your turns shallow.',nodes:[
+    [0,-330,120,140],[55,-560,56,72,16],[-35,-770,48,64,32],[50,-980,48,64,48],
+    [-35,-1190,48,64,32],[45,-1410,48,64,16],[0,-1730,120,160]]},
+  {name:'Crosswind',tip:'The path changes direction and height. Follow the landing, not the horizon.',nodes:[
+    [0,-330,160,160],[160,-550,72,96,24],[320,-770,64,88,48],[160,-1000,64,88,24],
+    [0,-1230,64,88],[160,-1460,64,88,-24],[0,-1740,128,160]]},
 ];
 
 // Only nearby geometry is retained. Rebasing keeps long runs precise in WebGL.
@@ -382,26 +396,36 @@ function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
     h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
     return ((h ^ (h >>> 16)) >>> 0) / 0x100000000;
   }
-  function section(chunk) { return endlessSections[(chunk * 5 + seed % 8) % 8]; }
+  function section(chunk) { return endlessSections[(chunk * 5 + seed % endlessSections.length) % endlessSections.length]; }
   function layout(index) {
     if(!index) return { x:0,y:0,z:originZ,width:480,depth:480,walk:false,duck:false };
     const chunk=Math.floor((index-1)/8),local=(index-1)%8;
     const n=local===7?[0,-2040,400,280]:section(chunk).nodes[local];
     const mirror=random(chunk,17)<0.5?-1:1;
     return {x:n[0]*mirror,y:n[4]||0,z:n[1]-chunk*2040+originZ,
-      width:n[2],depth:n[3],walk:!!n[5],duck:!!n[6]};
+      width:n[2],depth:n[3],walk:!!n[5],duck:!!n[6],feature:n[7],mirror};
   }
   function platform(index) {
     const p = layout(index), saved = index % 8 === 0;
     return { min: [p.x - p.width / 2, p.y - 120, p.z - p.depth / 2],
-      max: [p.x + p.width / 2, p.y, p.z + p.depth / 2], endlessIndex: index,walk:p.walk,duck:p.duck,
+      max: [p.x + p.width / 2, p.y, p.z + p.depth / 2], endlessIndex: index,walk:p.walk,duck:p.duck,feature:p.feature,
       ...(saved ? { checkpoint: index / 8, label: index ? 'CHECKPOINT' : 'ENDLESS / START' } : {}) };
   }
   function geometry(index) {
     const p=platform(index);
-    if(!p.duck) return [p];
-    return [p,{min:[p.min[0],p.max[1]+58,p.min[2]+40],max:[p.max[0],p.max[1]+84,p.max[2]-40],roof:true}];
+    const result=[p],layoutNode=layout(index);
+    if(p.duck)result.push({min:[p.min[0],p.max[1]+56,p.min[2]+40],max:[p.max[0],p.max[1]+84,p.max[2]-40],roof:true});
+    if(p.feature==='ladder') {
+      const previous=layout(index-1),face=p.max[2],x=layoutNode.x;
+      result.push({min:[x-40,previous.y,face],max:[x+40,p.max[1]+2,face+2],ladder:true,normal:[0,0,1]},
+        {min:[x-48,previous.y-120,face-96],max:[x+48,p.max[1],face],obstacle:true,tower:true});
+    }
+    if(p.feature==='wrap') {
+      result.push({min:[-16,p.max[1]-120,layoutNode.z-90],max:[16,p.max[1]+220,layoutNode.z+72],obstacle:true,wrapWall:true});
+    }
+    return result;
   }
+
   function rebuild(index) {
     const wanted = new Set();
     for (let i = Math.max(0, index - 6); i <= index + 30; i++) wanted.add(i);
@@ -413,8 +437,8 @@ function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
   function update(player, ground = null, previous = player) {
     furthestDistance = Math.max(furthestDistance, originZ - player.z);
     let checkpointSaved = false, shift = 0;
-    const platforms=boxes.filter(b=>!b.roof&&b.endlessIndex!==ground?.endlessIndex);
-    if(ground) platforms.push(ground);
+    const platforms=boxes.filter(b=>Number.isInteger(b.endlessIndex)&&b.endlessIndex!==ground?.endlessIndex);
+    if(ground&&Number.isInteger(ground.endlessIndex))platforms.push(ground);
     const hits=platforms.flatMap(box=>{
       const crossing=platformAirspace(previous,player,box);
       return crossing?[{box,time:crossing.enter}]:[];
@@ -436,7 +460,7 @@ function createEndless(seed = Math.floor(Math.random() * 0x100000000)) {
     // A spatial estimate based only on z skips the horizontal legs of turns.
     // Use the supported block, or the nearest visible deck while airborne.
     const nearest=ground&&Number.isInteger(ground.endlessIndex)?ground:
-      boxes.filter(b=>!b.roof).reduce((best,b)=>{
+      boxes.filter(b=>Number.isInteger(b.endlessIndex)).reduce((best,b)=>{
         const distance=q=>(player.x-(q.min[0]+q.max[0])/2)**2+(player.z-(q.min[2]+q.max[2])/2+shift)**2;
         return !best||distance(b)<distance(best)?b:best;
       },null);
@@ -477,12 +501,14 @@ const COURSE = [
   box(300, -3115, 400, 290, 48, { finish: true, label: 'FINISH' }),
 ];
 const PRACTICE = [
-  box(0, -600, 2200, 2200, 0, { label: 'FREE MOVEMENT' }),
-  box(-500, -700, 160, 160, 32),
-  box(-700, -960, 160, 160, 64),
-  box(-450, -1220, 200, 180, 96),
-  box(540, -600, 80, 600, 32),
-  box(730, -1000, 200, 160, 48),
+  box(0,-600,2200,2200,0,{label:'SANDBOX / MOVEMENT LAB'}),
+  box(-650,-650,48,64,24),box(-760,-850,36,48,48),box(-630,-1050,28,36,72),
+  box(550,-650,22,540,32),box(550,-990,96,140,32),
+  box(0,-1400,180,160,240),
+  {min:[-40,0,-1322],max:[40,242,-1320],ladder:true,normal:[0,0,1]},
+  {min:[-48,-120,-1416],max:[48,240,-1322],obstacle:true,tower:true},
+  box(360,-1410,140,320,0),{min:[290,56,-1530],max:[430,84,-1290],roof:true},
+  {min:[-16,0,-500],max:[16,240,-386],obstacle:true,wrapWall:true},
 ];
 const SPAWNS = [
   { x: 0, y: 0, z: 100, yaw: 0 },
@@ -493,124 +519,158 @@ const SPAWNS = [
 // Route nodes describe the intended line as well as the visible platforms.
 // Keeping that line with the map lets the geometry checks exercise real gaps,
 // stairs, beams and tunnels with the same controller used in the game.
-const node = (x, z, w = 200, d = 180, top = 0, extra = {}) => ({ x, z, w, d, top, ...extra });
-function makeCourse(id, title, difficulty, description, nodes, stages, obstacles = []) {
-  const platforms = nodes.map((n, i) => box(n.x, n.z, n.w, n.d, n.top, {
-    ...(n.checkpoint ? { checkpoint: n.checkpoint } : {}),
-    ...(i === nodes.length - 1 ? { finish: true, label: 'FINISH' } :
-      i === 0 || n.checkpoint ? { label: title.toUpperCase() } : {}),
+const node = (x,z,w=96,d=96,top=0,extra={})=>({x,z,w,d,top,...extra});
+const stage=(title,tip)=>({title,tip});
+const obstacle=(min,max,extra={})=>({min,max,obstacle:true,...extra});
+function makeCourse(id,title,difficulty,description,nodes,stages,obstacles=[],skips=[]) {
+  const platforms=nodes.map((n,i)=>box(n.x,n.z,n.w,n.d,n.top,{
+    ...(n.checkpoint?{checkpoint:n.checkpoint}:{}),
+    ...(i===nodes.length-1?{finish:true,label:'FINISH'}:i===0||n.checkpoint?{label:title.toUpperCase()}:{}),
+    ...(skips.some(s=>s.from===i)?{skipLaunch:true}:{}),
   }));
-  const spawns = nodes.flatMap((n, i) => {
-    if (i !== 0 && !n.checkpoint) return [];
-    const next = nodes[i + 1] || n, dx = next.x - n.x, dz = next.z - n.z;
-    const length = Math.hypot(dx, dz) || 1;
-    const retreat = Math.min(80, (n.w / 2 - 36) / (Math.abs(dx / length) || 1e-6),
-      (n.d / 2 - 36) / (Math.abs(dz / length) || 1e-6));
-    return [{ x: n.x - dx / length * retreat, y: n.top,
-      z: n.z - dz / length * retreat, yaw: Math.atan2(dx, -dz) }];
+  const spawns=nodes.flatMap((n,i)=>{
+    if(i&&!n.checkpoint)return [];
+    const next=nodes[i+1]||n,dx=next.x-n.x,dz=next.z-n.z,length=Math.hypot(dx,dz)||1;
+    const retreat=n.checkpoint?0:Math.max(0,Math.min(60,(n.w/2-24)/(Math.abs(dx/length)||1e-6),(n.d/2-24)/(Math.abs(dz/length)||1e-6)));
+    return [{x:n.x-dx/length*retreat,y:n.top,z:n.z-dz/length*retreat,yaw:Math.atan2(dx,-dz)}];
   });
-  return { id, title, difficulty, description, timed: true,
-    boxes: [...platforms, ...obstacles], spawns, stages, route: nodes, platforms };
+  return {id,title,difficulty,description,timed:true,revision:2,
+    boxes:[...platforms,...obstacles,...skips.filter(s=>s.via).map(s=>box(s.via.x,s.via.z,s.via.w,s.via.d,s.via.top,{shortcut:true}))],platforms,route:nodes,spawns,stages,skips,
+    features:[...(obstacles.some(b=>b.ladder)?['Ladders']:[]),...(nodes.some(n=>n.via)?['Wraps']:[]),...(skips.length?['Hard skips']:[])]};
 }
-const stage = (title, tip) => ({ title, tip });
-const momentum = makeCourse('momentum', 'Momentum Mile', 'Easy',
-  'A long rhythm course with generous landings and two recovery decks.',
-  [node(0, 0, 480, 480), ...Array.from({ length: 21 }, (_, i) => {
-    const checkpoint = i === 6 ? 1 : i === 13 ? 2 : 0;
-    return node(i % 2 ? 35 : -35, -420 - i * 280,
-      checkpoint || i === 20 ? 400 : 240, checkpoint ? 240 : 200, 0, { checkpoint });
-  })], [stage('Find a steady rhythm.', 'Wide blocks give you room to line up each takeoff.'),
-    stage('Keep the chain alive.', 'Hold Space and use small, smooth strafes.'),
-    stage('Finish with momentum.', 'Look ahead to the next block instead of at your feet.')]);
-const zigzag = makeCourse('zigzag', 'Zigzag Alley', 'Medium',
-  'Alternating left and right landings for learning deliberate air strafes.',
-  [node(0, 0, 440, 440), ...Array.from({ length: 15 }, (_, i) => {
-    const checkpoint = i === 4 ? 1 : i === 9 ? 2 : 0;
-    return node(checkpoint || i === 14 ? 0 : i % 2 ? 125 : -125,
-      -380 - i * 250, checkpoint || i === 14 ? 380 : 180,
-      checkpoint ? 240 : 180, 0, { checkpoint });
-  })], [stage('Commit to the turn.', 'Release W in the air. Match A / D to your mouse turn.'),
-    stage('Reverse your strafe.', 'Set up the opposite direction before the next takeoff.'),
-    stage('Link the final zigzags.', 'Aim for the middle of each landing to leave room for the next turn.')]);
-const skyline = makeCourse('skyline', 'Skyline Ascent', 'Medium',
-  'Climb floating terraces, gaining 24 units with every jump.',
-  [node(0, 0, 440, 400), ...Array.from({ length: 15 }, (_, i) => {
-    const checkpoint = i === 4 ? 1 : i === 9 ? 2 : 0;
-    return node(Math.round(Math.sin(i * 0.55) * 150), -340 - i * 210,
-      checkpoint || i === 14 ? 360 : 180, checkpoint ? 250 : 150,
-      (i + 1) * 24, { checkpoint });
-  })], [stage('Start the climb.', 'Jump close to the edge. Each landing is one terrace higher.'),
-    stage('Follow the skyline.', 'Keep your turns smooth as the path bends.'),
-    stage('Reach the summit.', 'Preserve your running speed for the final raised platforms.')]);
-const circuit = makeCourse('circuit', 'Broken Circuit', 'Medium',
-  'Four straights joined by sharp right-angle turns over the void.',
-  [node(0, 0, 440, 440), node(0, -380), node(0, -640),
-    node(0, -900, 360, 280, 0, { checkpoint: 1 }),
-    node(300, -900), node(560, -900), node(820, -900),
-    node(1080, -900, 300, 300, 0, { checkpoint: 2 }),
-    node(1080, -1180), node(1080, -1440), node(1080, -1700),
-    node(1080, -1960, 320, 280, 0, { checkpoint: 3 }),
-    node(800, -1960), node(540, -1960), node(280, -1960), node(0, -1960, 400, 280)],
-  [stage('Approach the first corner.', 'Use the wide corner deck to aim down the next straight.'),
-    stage('Turn right.', 'The route now runs to your right. Reset your aim before jumping.'),
-    stage('Turn left into the next lane.', 'Stay centered through the long middle straight.'),
-    stage('Bring it home.', 'Turn left again and follow the blocks to the finish.')]);
-const balance = makeCourse('balance', 'Balance Lab', 'Medium',
-  'Connected beams, small corner pads, and a thin final crossing. Space is optional.',
-  [node(0, 0, 400, 400), node(0, -420, 56, 440, 0, { walk: true }),
-    node(0, -730, 180, 180, 0, { walk: true }),
-    node(60, -960, 52, 280, 0, { walk: true }),
-    node(60, -1190, 180, 180, 0, { walk: true, checkpoint: 1 }),
-    node(360, -1190, 420, 52, 0, { walk: true }),
-    node(660, -1190, 180, 180, 0, { walk: true, checkpoint: 2 }),
-    node(660, -1540, 48, 520, 0, { walk: true }),
-    node(660, -1890, 180, 180, 0, { walk: true }),
-    node(660, -2210, 44, 460, 0, { walk: true }),
-    node(660, -2580, 400, 280, 0, { walk: true })],
-  [stage('Walk the centerline.', 'Hold Shift. Release Space to walk along the beams.'),
-    stage('Make the corner.', 'Use the square pad to line up with the horizontal beam.'),
-    stage('Cross the thin finish.', 'Slow adjustments are enough. Keep your view level.')]);
-const tunnelNodes = [node(0, 0, 420, 360),
-  node(0, -460, 220, 560, 0, { walk: true, duck: true }),
-  node(0, -880, 360, 280, 0, { walk: true }), node(120, -1120, 160, 140),
-  node(-20, -1360, 180, 160), node(0, -1620, 400, 280, 0, { checkpoint: 1 }),
-  node(0, -2060, 160, 600, 0, { walk: true, duck: true }),
-  node(0, -2500, 340, 280, 0, { walk: true, checkpoint: 2 }),
-  node(0, -2840, 64, 400, 0, { walk: true }), node(0, -3190, 400, 300, 0, { walk: true })];
-const underpass = makeCourse('underpass', 'Underpass', 'Medium',
-  'Two low tunnels linked by offset jumps and a beam exit.', tunnelNodes,
-  [stage('Get under the first roof.', 'Release Space and hold Ctrl or C before entering the tunnel.'),
-    stage('Stay low through the passage.', 'The second roof is narrower. Stand only after you clear it.'),
-    stage('Balance on the exit.', 'Release crouch, hold Shift, and follow the beam to the finish.')],
-  [{ min: [-110, 58, -680], max: [110, 84, -240], roof: true },
-    { min: [-80, 58, -2300], max: [80, 84, -1820], roof: true }]);
-const needles = makeCourse('needles', 'Needleworks', 'Hard',
-  'Small pillars demand accurate takeoffs and controlled landings.',
-  [node(0, 0, 400, 380), ...Array.from({ length: 18 }, (_, i) => {
-    const checkpoint = i === 5 ? 1 : i === 11 ? 2 : 0;
-    return node(checkpoint || i === 17 ? 0 : [-65, 15, 95, 15][i % 4],
-      -320 - i * 180, checkpoint || i === 17 ? 320 : 70,
-      checkpoint || i === 17 ? 180 : 88, 0, { checkpoint });
-  })], [stage('Land with precision.', 'Use small strafes. The pillars leave little room for corrections.'),
-    stage('Control each takeoff.', 'A clean landing sets up the next jump.'),
-    stage('Thread the final needles.', 'Keep your turns shallow and aim through the next pillar.')]);
-const gauntlet = makeCourse('gauntlet', 'The Gauntlet', 'Hard',
-  'A full movement test: offset hops, raised terraces, a tunnel, and narrow beams.',
-  [node(0, 0, 420, 400), node(70, -360, 120, 140), node(-50, -570, 120, 140),
-    node(70, -780, 120, 140), node(0, -1030, 360, 260, 0, { checkpoint: 1 }),
-    node(100, -1260, 140, 150, 24), node(210, -1470, 140, 150, 48),
-    node(320, -1680, 140, 150, 72), node(400, -1910, 360, 260, 96, { checkpoint: 2 }),
-    node(400, -2080, 160, 80, 112, { walk: true }),
-    node(400, -2160, 160, 80, 128, { walk: true }),
-    node(400, -2410, 160, 420, 144, { walk: true, duck: true }),
-    node(400, -2760, 320, 280, 144, { walk: true, checkpoint: 3 }),
-    node(400, -3100, 48, 400, 144, { walk: true }), node(470, -3410, 80, 120, 144),
-    node(390, -3630, 80, 120, 144), node(400, -3890, 400, 240, 144)],
-  [stage('Set your line.', 'Link the offset blocks while keeping your speed under control.'),
-    stage('Climb the terraces.', 'Take off near each edge to reach the higher platforms.'),
-    stage('Switch to control.', 'Release Space, climb the steps, and crouch before the roof.'),
-    stage('Finish the gauntlet.', 'Walk the beam, then jump the last two pillars.')],
-  [{ min: [320, 202, -2530], max: [480, 228, -2250], roof: true }]);
+// The obstacle is taller than a jump: the line must bend around its exposed end.
+function wrapWall(x,z,top=0,mirror=1) {
+  return obstacle([x-16,top-120,z-90],[x+16,top+220,z+72],{wrapWall:true,mirror});
+}
+function ladderTower(x,z,bottom,height,width=96) {
+  return [
+    {min:[x-width/2+8,bottom,z],max:[x+width/2-8,bottom+height+2,z+2],ladder:true,normal:[0,0,1]},
+    obstacle([x-width/2,bottom-120,z-96],[x+width/2,bottom+height,z],{tower:true}),
+  ];
+}
+const cp=(checkpoint)=>({checkpoint});
+const cut=(from,to,tip)=>({from,to,tip,expert:true});
+
+const momentum=makeCourse('momentum','Overdrive','Hard',
+  'Long takeoffs, staggered drops, and a hairpin shortcut. Keep speed while the route changes height.',[
+  node(0,0,360,320),node(-40,-340,88,100),node(30,-590,80,88),node(-45,-840,72,88),
+  node(0,-1110,240,180,0,cp(1)),node(200,-1110,64,72),node(420,-1110,64,64),
+  node(420,-1340,64,64),node(200,-1340,48,56),node(0,-1530,220,180,-48,cp(2)),
+  node(-180,-1740,72,80,-48),node(-20,-1950,64,72,-72),node(150,-2160,56,72,-96),
+  node(0,-2430,240,160,-120)
+], [stage('Build and commit.','Small staggered landings punish wide corrections. Jump from the last few units.'),
+  stage('Cut the hairpin.','The amber-marked ledge can skip the outside turn. The 48-unit landing leaves little margin.'),
+  stage('Ride the drops.','The platforms step down. Use the extra airtime without overshooting.')],[],[cut(5,8,'Skip the outside hairpin with a precise 230-unit transfer.')]);
+
+const zigzag=makeCourse('zigzag','Blindside','Expert',
+  'Three wall wraps reverse your line. Tall walls block straight jumps; commit around the exposed ends.',[
+  node(0,0,320,300),node(-85,-310,80,90),
+  node(85,-310,64,90,0,{via:[{x:0,z:-205}]}),node(200,-510,72,80),
+  node(190,-740,220,160,0,cp(1)),node(105,-960,72,90),
+  node(275,-960,64,90,0,{via:[{x:190,z:-855}]}),node(390,-1160,64,80),
+  node(360,-1390,220,160,24,cp(2)),node(275,-1610,64,90,24),
+  node(445,-1610,56,90,24,{via:[{x:360,z:-1505}]}),node(560,-1810,56,80,24),
+  node(390,-1980,64,72,0),node(300,-2210,240,160,-120)
+], [stage('Round the first wall.','Strafe around the near end of the tall wall. Its top is out of jump reach.'),
+  stage('Reverse your line.','Set up the wrap from the outside edge. Turning too early hits the wall.'),
+  stage('The blind finish.','The last wrap has a smaller landing. An early diagonal drop skips one exit pillar.')],
+  [wrapWall(0,-310),wrapWall(190,-960),wrapWall(360,-1610,24)],
+  [cut(11,13,'Drop diagonally past the final exit pillar; the landing is below the takeoff.')]);
+
+const skyline=makeCourse('skyline','Vertigo','Expert',
+  'Climb three exposed ladder towers, cross their tiny balconies, then drop into a narrow finish.',[
+  node(0,0,340,320),node(0,-330,80,100),node(0,-570,180,160),
+  node(0,-730,160,160,240,{ladder:true,checkpoint:1}),
+  node(170,-940,64,72,240),node(330,-1130,64,72,264),node(330,-1370,170,160,264),
+  node(330,-1530,160,160,544,{ladder:true,checkpoint:2}),
+  node(160,-1740,56,72,544),node(0,-1940,56,72,520),node(0,-2180,160,160,520),
+  node(0,-2340,160,160,840,{ladder:true,checkpoint:3}),
+  node(170,-2540,48,64,840),node(320,-2760,48,64,792),node(170,-3000,220,160,640)
+], [stage('Catch the first ladder.','Move into the cyan rungs. Your view angle controls climbing speed; Space pushes you off.'),
+  stage('Cross the balcony.','Narrow offset pads lead to the second tower. Stay centered when you attach.'),
+  stage('Climb the exposed spine.','Look upward while pressing into the ladder. Clear the top before turning.'),
+  stage('The high drop.','Carry speed off the top balcony. The direct diagonal cut demands a very late takeoff.')],
+  [...ladderTower(0,-650,0,240),...ladderTower(330,-1450,264,280),...ladderTower(0,-2260,520,320)],
+  [cut(12,14,'Skip the last tiny balcony with a long descending jump.')]);
+
+const circuit=makeCourse('circuit','Switchback Foundry','Expert',
+  'A folded industrial route with sharp reversals, a wall wrap, and descending shortcuts across the inside.',[
+  node(0,0,340,320),node(0,-330,72,90),node(0,-560,64,80),node(210,-560,64,72),
+  node(420,-560,220,180,0,cp(1)),node(420,-330,64,72),node(210,-330,56,64),
+  node(210,-100,200,160,24,cp(2)),node(420,-100,64,90,24),
+  node(590,-100,56,90,24,{via:[{x:505,z:5}]}),node(720,-310,56,72,24),
+  node(720,-540,200,160,24,cp(3)),node(930,-700,56,64,0),node(1150,-700,48,64,-24),
+  node(1150,-940,56,64,-48),node(930,-940,40,48,-72),node(730,-1160,240,160,-96)
+], [stage('Turn at speed.','The route folds to the right. Aim through the corner before touching down.'),
+  stage('Reverse the straight.','A tight return lane climbs toward the inside checkpoint.'),
+  stage('Wrap the furnace.','Go around the near end. The wall is too high to clear.'),
+  stage('Cut the return.','The route doubles back below you. A precise descending cut skips the outside pillar.')],
+  [wrapWall(505,-100,24)], [cut(12,15,'Transfer diagonally across the inside of the lower return.')]);
+
+const balance=makeCourse('balance','Razorwire','Expert',
+  '20-unit beams, broken corner pads, and an exposed ladder exit. Sprinting the safe line is a risk.',[
+  node(0,0,320,300),node(0,-350,24,400,0,{walk:true}),node(0,-600,72,100,0,{walk:true}),
+  node(135,-600,220,22,0,{walk:true}),node(280,-600,80,100,0,{walk:true,checkpoint:1}),
+  node(280,-840,22,400,0,{walk:true}),node(280,-1090,64,100,0,{walk:true}),
+  node(160,-1290,48,64,16),node(40,-1490,160,160,32,cp(2)),
+  node(40,-1650,160,160,232,{ladder:true}),node(40,-1900,20,340,232,{walk:true}),
+  node(40,-2120,64,100,232,{walk:true}),node(230,-2270,40,56,208),node(40,-2450,220,160,184)
+], [stage('Find the wire.','Use Shift on the 24-unit rail. The corner beam is even thinner.'),
+  stage('Broken connections.','Release Shift for the diagonal gaps, then settle on the small landing.'),
+  stage('Climb and balance.','Clear the cyan ladder before aligning with the 20-unit beam. The final cut is a blind drop.')],
+  ladderTower(40,-1570,32,200),[{...cut(9,11,'Leave the wire and double-hop through the outside 24-unit pin.'),via:node(180,-1880,24,32,232)}]);
+
+const underpass=makeCourse('underpass','Compression','Expert',
+  'Low roofs, crouch gaps, a vertical escape, and a tight wall exit. Switch stance before the geometry forces it.',[
+  node(0,0,340,300),node(0,-360,112,420,0,{walk:true,duck:true}),
+  node(0,-630,120,120,0,{walk:true}),node(110,-840,64,80,16),
+  node(-10,-1050,180,160,16,cp(1)),node(-10,-1370,80,480,16,{walk:true,duck:true}),
+  node(-10,-1670,160,160,16,{walk:true}),node(-10,-1830,160,160,256,{ladder:true,checkpoint:2}),
+  node(-95,-2050,64,90,256),node(75,-2050,56,90,256,{via:[{x:-10,z:-1945}]}),
+  node(180,-2240,64,72,232),node(180,-2500,80,500,232,{duck:true,walk:true}),
+  node(180,-2760,220,160,232,{walk:true})
+], [stage('Crouch before the roof.','The first tunnel has only 56 units of clearance. Do not auto-hop inside.'),
+  stage('Stay low, then go vertical.','Cross the narrow passage, stand in the exit bay, and catch the ladder.'),
+  stage('Wrap into the last duct.','Clear the wall from the exposed end, then crouch again for the finish duct.')],
+  [obstacle([-56,56,-500],[56,84,-200],{roof:true}),
+    obstacle([-50,72,-1550],[30,100,-1160],{roof:true}),
+    ...ladderTower(-10,-1750,16,240),wrapWall(-10,-2050,256),
+    obstacle([140,288,-2610],[220,316,-2390],{roof:true})],
+  [cut(9,11,'Drop directly into the final duct. You must crouch before your head reaches its front edge.')]);
+
+const needles=makeCourse('needles','Deadpoint','Extreme',
+  'Tiny 28–48 unit landings, off-axis jumps, and raised pins. The optional inside cut removes your recovery pad.',[
+  node(0,0,320,300),node(-35,-310,48,56),node(45,-510,40,48,16),node(-50,-710,36,48,32),
+  node(40,-910,32,40,48),node(0,-1140,180,160,48,cp(1)),
+  node(-60,-1370,32,40,48),node(-270,-1370,36,40,48),node(-270,-1580,32,40,48),
+  node(-60,-1580,28,36,48),node(30,-1780,36,40,72),node(0,-2010,180,160,72,cp(2)),
+  node(120,-2220,32,40,48),node(-20,-2420,28,36,24),node(110,-2620,28,36,0),
+  node(-30,-2820,32,40,-24),node(0,-3050,220,160,-24)
+], [stage('Hit the deadpoint.','Raised pins require an early takeoff. There is almost no room to correct a missed line.'),
+  stage('The 28-unit cut.','The inside shortcut skips two pillars, but its landing is the smallest on the course.'),
+  stage('Keep the landing quiet.','The final pins descend and alternate. Brake the turn before you touch down.')],[],
+  [cut(6,9,'A precise 210-unit pin-to-pin cut skips the outside pair.')]);
+
+const gauntlet=makeCourse('gauntlet','Blackout','Extreme',
+  'A long mixed test: blind wraps, ladder towers, crouch roofs, wire beams, and a falling ladder catch.',[
+  node(0,0,340,300),node(-85,-310,64,90),node(85,-310,56,90,0,{via:[{x:0,z:-205}]}),
+  node(180,-520,48,64),node(180,-750,180,160,0,cp(1)),
+  node(180,-910,160,160,280,{ladder:true}),node(50,-1110,48,64,304),
+  node(50,-1380,88,460,304,{walk:true,duck:true}),node(50,-1630,180,160,304,{walk:true,checkpoint:2}),
+  node(50,-1880,20,420,304,{walk:true}),node(50,-2140,64,100,304,{walk:true}),
+  node(185,-2300,36,48,280),node(50,-2500,32,40,208),node(50,-2730,180,160,208,cp(3)),
+  node(50,-2890,160,160,488,{ladder:true}),node(190,-3100,40,56,464),
+  node(340,-3320,36,48,416),node(340,-3550,160,160,224,cp(4)),
+  node(340,-3710,160,160,424,{ladder:true}),node(210,-3910,32,48,400),node(340,-4130,220,160,352)
+], [stage('Blind entry.','Round the wall and land the small offset pin. Shortcuts cannot skip the blue checkpoints.'),
+  stage('Tower into the duct.','Climb, clear the raised pin, then release Space and crouch under the roof.'),
+  stage('Wire and pin.','Walk the 20-unit beam. The direct cut to the lower pin needs a perfect takeoff.'),
+  stage('Climb, then fall.','The high tower leads into a steep drop. The next cyan ladder can catch your fall.'),
+  stage('No recovery at the end.','Clear the last ladder and land the final offset pin before the finish.')],
+  [wrapWall(0,-310),...ladderTower(180,-830,0,280),
+    obstacle([6,360,-1500],[94,388,-1260],{roof:true}),
+    ...ladderTower(50,-2810,208,280),...ladderTower(340,-3630,224,200)],
+  [cut(10,12,'Cut diagonally off the wire end onto the lower 32-unit pin.'),cut(15,17,'Skip the lower pillar with a long fall into the checkpoint bay.')]);
 
 const endlessPreview = createEndless(1);
 const MAP_LIST = [
@@ -621,7 +681,7 @@ const MAP_LIST = [
       stage('Carry it through the turn.', 'Release W. Match A / D with a smooth mouse turn.'),
       stage('Slow down. Stay in control.', 'Walk the beam. Crouch under the low ceiling.')] },
   momentum, zigzag, skyline, circuit, balance, underpass, needles, gauntlet,
-  { id: 'endless', title: 'Endless', difficulty: 'Infinite', endless: true, timed: false,
+  { id: 'endless', revision: 2, title: 'Endless', difficulty: 'Infinite', endless: true, timed: false,
     description: 'Mixed sections with checkpoints every 8 blocks.',
     boxes: endlessPreview.boxes, spawns: [endlessPreview.spawn],
     stages: [stage('See how far you can go.', 'Checkpoints every 8 blocks. E returns to the latest save. Q starts a new route.')] },
@@ -640,6 +700,7 @@ const RULES = Object.freeze({
   airCap: 30, friction: 5.2, stopSpeed: 80, maxSpeed: 250,
   walkScale: 0.52, crouchScale: 0.34, radius: 16,
   standHeight: 72, duckHeight: 54, stepHeight: 18,
+  ladderSpeed: 200, ladderReach: 2, ladderJump: 270, ladderRegrab: .2,
   // Simulator tuning values; not assertions of exact current CS2 convars.
   bhopHalfWindow: 0.015625, spamDelay: 0.015625, landingRecovery: 0.16,
 });
@@ -673,7 +734,8 @@ function createPlayer(spawn = { x: 0, y: 0, z: 100, yaw: 0 }) {
     ducked: false, duckAmount: 0, time: 0, landTime: -10,
     lastPress: -10, validPress: -10, usedPress: -10,
     hops: 0, totalJumps: 0, lastJumpSpeed: 0, lastLandSpeed: 0,
-    jumpFeedback: '', landImpact: 0, peakSpeed: 0, groundBox: null };
+    jumpFeedback: '', landImpact: 0, peakSpeed: 0, groundBox: null,
+    ladder: null, ladderNormal: null, ladderDetachTime: -10, jumpHeldLast: false };
 }
 function accelerate(p, wx, wz, wishSpeed, acceleration, dt, cap = wishSpeed) {
   const add = cap - (p.vx * wx + p.vz * wz);
@@ -693,18 +755,19 @@ function bounds(p) {
 function overlaps(a, b) {
   return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
 }
-function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => overlaps(b, o)); }
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&overlaps(b, o)); }
 function support(p, boxes, distance = 0.08) {
-  return boxes.find(b => p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
+  return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
     p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
 }
 // Swept player hull against Minkowski-expanded axis-aligned boxes. Slab traces
 // prevent tunnelling; repeated traces clip velocity to walls and corners.
-function sweep(p, delta, boxes) {
+function sweep(p, delta, boxes, includeLadders = false) {
   let best = { t: 1, normal: [0, 0, 0], box: null };
   const height = p.ducked ? 54 : 72;
   for (const b of boxes) {
+    if(b.ladder&&!includeLadders)continue;
     const lo = [b.min[0] - 16, b.min[1] - height, b.min[2] - 16];
     const hi = [b.max[0] + 16, b.max[1], b.max[2] + 16];
     const pos = [p.x, p.y, p.z];
@@ -719,7 +782,12 @@ function sweep(p, delta, boxes) {
         leave = Math.min(leave, far);
       }
     }
-    if (valid && enter <= leave && leave >= 0 && enter >= -EPS && enter < best.t && enter <= 1) {
+    if(includeLadders&&b.ladder&&valid&&enter<0&&leave>=0) {
+      const n=b.normal,axis=n?.findIndex(v=>v!==0);
+      const face=axis>=0?(n[axis]>0?b.max[axis]:b.min[axis]):0;
+      if(axis>=0&&(pos[axis]-face)*n[axis]>=RULES.radius-2-EPS&&delta[axis]*n[axis]<0){enter=0;normal=n;}
+    }
+    if (valid && enter <= leave && leave >= 0 && enter >= -EPS && (enter < best.t||includeLadders&&b.ladder&&enter===best.t&&enter<1) && enter <= 1) {
       best = { t: Math.max(0, enter), normal, box: b };
     }
   }
@@ -772,8 +840,48 @@ function jump(p, mode, perfect) {
   p.jumpFeedback = perfect ? 'CLEAN HOP' : 'JUMP';
   p.usedPress = p.validPress;
 }
+// Independent implementation of Valve's public Source ladder-plane projection:
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp
+// Pitch contributes to climbing; velocity into the face becomes upward motion.
+// These browser timings are not a claim of CS2 subtick parity.
+function ladderMove(p,input,boxes,dt,jumpEdge) {
+  const forward=input.forward||0,side=input.side||0;
+  const cp=Math.cos(p.pitch),sp=Math.sin(p.pitch),sy=Math.sin(p.yaw),cy=Math.cos(p.yaw);
+  const direction=p.ladderNormal? p.ladderNormal.map(v=>-v):
+    [sy*cp*forward+cy*side,sp*forward,-cy*cp*forward+sy*side];
+  const length=Math.hypot(...direction);
+  const detach=()=>{p.ladder=null;p.ladderNormal=null;};
+  if(p.time<p.ladderDetachTime||!length){detach();return false;}
+  const trace=sweep(p,direction.map(v=>v/length*RULES.ladderReach),boxes,true);
+  const ladder=trace.box;
+  if(!ladder?.ladder||!ladder.normal||trace.normal.some((v,i)=>Math.abs(v-ladder.normal[i])>EPS)) {detach();return false;}
+  const normal=ladder.normal,onFloor=p.grounded;
+  p.ladder=ladder;p.ladderNormal=normal;p.grounded=false;p.groundBox=null;
+  p.hops=0;p.jumpFeedback='LADDER';p.landImpact=0;
+  if(jumpEdge) {
+    p.vx=normal[0]*RULES.ladderJump;p.vy=0;p.vz=normal[2]*RULES.ladderJump;
+    p.totalJumps++;p.lastJumpSpeed=speed(p);
+    p.ladderDetachTime=p.time+RULES.ladderRegrab;p.usedPress=p.validPress;
+    p.jumpFeedback='LADDER JUMP';detach();return false;
+  }
+  const scale=p.ducked?RULES.crouchScale:input.walk?RULES.walkScale:1;
+  const climb=RULES.ladderSpeed*scale;
+  const vx=(sy*cp*forward+cy*side)*climb,vy=sp*forward*climb,vz=(-cy*cp*forward+sy*side)*climb;
+  const into=vx*normal[0]+vz*normal[2];
+  let lx=vx-into*normal[0],lz=vz-into*normal[2];
+  // Counter-Strike's public Source branch damps lateral drift when facing in.
+  if(into/Math.max(EPS,Math.hypot(into,lx,lz))<-.707){lx*=.2;lz*=.2;}
+  p.vx=lx;p.vy=vy-into;p.vz=lz;
+  if(onFloor&&into>0){p.vx+=normal[0]*climb;p.vz+=normal[2]*climb;}
+  const result=move(p,dt,boxes,false);
+  if(result.groundBox){p.grounded=true;p.groundBox=result.groundBox;p.vy=0;}
+  p.peakSpeed=Math.max(p.peakSpeed,speed(p));
+  return true;
+}
 function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   p.time += dt;
+  const jumpEdge=!!input.jumpPressed||!!input.jumpHeld&&!p.jumpHeldLast;
+  p.jumpHeldLast=!!input.jumpHeld;
   if (input.jumpPressed) {
     if (p.time - p.lastPress >= RULES.spamDelay) p.validPress = p.time;
     p.lastPress = p.time;
@@ -785,6 +893,7 @@ function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
     if (blocked(p, boxes)) p.ducked = true;
   }
   p.duckAmount += ((p.ducked ? 1 : 0) - p.duckAmount) * Math.min(1, dt * 16);
+  if(ladderMove(p,input,boxes,dt,jumpEdge))return p;
   const ground = p.vy <= 0 ? support(p, boxes) : null;
   if (p.grounded && !ground) p.grounded = false;
   if (p.grounded) { p.y = ground.max[1]; p.groundBox = ground; }
@@ -1054,13 +1163,33 @@ function createRenderer(canvas, boxes) {
       [[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]],0.87,0],
     ];
     for(const [points,shade,top] of faces) for(const index of [0,1,2,0,2,3]) {
-      const c=base*shade; vertices.push(...points[index],c,c,c,top);
+      const rgb=Array.isArray(base)?base:[base,base,base];
+      vertices.push(...points[index],...rgb.map(c=>c*shade),top);
     }
   }
   function setBoxes(next) {
     currentBoxes = next; vertices=[];
     for(const b of next) {
-      addBox(b,b.roof?0.35:0.46);
+      if(b.ladder) {
+        const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
+        // Cyan rails and individual rungs mark the exact climbable face.
+        const front=n[2]?(n[2]>0?Z:z):0,side=n[0]?(n[0]>0?X:x):0;
+        const piece=(a,c)=>addBox({min:a,max:c},[.13,.64,.80]);
+        if(n[2]) {
+          const a=front+(n[2]>0?0:-4);
+          piece([x,y,a],[x+4,Y,a+4]);piece([X-4,y,a],[X,Y,a+4]);
+          for(let h=y+12;h<Y;h+=24)piece([x,h,a],[X,h+3,a+4]);
+        } else {
+          const a=side+(n[0]>0?0:-4);
+          piece([a,y,z],[a+4,Y,z+4]);piece([a,y,Z-4],[a+4,Y,Z]);
+          for(let h=y+12;h<Y;h+=24)piece([a,h,z],[a+4,h+3,Z]);
+        }
+        continue;
+      }
+      addBox(b,b.shortcut?[.56,.38,.13]:b.roof?0.35:0.46);
+      if(b.skipLaunch) {
+        addBox({min:[b.min[0]+3,b.max[1]+.15,b.min[2]+3],max:[b.max[0]-3,b.max[1]+.4,b.min[2]+6]},[.85,.53,.16]);
+      }
       if(b.label) {
         const cx=(b.min[0]+b.max[0])/2, top=b.max[1]+0.12;
         const start=b.min[2]+20, end=b.max[2]-20;
@@ -1213,7 +1342,7 @@ class GameAudio {
 
   updateFall(player) {
     // Let regular jumps stay clean; the wind comes in on longer downward falls.
-    const fallSpeed = player.grounded ? 0 : -player.vy;
+    const fallSpeed = player.grounded||player.ladder ? 0 : -player.vy;
     if (fallSpeed <= RULES.jump || this.context.state !== 'running') { this.stopFall();return; }
     const now = this.context.currentTime;
     const level = Math.min(.5, .12 + (fallSpeed - RULES.jump) / 900 * .38);
@@ -1236,6 +1365,7 @@ class GameAudio {
   movement(before, after, input) {
     if (!this.movementEnabled) return;
     this.updateFall(after);
+    if(after.ladder){this.pendingLanding=null;this.stepDistance=0;return;}
     const landed = after.landTime > before.landTime, jumped = after.totalJumps > before.totalJumps;
     const moving = Math.hypot(after.vx, after.vz) >= RULES.maxSpeed * RULES.walkScale;
     const cleanHop = jumped && after.jumpFeedback === 'CLEAN HOP';
@@ -1340,9 +1470,10 @@ function leaderboardRows(records, endless = false) {
   return records.slice(0, 100).map((entry, i) => `<tr><td>${i + 1}</td><td>${escape(entry.name)}</td><td>${formatLeaderboardScore(entry.value, endless)}</td></tr>`).join('');
 }
 
-async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal } = {}) {
-  if (!/^[a-z][a-z0-9-]{0,31}$/.test(courseId) || !['classic', 'practice'].includes(preset)) throw new Error('Invalid leaderboard');
-  const response = await fetcher(`leaderboards/${courseId}.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
+async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal, revision=1 } = {}) {
+  if (!/^[a-z][a-z0-9-]{0,31}$/.test(courseId) || !['classic', 'practice'].includes(preset)||!Number.isSafeInteger(revision)||revision<1||revision>99) throw new Error('Invalid leaderboard');
+  const filename=courseId+(revision>1?'-v'+revision:'');
+  const response = await fetcher(`leaderboards/${filename}.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
   if (!response.ok) throw new Error('Leaderboard unavailable');
   const text = await response.text();
   if (text.length > 200000) throw new Error('Leaderboard file is too large');
@@ -1351,18 +1482,18 @@ async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, s
 
 // Render the actual collision geometry as a compact, horizontal top-down route.
 function mapPreviewSVG(map) {
-  const platforms=map.boxes.filter(box=>!box.roof);
+  const platforms=map.boxes.filter(box=>!box.roof&&!box.obstacle&&!box.ladder);
   const minX=Math.min(...platforms.map(b=>b.min[0])),maxX=Math.max(...platforms.map(b=>b.max[0]));
   const minZ=Math.min(...platforms.map(b=>b.min[2])),maxZ=Math.max(...platforms.map(b=>b.max[2]));
   const scale=Math.min(288/Math.max(1,maxZ-minZ),76/Math.max(1,maxX-minX));
   const x=z=>160+((minZ+maxZ)/2-z)*scale,y=x=>50+(x-(minX+maxX)/2)*scale;
   const route=platforms.map(b=>`${x((b.min[2]+b.max[2])/2)},${y((b.min[0]+b.max[0])/2)}`).join(' ');
-  const shapes=map.boxes.map((b,i)=>`<rect x="${x(b.max[2])}" y="${y(b.min[0])}" width="${Math.max(.7,(b.max[2]-b.min[2])*scale)}" height="${Math.max(.7,(b.max[0]-b.min[0])*scale)}" class="${b.roof?'preview-roof':b.finish?'preview-finish':b.checkpoint?'preview-checkpoint':i===0?'preview-start':'preview-platform'}"/>`).join('');
+  const shapes=map.boxes.map((b,i)=>`<rect x="${x(b.max[2])}" y="${y(b.min[0])}" width="${Math.max(.7,(b.max[2]-b.min[2])*scale)}" height="${Math.max(.7,(b.max[0]-b.min[0])*scale)}" class="${b.ladder?'preview-ladder':b.obstacle&&!b.roof?'preview-wall':b.roof?'preview-roof':b.finish?'preview-finish':b.checkpoint?'preview-checkpoint':i===0?'preview-start':'preview-platform'}"/>`).join('');
   return `<svg viewBox="0 0 320 100" aria-hidden="true" focusable="false"><path d="M0 25H320M0 50H320M0 75H320M40 0V100M80 0V100M120 0V100M160 0V100M200 0V100M240 0V100M280 0V100" class="preview-grid"/><polyline points="${route}" class="preview-route"/>${shapes}<circle cx="${x(map.spawns[0].z)}" cy="${y(map.spawns[0].x)}" r="2" class="preview-spawn"/></svg>`;
 }
 
 function mapScreenshotCamera(map) {
-  const visible=map.boxes.filter(b=>!b.roof).slice(0,9);
+  const visible=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle).slice(0,9);
   const left=Math.min(...visible.map(b=>b.min[0])),right=Math.max(...visible.map(b=>b.max[0]));
   const near=Math.max(...visible.map(b=>b.max[2])),far=Math.min(...visible.map(b=>b.min[2]));
   const top=Math.max(...visible.map(b=>b.max[1]));
@@ -1445,7 +1576,7 @@ if(Number.isFinite(settings.audioVolume))audioVolume=Math.max(0,Math.min(1,setti
 for(const mode of Object.keys(PRESETS)) {
   if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
 }
-const recordKey = () => `${map}:${preset}`;
+const recordKey = () => `${map}${MAPS[map].revision>1?':v'+MAPS[map].revision:''}:${preset}`;
 const format = seconds => {
   const ms=Math.floor(Math.max(0,seconds)*1000);
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
@@ -1489,7 +1620,7 @@ async function refreshLeaderboard() {
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
   $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
   try {
-    const records=await loadLeaderboard(selected.id,mode);
+    const records=await loadLeaderboard(selected.id,mode,{revision:selected.revision||1});
     if(request!==leaderboardRequest)return;
     $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
     $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
@@ -1644,7 +1775,7 @@ function chooseMap(value,resetRun=true) {
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
-  $('map-meta').textContent=selected.endless?'Infinite · checkpoint every 8 blocks':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints`:selected.difficulty;
+  $('map-meta').textContent=selected.endless?'Infinite · 12 section types':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:selected.difficulty;
   $('leaderboard-button').disabled=!selected.timed&&!selected.endless;
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
@@ -1667,14 +1798,14 @@ function finishRun() {
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
 }
 function updateHud() {
-  const s=speed(player);
+  const s=player.ladder?Math.hypot(player.vx,player.vy,player.vz):speed(player);
   ui.timer.textContent=format(runTime);
   $('best-label').textContent=MAPS[map].endless?'BEST DISTANCE':'BEST';
   ui.best.textContent=MAPS[map].endless?`${Math.floor(Math.max(bests[recordKey()]||0,endless?.distance||0))} u`:MAPS[map].timed&&Number.isFinite(bests[recordKey()])?format(bests[recordKey()]):'—';
   ui.speed.textContent=Math.round(s);ui['speed-fill'].style.width=`${Math.min(100,s/5)}%`;
-  ui['motion-state'].textContent=player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
+  ui['motion-state'].textContent=player.ladder?'ON LADDER':player.ducked?'CROUCHING':!player.grounded?'IN AIR':keys.has('ShiftLeft')||keys.has('ShiftRight')?'WALKING':'ON GROUND';
   const gain=Math.round(s-player.lastJumpSpeed);
-  ui.gain.textContent=!player.grounded&&player.lastJumpSpeed>0?`${gain>=0?'+':''}${gain} SINCE TAKEOFF`:'250 MAX RUN';
+  ui.gain.textContent=player.ladder?(player.vy>1?'CLIMBING':player.vy< -1?'DESCENDING':'HOLDING'):!player.grounded&&player.lastJumpSpeed>0?`${gain>=0?'+':''}${gain} SINCE TAKEOFF`:'250 MAX RUN';
   ui.hops.textContent=String(player.hops).padStart(2,'0');
   ui.peak.textContent=String(Math.round(player.peakSpeed)).padStart(3,'0');
   ui['jump-speed'].textContent=String(Math.round(player.lastJumpSpeed)).padStart(3,'0');

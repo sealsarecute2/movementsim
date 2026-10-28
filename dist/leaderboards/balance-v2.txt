@@ -1,0 +1,3 @@
+# Rebuilt route v2. Old-route records remain in balance.txt.
+# Add a real record: Name | 00:23.456 | classic
+# Mode is classic or practice. Do not mix scores from the previous layout.

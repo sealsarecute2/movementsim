@@ -7,6 +7,7 @@ export const RULES = Object.freeze({
   airCap: 30, friction: 5.2, stopSpeed: 80, maxSpeed: 250,
   walkScale: 0.52, crouchScale: 0.34, radius: 16,
   standHeight: 72, duckHeight: 54, stepHeight: 18,
+  ladderSpeed: 200, ladderReach: 2, ladderJump: 270, ladderRegrab: .2,
   // Simulator tuning values; not assertions of exact current CS2 convars.
   bhopHalfWindow: 0.015625, spamDelay: 0.015625, landingRecovery: 0.16,
 });
@@ -40,7 +41,8 @@ export function createPlayer(spawn = { x: 0, y: 0, z: 100, yaw: 0 }) {
     ducked: false, duckAmount: 0, time: 0, landTime: -10,
     lastPress: -10, validPress: -10, usedPress: -10,
     hops: 0, totalJumps: 0, lastJumpSpeed: 0, lastLandSpeed: 0,
-    jumpFeedback: '', landImpact: 0, peakSpeed: 0, groundBox: null };
+    jumpFeedback: '', landImpact: 0, peakSpeed: 0, groundBox: null,
+    ladder: null, ladderNormal: null, ladderDetachTime: -10, jumpHeldLast: false };
 }
 export function accelerate(p, wx, wz, wishSpeed, acceleration, dt, cap = wishSpeed) {
   const add = cap - (p.vx * wx + p.vz * wz);
@@ -60,18 +62,19 @@ function bounds(p) {
 function overlaps(a, b) {
   return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
 }
-function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => overlaps(b, o)); }
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&overlaps(b, o)); }
 export function support(p, boxes, distance = 0.08) {
-  return boxes.find(b => p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
+  return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
     p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
 }
 // Swept player hull against Minkowski-expanded axis-aligned boxes. Slab traces
 // prevent tunnelling; repeated traces clip velocity to walls and corners.
-function sweep(p, delta, boxes) {
+function sweep(p, delta, boxes, includeLadders = false) {
   let best = { t: 1, normal: [0, 0, 0], box: null };
   const height = p.ducked ? 54 : 72;
   for (const b of boxes) {
+    if(b.ladder&&!includeLadders)continue;
     const lo = [b.min[0] - 16, b.min[1] - height, b.min[2] - 16];
     const hi = [b.max[0] + 16, b.max[1], b.max[2] + 16];
     const pos = [p.x, p.y, p.z];
@@ -86,7 +89,12 @@ function sweep(p, delta, boxes) {
         leave = Math.min(leave, far);
       }
     }
-    if (valid && enter <= leave && leave >= 0 && enter >= -EPS && enter < best.t && enter <= 1) {
+    if(includeLadders&&b.ladder&&valid&&enter<0&&leave>=0) {
+      const n=b.normal,axis=n?.findIndex(v=>v!==0);
+      const face=axis>=0?(n[axis]>0?b.max[axis]:b.min[axis]):0;
+      if(axis>=0&&(pos[axis]-face)*n[axis]>=RULES.radius-2-EPS&&delta[axis]*n[axis]<0){enter=0;normal=n;}
+    }
+    if (valid && enter <= leave && leave >= 0 && enter >= -EPS && (enter < best.t||includeLadders&&b.ladder&&enter===best.t&&enter<1) && enter <= 1) {
       best = { t: Math.max(0, enter), normal, box: b };
     }
   }
@@ -139,8 +147,48 @@ function jump(p, mode, perfect) {
   p.jumpFeedback = perfect ? 'CLEAN HOP' : 'JUMP';
   p.usedPress = p.validPress;
 }
+// Independent implementation of Valve's public Source ladder-plane projection:
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp
+// Pitch contributes to climbing; velocity into the face becomes upward motion.
+// These browser timings are not a claim of CS2 subtick parity.
+function ladderMove(p,input,boxes,dt,jumpEdge) {
+  const forward=input.forward||0,side=input.side||0;
+  const cp=Math.cos(p.pitch),sp=Math.sin(p.pitch),sy=Math.sin(p.yaw),cy=Math.cos(p.yaw);
+  const direction=p.ladderNormal? p.ladderNormal.map(v=>-v):
+    [sy*cp*forward+cy*side,sp*forward,-cy*cp*forward+sy*side];
+  const length=Math.hypot(...direction);
+  const detach=()=>{p.ladder=null;p.ladderNormal=null;};
+  if(p.time<p.ladderDetachTime||!length){detach();return false;}
+  const trace=sweep(p,direction.map(v=>v/length*RULES.ladderReach),boxes,true);
+  const ladder=trace.box;
+  if(!ladder?.ladder||!ladder.normal||trace.normal.some((v,i)=>Math.abs(v-ladder.normal[i])>EPS)) {detach();return false;}
+  const normal=ladder.normal,onFloor=p.grounded;
+  p.ladder=ladder;p.ladderNormal=normal;p.grounded=false;p.groundBox=null;
+  p.hops=0;p.jumpFeedback='LADDER';p.landImpact=0;
+  if(jumpEdge) {
+    p.vx=normal[0]*RULES.ladderJump;p.vy=0;p.vz=normal[2]*RULES.ladderJump;
+    p.totalJumps++;p.lastJumpSpeed=speed(p);
+    p.ladderDetachTime=p.time+RULES.ladderRegrab;p.usedPress=p.validPress;
+    p.jumpFeedback='LADDER JUMP';detach();return false;
+  }
+  const scale=p.ducked?RULES.crouchScale:input.walk?RULES.walkScale:1;
+  const climb=RULES.ladderSpeed*scale;
+  const vx=(sy*cp*forward+cy*side)*climb,vy=sp*forward*climb,vz=(-cy*cp*forward+sy*side)*climb;
+  const into=vx*normal[0]+vz*normal[2];
+  let lx=vx-into*normal[0],lz=vz-into*normal[2];
+  // Counter-Strike's public Source branch damps lateral drift when facing in.
+  if(into/Math.max(EPS,Math.hypot(into,lx,lz))<-.707){lx*=.2;lz*=.2;}
+  p.vx=lx;p.vy=vy-into;p.vz=lz;
+  if(onFloor&&into>0){p.vx+=normal[0]*climb;p.vz+=normal[2]*climb;}
+  const result=move(p,dt,boxes,false);
+  if(result.groundBox){p.grounded=true;p.groundBox=result.groundBox;p.vy=0;}
+  p.peakSpeed=Math.max(p.peakSpeed,speed(p));
+  return true;
+}
 export function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   p.time += dt;
+  const jumpEdge=!!input.jumpPressed||!!input.jumpHeld&&!p.jumpHeldLast;
+  p.jumpHeldLast=!!input.jumpHeld;
   if (input.jumpPressed) {
     if (p.time - p.lastPress >= RULES.spamDelay) p.validPress = p.time;
     p.lastPress = p.time;
@@ -152,6 +200,7 @@ export function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
     if (blocked(p, boxes)) p.ducked = true;
   }
   p.duckAmount += ((p.ducked ? 1 : 0) - p.duckAmount) * Math.min(1, dt * 16);
+  if(ladderMove(p,input,boxes,dt,jumpEdge))return p;
   const ground = p.vy <= 0 ? support(p, boxes) : null;
   if (p.grounded && !ground) p.grounded = false;
   if (p.grounded) { p.y = ground.max[1]; p.groundBox = ground; }

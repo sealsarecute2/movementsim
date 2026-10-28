@@ -85,13 +85,13 @@ test('losing focus cancels a pending capture and a late grant cannot start play'
 });
 test('course select resets the run and renders the selected course and section count',()=>{
   const app=boot();
-  assert.match(app.element('map-grid').innerHTML,/Needleworks/);
+  assert.match(app.element('map-grid').innerHTML,/Deadpoint/);
   app.read("runTime=30;checkpoint=2;keys.add('Space')");
   app.element('map-grid').fire('click',{target:{closest:()=>({dataset:{map:'circuit'}})}});
   assert.equal(app.read('map'),'circuit');assert.equal(app.read('runTime'),0);
   assert.equal(app.read('checkpoint'),0);assert.equal(app.read('keys.size'),0);
   assert.equal(app.element('progress-count').textContent,'01 / 04');
-  assert.equal(app.element('course-title').textContent,'BROKEN CIRCUIT');
+  assert.equal(app.element('course-title').textContent,'SWITCHBACK FOUNDRY');
   assert.equal(app.read('player.x'),course.MAPS.circuit.spawns[0].x);
   assert.equal(JSON.parse(app.storage.get('movement-lab-settings-v1')).map,'circuit');
 });
@@ -123,8 +123,8 @@ test('personal bests are separate per map and preset and retain old starter reco
   app.read("chooseMap('skyline');runTime=17;finishRun()");
   app.read("chooseMap('zigzag');choosePreset('practice');runTime=9;finishRun()");
   const bests=JSON.parse(app.storage.get('movement-lab-bests-v1'));
-  assert.equal(bests['course:classic'],20);assert.equal(bests['zigzag:classic'],12);
-  assert.equal(bests['skyline:classic'],17);assert.equal(bests['zigzag:practice'],9);
+  assert.equal(bests['course:classic'],20);assert.equal(bests['zigzag:v2:classic'],12);
+  assert.equal(bests['skyline:v2:classic'],17);assert.equal(bests['zigzag:v2:practice'],9);
   app.read("choosePreset('classic');chooseMap('zigzag')");
   assert.equal(app.element('best').textContent,'00:12.000');
   app.read("chooseMap('free')");assert.equal(app.element('best').textContent,'—');
@@ -212,7 +212,7 @@ test('endless checkpoints save in the bottom right, respawn safely, and retain d
     assert.equal(app.read('completed'),false);
   }
   assert.equal(app.element('best-label').textContent,'BEST DISTANCE');
-  assert.ok(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:classic']>9000);
+  assert.ok(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v2:classic']>9000);
   app.read('reset()');
   assert.equal(app.read('checkpoint'),0);assert.equal(app.read('endless.distance'),0);
   assert.equal(app.read('runTime'),0);
@@ -489,11 +489,29 @@ test('returning from Endless saves distance and clears the route for the next ru
   app.read('player.z=-3210;endless.update(player,null);runTime=15;checkpoint=2;pause()');
   app.element('back-to-main').fire('click');
   assert.equal(app.read('endless.distance'),0);assert.equal(app.read('runTime'),0);
-  assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:classic'],3210);
+  assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v2:classic'],3210);
 });
 test('Endless leaderboard keeps the selected course and a modal Escape does not change views',()=>{
   const app=boot();app.element('open-map-select').fire('click');
   app.read("chooseMap('needles')");app.element('endless-leaderboard').fire('click');
   assert.equal(app.read('map'),'needles');assert.equal(app.read('leaderboardMap'),'endless');
   app.document.fire('keydown',{code:'Escape'});assert.equal(app.read('mainView'),'maps');
+});
+
+test('rebuilt maps preserve legacy bests but use a separate record key for new layouts',()=>{
+ const original={'momentum:classic':8.123,'endless:practice':9000,'course:classic':20};
+ const app=boot({'movement-lab-bests-v1':JSON.stringify(original)});
+ app.read("chooseMap('momentum')");assert.equal(app.element('best').textContent,'—');
+ app.read('runTime=25;finishRun()');
+ const saved=JSON.parse(app.storage.get('movement-lab-bests-v1'));
+ assert.equal(saved['momentum:classic'],8.123);assert.equal(saved['momentum:v2:classic'],25);
+ assert.equal(saved['endless:practice'],9000);
+ app.read("chooseMap('course')");assert.equal(app.element('best').textContent,'00:20.000');
+});
+test('ladder movement reaches the HUD and reset clears attachment state',()=>{
+ const app=boot();app.read("chooseMap('skyline');player=createPlayer({x:0,y:20,z:-632,yaw:0});keys.add('KeyW');tick();updateHud()");
+ assert.equal(app.element('motion-state').textContent,'ON LADDER');
+ assert.equal(app.element('speed').textContent,200);assert.equal(app.element('gain').textContent,'CLIMBING');
+ assert.equal(app.read('!!player.ladder'),true);
+ app.read('reset()');assert.equal(app.read('player.ladder'),null);
 });

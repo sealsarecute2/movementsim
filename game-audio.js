@@ -96,7 +96,7 @@ export class GameAudio {
 
   updateFall(player) {
     // Let regular jumps stay clean; the wind comes in on longer downward falls.
-    const fallSpeed = player.grounded ? 0 : -player.vy;
+    const fallSpeed = player.grounded||player.ladder ? 0 : -player.vy;
     if (fallSpeed <= RULES.jump || this.context.state !== 'running') { this.stopFall();return; }
     const now = this.context.currentTime;
     const level = Math.min(.5, .12 + (fallSpeed - RULES.jump) / 900 * .38);
@@ -119,6 +119,7 @@ export class GameAudio {
   movement(before, after, input) {
     if (!this.movementEnabled) return;
     this.updateFall(after);
+    if(after.ladder){this.pendingLanding=null;this.stepDistance=0;return;}
     const landed = after.landTime > before.landTime, jumped = after.totalJumps > before.totalJumps;
     const moving = Math.hypot(after.vx, after.vz) >= RULES.maxSpeed * RULES.walkScale;
     const cleanHop = jumped && after.jumpFeedback === 'CLEAN HOP';

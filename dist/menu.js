@@ -1,17 +1,17 @@
 // Render the actual collision geometry as a compact, horizontal top-down route.
 export function mapPreviewSVG(map) {
-  const platforms=map.boxes.filter(box=>!box.roof);
+  const platforms=map.boxes.filter(box=>!box.roof&&!box.obstacle&&!box.ladder);
   const minX=Math.min(...platforms.map(b=>b.min[0])),maxX=Math.max(...platforms.map(b=>b.max[0]));
   const minZ=Math.min(...platforms.map(b=>b.min[2])),maxZ=Math.max(...platforms.map(b=>b.max[2]));
   const scale=Math.min(288/Math.max(1,maxZ-minZ),76/Math.max(1,maxX-minX));
   const x=z=>160+((minZ+maxZ)/2-z)*scale,y=x=>50+(x-(minX+maxX)/2)*scale;
   const route=platforms.map(b=>`${x((b.min[2]+b.max[2])/2)},${y((b.min[0]+b.max[0])/2)}`).join(' ');
-  const shapes=map.boxes.map((b,i)=>`<rect x="${x(b.max[2])}" y="${y(b.min[0])}" width="${Math.max(.7,(b.max[2]-b.min[2])*scale)}" height="${Math.max(.7,(b.max[0]-b.min[0])*scale)}" class="${b.roof?'preview-roof':b.finish?'preview-finish':b.checkpoint?'preview-checkpoint':i===0?'preview-start':'preview-platform'}"/>`).join('');
+  const shapes=map.boxes.map((b,i)=>`<rect x="${x(b.max[2])}" y="${y(b.min[0])}" width="${Math.max(.7,(b.max[2]-b.min[2])*scale)}" height="${Math.max(.7,(b.max[0]-b.min[0])*scale)}" class="${b.ladder?'preview-ladder':b.obstacle&&!b.roof?'preview-wall':b.roof?'preview-roof':b.finish?'preview-finish':b.checkpoint?'preview-checkpoint':i===0?'preview-start':'preview-platform'}"/>`).join('');
   return `<svg viewBox="0 0 320 100" aria-hidden="true" focusable="false"><path d="M0 25H320M0 50H320M0 75H320M40 0V100M80 0V100M120 0V100M160 0V100M200 0V100M240 0V100M280 0V100" class="preview-grid"/><polyline points="${route}" class="preview-route"/>${shapes}<circle cx="${x(map.spawns[0].z)}" cy="${y(map.spawns[0].x)}" r="2" class="preview-spawn"/></svg>`;
 }
 
 export function mapScreenshotCamera(map) {
-  const visible=map.boxes.filter(b=>!b.roof).slice(0,9);
+  const visible=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle).slice(0,9);
   const left=Math.min(...visible.map(b=>b.min[0])),right=Math.max(...visible.map(b=>b.max[0]));
   const near=Math.max(...visible.map(b=>b.max[2])),far=Math.min(...visible.map(b=>b.min[2]));
   const top=Math.max(...visible.map(b=>b.max[1]));

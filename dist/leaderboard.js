@@ -36,9 +36,10 @@ export function leaderboardRows(records, endless = false) {
   return records.slice(0, 100).map((entry, i) => `<tr><td>${i + 1}</td><td>${escape(entry.name)}</td><td>${formatLeaderboardScore(entry.value, endless)}</td></tr>`).join('');
 }
 
-export async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal } = {}) {
-  if (!/^[a-z][a-z0-9-]{0,31}$/.test(courseId) || !['classic', 'practice'].includes(preset)) throw new Error('Invalid leaderboard');
-  const response = await fetcher(`leaderboards/${courseId}.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
+export async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal, revision=1 } = {}) {
+  if (!/^[a-z][a-z0-9-]{0,31}$/.test(courseId) || !['classic', 'practice'].includes(preset)||!Number.isSafeInteger(revision)||revision<1||revision>99) throw new Error('Invalid leaderboard');
+  const filename=courseId+(revision>1?'-v'+revision:'');
+  const response = await fetcher(`leaderboards/${filename}.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
   if (!response.ok) throw new Error('Leaderboard unavailable');
   const text = await response.text();
   if (text.length > 200000) throw new Error('Leaderboard file is too large');

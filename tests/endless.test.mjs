@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {reachSegment,routeNode} from './route-driver.mjs';
 import { createEndless } from '../dist/endless.js';
 import { createPlayer, step, DT, PRESETS, support } from '../dist/physics.js';
 
@@ -13,26 +14,7 @@ test('every themed section and its joins are traversable with CS-style physics',
     const route=createEndless(seed);
     for(let index=1;index<=96;index++) {
       const source=route.geometry(index-1),destination=route.geometry(index);
-      const from=source[0],to=destination[0],walk=to.walk;
-      const boxes=[...source,...destination];
-      const tx=(to.min[0]+to.max[0])/2,tz=(to.min[2]+to.max[2])/2;
-      let reached=false;
-      for(const margin of walk?[0]:[22,46,70,94,118]) {
-        const mx=Math.min(margin,(from.max[0]-from.min[0])/2-4);
-        const mz=Math.min(margin,(from.max[2]-from.min[2])/2-4);
-        const x=walk?(from.min[0]+from.max[0])/2:Math.max(from.min[0]+mx,Math.min(from.max[0]-mx,tx));
-        const z=walk?(from.min[2]+from.max[2])/2:Math.max(from.min[2]+mz,Math.min(from.max[2]-mz,tz));
-        const dx=tx-x,dz=tz-z,len=Math.hypot(dx,dz);
-        const p=createPlayer({x,y:from.max[1],z,yaw:Math.atan2(dx,-dz)});
-        if(!walk){p.vx=dx/len*250;p.vz=dz/len*250;}
-        for(let i=0;i<(walk?256*12:256);i++) {
-          step(p,{forward:walk?1:0,walk,duck:walk&&(from.duck||to.duck),jumpPressed:!walk&&i===0},boxes,PRESETS.classic,DT);
-          if(p.grounded&&p.groundBox===to){reached=true;break;}
-          if(!walk&&i>4&&p.grounded)break;
-        }
-        if(reached)break;
-      }
-      assert.ok(reached,`seed ${seed}, segment ${index}`);
+      assert.ok(reachSegment({from:routeNode(source[0]),to:routeNode(destination[0]),boxes:[...source,...destination],destination:destination[0]}),`seed ${seed}, segment ${index}`);
     }
   }
 });
@@ -77,16 +59,24 @@ test('flying through checkpoint airspace saves a safe respawn, including across 
   route.update(player);
   assert.equal(route.checkpoint,10,'passing below the next checkpoint cannot save it');
 });
-test('endless includes all eight section types, real roofs, beams, elevation, and right-angle turns',()=>{
-  const route=createEndless(3),names=new Set();let roof=false,beam=false,raised=false,turn=false;
-  for(let i=0;i<64;i++) {
+test('endless includes all twelve section types, real roofs, beams, elevation, and right-angle turns',()=>{
+  const route=createEndless(3),names=new Set();let roof=false,beam=false,raised=false,turn=false,ladder=false,wrap=false;
+  for(let i=0;i<96;i++) {
     const p=route.platform(i),next=route.platform(i+1);
     const player=createPlayer({x:(p.min[0]+p.max[0])/2,y:p.max[1],z:(p.min[2]+p.max[2])/2,yaw:0});
     route.update(player,p);names.add(route.sectionTitle);
-    roof ||= route.geometry(i).some(b=>b.roof);
+    roof ||= route.geometry(i).some(b=>b.roof);ladder ||= route.geometry(i).some(b=>b.ladder);wrap ||= route.geometry(i).some(b=>b.wrapWall);
     beam ||= p.walk&&p.max[0]-p.min[0]<=60;
     raised ||= p.max[1]>0;
     turn ||= p.min[2]+p.max[2]===next.min[2]+next.max[2]&&p.min[0]!==next.min[0];
   }
-  assert.equal(names.size,8);assert.ok(roof&&beam&&raised&&turn);
+  assert.equal(names.size,12);assert.ok(roof&&beam&&raised&&turn&&ladder&&wrap);
+});
+
+test('standing on decorative roofs or wrap walls cannot corrupt block progress',()=>{
+ const route=createEndless(9),wall=route.geometry(2).find(b=>b.wrapWall);
+ assert.ok(wall);
+ const p=createPlayer({x:(wall.min[0]+wall.max[0])/2,y:wall.max[1],z:(wall.min[2]+wall.max[2])/2,yaw:0});
+ route.update(p,wall);assert.ok(Number.isFinite(route.furthestBlock));assert.ok(Number.isFinite(route.checkpoint));
+ assert.ok(Number.isFinite(route.distance));assert.ok(route.boxes.length<=60);
 });
