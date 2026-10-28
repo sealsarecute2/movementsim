@@ -80,16 +80,13 @@ test('all four axis-aligned ladder orientations use the correct outward normal',
   step(p,{forward:1},scene);assert.equal(p.ladder,scene[1]);near(p.vy,200);
  }
 });
-test('Vertigo ladder tops are climbed and exited using continuous collision movement',()=>{
- const map=MAPS.skyline;
- for(let i=1;i<map.route.length;i++)if(map.route[i].ladder) {
-  const from=map.route[i-1],to=map.route[i],p=createPlayer({x:from.x,y:from.top,z:from.z,yaw:0});
-  let arrived=false;
-  for(let tick=0;tick<256*10;tick++) {
-   const old={...p};p.pitch=p.y<to.top?.5:-.3;step(p,{forward:1},map.boxes);
-   assert.ok(Math.abs(p.y-old.y)<4,'ladder exits must not teleport');
-   if(p.grounded&&p.groundBox===map.platforms[i]){arrived=true;break;}
-  }
-  assert.ok(arrived,`tower ending at node ${i}`);assert.equal(p.ladder,null);
+test('Sandbox ladder tops are climbed and exited using continuous collision movement',()=>{
+ const map=MAPS.free,ladder=map.boxes.find(b=>b.ladder),destination=map.boxes.find(b=>!b.obstacle&&!b.ladder&&b.max[1]===240);
+ const p=createPlayer({x:0,y:0,z:ladder.max[2]+60,yaw:0});let arrived=false;
+ for(let tick=0;tick<256*10;tick++) {
+  const old={...p};p.pitch=p.y<destination.max[1]?.5:-.3;step(p,{forward:1},map.boxes);
+  assert.ok(Math.abs(p.y-old.y)<4,'ladder exits must not teleport');
+  if(p.grounded&&p.groundBox===destination){arrived=true;break;}
  }
+ assert.ok(arrived);assert.equal(p.ladder,null);
 });

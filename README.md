@@ -16,7 +16,7 @@ Normal WASD movement has footsteps; holding Shift or crouching makes footsteps s
 
 ## Courses and ladders
 
-Starter course keeps its original layout. The eight rebuilt courses are **Overdrive**, **Blindside**, **Vertigo**, **Switchback Foundry**, **Razorwire**, **Compression**, **Deadpoint**, and **Blackout**. They range from Hard to Extreme and include long drops, small raised pins, tall wall wraps, crouch passages, 20-unit beams, and exposed ladder towers. Every course has optional skips; these save sections of the route while preserving checkpoint order. Amber threshold strips mark shortcut launch pads, and the outside precision pin on Razorwire has an amber top. Cyan rails and rungs identify ladders; blue edges still identify the next checkpoint or finish.
+The available maps are **Starter course**, **Endless**, and **Sandbox**. Starter keeps its original geometry, spawns, checkpoints, and finish. The eight additional timed courses and their optional shortcut routes have been removed for now. Map selection shows section counts without difficulty labels. Only Starter has a cloud leaderboard. Cyan rails and rungs identify ladders; blue edges identify the next checkpoint or finish.
 
 Move into a ladder to attach. W/S and your viewing angle control ascent and descent; A/D move along its face. Looking upward while pushing into it climbs faster. Release movement to hold position, move beyond an edge to leave, or press Space / the wheel to push off. Holding Space before a catch does not repeatedly kick you away. A ladder can catch a fall, cancels falling wind, and has no ground footsteps. Walk/crouch slow climbing. Climbing onto the top uses the same collision controller as the rest of the game.
 
@@ -24,17 +24,22 @@ The independent ladder implementation follows the view-vector and ladder-plane p
 
 Endless now mixes **12** section types, including ladder spires, wall wraps, microsteps, and crosswind turns. Its harder pillars, beams, roofs, and staggered landings still connect to a safe checkpoint every eight blocks. Sandbox keeps its open floor and adds a ladder tower, wrap wall, low duct, narrow rail, and precision pins.
 
+## Menu music
+
+In **Settings → Menu music**, enable the two supplied songs: **Defend The Train OST - BTHG HQ** and **Surya Hearts - Retrofit**. Music is off by default. When enabled, the starting song is random and playback cycles between the tracks in the main menu and pause screen. The music volume slider is separate from movement/chime volume, and both the toggle and volume are saved.
+
+Music pauses during runs, when the browser tab is hidden, and whenever the window loses focus. Pausing stops its playback clock; returning resumes the same track and position. Existing movement/knife voices and sound previews also stop while unfocused. Browsers that block restored music on reload start it after your next menu click. The songs are bundled as AAC/M4A streams encoded from the supplied MP3 files; original and encoded hashes are listed in [music/sources.json](music/sources.json).
+
 ## Owner-managed leaderboards
 
-Each course has a plain text file in [leaderboards](leaderboards). Rebuilt courses and Endless use `*-v2.txt`; Starter still uses `course.txt`. Old local bests and original `.txt` files are preserved, but do not appear on the rebuilt routes' boards. Only people with write access to this repository can publish records; the game has no score-submission endpoint or exposed credentials.
-
-1. Open the course's `.txt` file on GitHub and click the pencil.
+Starter records live in [leaderboards/course.txt](leaderboards/course.txt). Only people with write access to this repository can publish records; the game has no score-submission endpoint or exposed credentials. Boards for the removed courses and Endless have been removed. Endless still keeps a personal best distance in your browser.
+1. Open `leaderboards/course.txt` on GitHub and click the pencil.
 2. Add a line such as `Youhong | 00:23.456 | classic`.
 3. Click **Commit changes**. After GitHub Pages publishes the update, everyone can see the record in **Leaderboard**.
 
-Use `classic` for CS-style or `practice` for Bhop practice. Time can be `MM:SS.mmm` or seconds, such as `23.456`. Endless uses whole-number distance instead: `Youhong | 10000 | classic`. Lines starting with `#` are comments. The board separates physics modes, sorts records automatically, and keeps each player's best result.
+Use `classic` for CS-style or `practice` for Bhop practice. Time can be `MM:SS.mmm` or seconds, such as `23.456`. Lines starting with `#` are comments. The board separates physics modes, sorts records automatically, and keeps each player's best result.
 
-See [leaderboard editing instructions and course links](leaderboards/README.md). New files contain commented examples, not invented records.
+See [leaderboard editing instructions and course links](leaderboards/README.md). Use real records only.
 
 ## Development
 

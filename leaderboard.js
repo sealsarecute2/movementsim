@@ -37,11 +37,10 @@ export function leaderboardRows(records, endless = false) {
 }
 
 export async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal, revision=1 } = {}) {
-  if (!/^[a-z][a-z0-9-]{0,31}$/.test(courseId) || !['classic', 'practice'].includes(preset)||!Number.isSafeInteger(revision)||revision<1||revision>99) throw new Error('Invalid leaderboard');
-  const filename=courseId+(revision>1?'-v'+revision:'');
-  const response = await fetcher(`leaderboards/${filename}.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
+  if (courseId!=='course' || !['classic', 'practice'].includes(preset)||!Number.isSafeInteger(revision)||revision!==1) throw new Error('Invalid leaderboard');
+  const response = await fetcher(`leaderboards/course.txt?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
   if (!response.ok) throw new Error('Leaderboard unavailable');
   const text = await response.text();
   if (text.length > 200000) throw new Error('Leaderboard file is too large');
-  return parseLeaderboard(text, { preset, endless: courseId === 'endless' });
+  return parseLeaderboard(text, { preset });
 }

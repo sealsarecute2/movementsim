@@ -6,6 +6,7 @@ import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
 import { loadLeaderboard, leaderboardRows } from './leaderboard.js';
 import { mapPreviewSVG, createMenuSlideshow, captureMapScreenshot } from './menu.js';
+import { MenuMusic } from './menu-music.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -26,6 +27,7 @@ let previous = performance.now(), accumulator = 0, toastUntil = 0, previousDraw 
 let bests = {}, settings = {};
 let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
+let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
@@ -37,6 +39,16 @@ knifeEnabled=settings.knifeEnabled!==false;knifeSounds=settings.knifeSounds!==fa
 movementSounds=settings.movementSounds!==false;
 if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.checkpointSound))checkpointSound=settings.checkpointSound;
 if(Number.isFinite(settings.audioVolume))audioVolume=Math.max(0,Math.min(1,settings.audioVolume));
+musicEnabled=settings.musicEnabled===true;
+if(Number.isFinite(settings.musicVolume))musicVolume=Math.max(0,Math.min(1,settings.musicVolume));
+const menuMusic=new MenuMusic({enabled:musicEnabled,volume:musicVolume,onStatus:message=>{$('menu-music-status').textContent=message;}});
+function updateMenuMusic() {
+  menuMusic.setActive(!playing&&!completed&&!overlay.classList.contains('hidden'),windowFocused&&!document.hidden);
+}
+function silenceBackgroundAudio() {
+  gameAudio?.stopAll();knife?.audio?.stopAll?.();knife?.audio?.setMuted(true);
+  for(const context of [gameAudio?.context,knife?.audio?.context])try{void context?.suspend?.()?.catch?.(()=>{});}catch{}
+}
 // Preserve records from the original single-course version.
 for(const mode of Object.keys(PRESETS)) {
   if(Number.isFinite(bests[mode])&&!Number.isFinite(bests[`course:${mode}`])) bests[`course:${mode}`]=bests[mode];
@@ -47,7 +59,7 @@ const format = seconds => {
   return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;
 };
 function saveSettings() {
-  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair,skybox})); } catch {}
+  try { localStorage.setItem('movement-lab-settings-v1',JSON.stringify({preset,map,sensitivity,sensitivityVersion:2,fov,knifeEnabled,knifeSounds,movementSounds,checkpointSound,audioVolume,crosshair,skybox,musicEnabled,musicVolume})); } catch {}
 }
 function normaliseCrosshair(value) {
   const raw=value&&typeof value==='object'?value:{};
@@ -70,12 +82,13 @@ function updateCrosshair() {
   $('crosshair-scale').value=crosshair.scale;$('crosshair-scale-value').textContent=crosshair.scale.toFixed(2)+'×';
 }
 async function activateGameAudio() {
+  if(!windowFocused||document.hidden)return null;
   if(!gameAudio) gameAudio=createGameAudio({movementEnabled:movementSounds,checkpointSound,volume:audioVolume,
     onReady:()=>{$('audio-status').textContent='CS2 movement sounds ready';},
     onError:()=>{$('audio-status').textContent='Movement sounds unavailable. Preview retries loading.';},
   });
   if(!gameAudio) {$('audio-status').textContent='Audio is unavailable in this browser.';return null;}
-  try {await gameAudio.activate();return gameAudio;}
+  try {await gameAudio.activate();if(!windowFocused||document.hidden){silenceBackgroundAudio();return null;}return gameAudio;}
   catch {$('audio-status').textContent='Sound was blocked. Press Preview to retry.';return null;}
 }
 async function refreshLeaderboard() {
@@ -93,7 +106,7 @@ async function refreshLeaderboard() {
 }
 function openLeaderboard(value=map) {
   const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
-  if(!MAPS[selected].timed&&!MAPS[selected].endless)return;
+  if(selected!=='course')return;
   leaderboardMap=selected;
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
@@ -105,7 +118,8 @@ function loadKnife() {
   knifeLoad=import('./butterfly/butterfly-viewmodel.js').then(({createButterflyViewmodel})=>createButterflyViewmodel({
     worldCanvas:canvas,isActive:()=>knifeEnabled&&playing&&document.pointerLockElement===canvas,rareChance:0.15,
   })).then(viewmodel=>{
-    knife=viewmodel;knife.audio?.setMuted(!knifeSounds);
+    knife=viewmodel;knife.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);
+    if(!windowFocused||document.hidden)silenceBackgroundAudio();
     $('knife-status').textContent=knifeEnabled?'Butterfly ready':'Knife hidden';
     return knife;
   }).catch(error=>{
@@ -156,12 +170,13 @@ function showMain(view='home',focus=true) {
   document.body.classList.add('main-menu-open');
   for(const name of ['home','maps','settings']) $(name+'-view').classList.toggle('hidden',name!==view);
   overlay.scrollTop=0;
+  updateMenuMusic();
   if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':'settings-back').focus();
 }
 function showPause() {
   menuMode='pause';overlay.dataset.menu='pause';overlay.classList.remove('hidden');
   $('main-menu').classList.add('hidden');$('pause-menu').classList.remove('hidden');
-  document.body.classList.remove('main-menu-open');$('continue').focus();
+  document.body.classList.remove('main-menu-open');updateMenuMusic();$('continue').focus();
 }
 function returnToMain(view='home') {
   saveEndlessBest();playing=false;lockPending=false;started=false;clearInput();
@@ -184,7 +199,7 @@ function beginSession() {
   lockPending=false;captureButtons();
   playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
   $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
-  overlay.classList.add('hidden');document.body.classList.remove('main-menu-open');document.body.classList.add('playing');
+  overlay.classList.add('hidden');document.body.classList.remove('main-menu-open');document.body.classList.add('playing');updateMenuMusic();
 }
 function mouseCaptureFailed() {
   if(!lockPending) return;
@@ -197,7 +212,7 @@ function mouseCaptureFailed() {
   toast('Mouse capture was blocked. Check that your browser allows pointer lock.');
 }
 function play() {
-  if(!rendererReady||lockPending) return;
+  if(!rendererReady||lockPending||!windowFocused||document.hidden)return;
   void activateGameAudio();
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
@@ -240,8 +255,8 @@ function chooseMap(value,resetRun=true) {
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
-  $('map-meta').textContent=selected.endless?'Infinite · 12 section types':selected.timed?`${selected.difficulty} · ${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:selected.difficulty;
-  $('leaderboard-button').disabled=!selected.timed&&!selected.endless;
+  $('map-meta').textContent=selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
+  $('leaderboard-button').disabled=selected.id!=='course';
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
@@ -250,7 +265,7 @@ function chooseMap(value,resetRun=true) {
 function finishRun() {
   if(completed)return;
   gameAudio?.stopAll();
-  completed=true; playing=false; clearInput(); document.body.classList.remove('playing');
+  completed=true; playing=false; clearInput(); document.body.classList.remove('playing');updateMenuMusic();
   knife?.draw(0);
   if(document.pointerLockElement===canvas) document.exitPointerLock();
   const key=recordKey(), old=bests[key], clean=respawns===0;
@@ -359,10 +374,10 @@ function frame(now) {
   const target=completed?null:endless?endless.platform((checkpoint+1)*8):
     MAPS[map].timed?boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish):null;
   const galleryVisible=menuMode==='main'&&!overlay.classList.contains('hidden')&&!document.hidden;
-  if(rendererReady&&galleryVisible&&capturedMaps<timedMaps.length&&screenshotCanvas) {
+  if(rendererReady&&galleryVisible&&capturedMaps<galleryMaps.length&&screenshotCanvas) {
     const i=capturedMaps++, image=slides[i];
     try {
-      const shot=captureMapScreenshot({renderer,canvas,map:timedMaps[i],restoreBoxes:boxes,restoreSkybox:skybox,
+      const shot=captureMapScreenshot({renderer,canvas,map:galleryMaps[i],restoreBoxes:boxes,restoreSkybox:skybox,
         skybox:['dawn','midday','dusk','midnight'][i%4],snapshot:screenshotCanvas});
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
@@ -382,16 +397,16 @@ $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
 $('back-to-main').addEventListener('click',()=>returnToMain());
 $('play-sandbox').addEventListener('click',()=>{if(lockPending)return;chooseMap('free');play();});
-$('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless'));
-const timedMaps=MAP_LIST.filter(m=>m.timed);
-$('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.difficulty}</span></button>`).join('');
+const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=MAP_LIST;
+$('map-grid').classList.toggle('single-map',timedMaps.length===1);
+$('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.stages.length} sections</span></button>`).join('');
 $('map-grid').addEventListener('click',event=>{
   const card=event.target.closest('[data-map]');if(card)chooseMap(card.dataset.map);
 });
-$('gallery-slides').innerHTML=timedMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
+$('gallery-slides').innerHTML=galleryMaps.map((m,i)=>`<img class="gallery-slide${i===0?' is-active':''}" alt="An elevated in-game view of ${m.title}" decoding="async">`).join('');
 const slides=Array.from(document.querySelectorAll('.gallery-slide'));
 if(slides.length&&rendererReady)screenshotCanvas=document.createElement('canvas');
-if(slides.length)slideshow=createMenuSlideshow({slides,maps:timedMaps,title:$('gallery-title'),count:$('gallery-count'),reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches});
+if(slides.length)slideshow=createMenuSlideshow({slides,maps:galleryMaps,title:$('gallery-title'),count:$('gallery-count'),reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches});
 $('gallery-next').addEventListener('click',()=>slideshow?.next());
 $('gallery-previous').addEventListener('click',()=>slideshow?.previous());
 $('leaderboard-button').addEventListener('click',openLeaderboard);
@@ -429,10 +444,6 @@ $('play-endless').addEventListener('click',()=>{if(lockPending)return;chooseMap(
 $('menu-button').addEventListener('click',()=>{if(playing)pause();else if(started)showPause();else showMain();});
 $('again').addEventListener('click',()=>{reset();play();});
 $('finish-settings').addEventListener('click',()=>returnToMain('settings'));
-$('next-course').addEventListener('click',()=>{
-  const courses=MAP_LIST.filter(m=>m.timed), index=courses.findIndex(m=>m.id===map);
-  chooseMap(courses[(index+1)%courses.length].id);play();
-});
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
 $('knife-enabled').checked=knifeEnabled;$('knife-sounds').checked=knifeSounds;
 $('knife-enabled').addEventListener('change',()=>{
@@ -441,7 +452,7 @@ $('knife-enabled').addEventListener('change',()=>{
   else {$('knife-status').textContent='Knife hidden';knife?.draw(0);}
 });
 $('knife-sounds').addEventListener('change',()=>{
-  knifeSounds=$('knife-sounds').checked;knife?.audio?.setMuted(!knifeSounds);saveSettings();
+  knifeSounds=$('knife-sounds').checked;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);saveSettings();
 });
 function syncLookSettings() {
   for(const prefix of ['', 'pause-']) {
@@ -455,6 +466,7 @@ for(const prefix of ['', 'pause-'])for(const name of ['sensitivity','fov']) $(pr
   syncLookSettings();saveSettings();
 });
 document.addEventListener('keydown',e=>{
+  if(windowFocused&&!document.hidden)menuMusic.retry();
   if(e.code==='Escape') {
     if($('leaderboard').open)return;
     if(playing||lockPending)pause();else if(menuMode==='main'&&mainView!=='home')showMain();
@@ -484,9 +496,28 @@ document.addEventListener('mousemove',e=>{
   if(playing&&document.pointerLockElement===canvas)look(e.movementX,e.movementY);
 });
 document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump=true;}},{passive:false});
-window.addEventListener('blur',()=>{if(playing||lockPending)pause();});
-window.addEventListener('pagehide',saveEndlessBest);
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&(playing||lockPending))pause();});
+window.addEventListener('blur',()=>{
+  windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();
+});
+window.addEventListener('focus',()=>{
+  windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
+});
+window.addEventListener('pagehide',()=>{saveEndlessBest();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
+  else {knife?.audio?.setMuted(!knifeSounds||!windowFocused);updateMenuMusic();}
+});
+$('menu-music-enabled').checked=musicEnabled;
+$('menu-music-enabled').addEventListener('change',()=>{
+  musicEnabled=$('menu-music-enabled').checked;menuMusic.setEnabled(musicEnabled);updateMenuMusic();saveSettings();
+});
+$('menu-music-volume').value=Math.round(musicVolume*100);$('menu-music-volume-value').textContent=Math.round(musicVolume*100)+'%';
+$('menu-music-volume').addEventListener('input',()=>{
+  musicVolume=Math.max(0,Math.min(1,Number($('menu-music-volume').value)/100));
+  menuMusic.setVolume(musicVolume);$('menu-music-volume-value').textContent=Math.round(musicVolume*100)+'%';saveSettings();
+});
+document.addEventListener('pointerdown',()=>{if(windowFocused&&!document.hidden)menuMusic.retry();});
 if(Number.isFinite(settings.sensitivity)) {
   const multiplier=settings.sensitivityVersion===2?settings.sensitivity:settings.sensitivity/2;
   sensitivity=Math.min(5,Math.max(0.1,multiplier));

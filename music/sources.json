@@ -1,0 +1,18 @@
+{
+  "tracks": [
+    {
+      "file": "defend-the-train.m4a",
+      "provided_filename": "Defend The Train OST - BTHG HQ.mp3",
+      "provided_sha256": "4d7d5c8db84f6125acfc4d196184c5ec469866970586bf4ed406f22ba5825dbf",
+      "sha256": "ded544226782cef7611dad5cd6f8997fda90d55788beea47039b588f7e8ff017",
+      "encoding": "AAC, 128 kbit/s, M4A with fast-start metadata; encoded from user-supplied MP3"
+    },
+    {
+      "file": "retrofit.m4a",
+      "provided_filename": "Surya Hearts - Retrofit.mp3",
+      "provided_sha256": "643c01cc1a686dab64fa3cac21a597cacc44d28380c65d65e71aaa944b1205ef",
+      "sha256": "79f088d3412d84309142556428ff3bc94dac64ab0f066f74043920a58a2f255f",
+      "encoding": "AAC, 128 kbit/s, M4A with fast-start metadata; encoded from user-supplied MP3"
+    }
+  ]
+}

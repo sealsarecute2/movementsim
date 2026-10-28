@@ -240,3 +240,11 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 }
 .preview-ladder { fill: #42dcff; stroke: #c0f6ff; stroke-width: 1; }
 .preview-wall { fill: #262f36; stroke: #b6a394; stroke-width: .65; }
+
+.menu-music-settings { margin-top: 1rem; }
+.music-volume { margin-top: 1.25rem; }
+#menu-music-status, .music-tracks { font-size: max(9px, .5625rem); line-height: 1.8; color: #8b9aa6; margin: .875rem 0 0; overflow-wrap: anywhere; }
+.music-tracks { color: #64727d; }
+
+.map-grid.single-map { grid-template-columns: minmax(0, 1fr); }
+.map-grid.single-map .map-preview { height: 7rem; }

@@ -31,7 +31,7 @@
       <aside class="menu-gallery" aria-label="Map screenshot slideshow">
         <div id="gallery-slides" class="gallery-slides"></div>
         <div class="gallery-shade"></div>
-        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 09</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
+        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 03</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
       </aside>
       <main class="menu main-panel">
         <div class="menu-wordmark"><span class="brand-icon">M<span>↗</span></span><span>MOVEMENT LAB <small>CS-STYLE MOVEMENT TRAINER</small></span></div>
@@ -49,13 +49,12 @@
         </section>
         <section id="maps-view" class="menu-view hidden" aria-labelledby="maps-title">
           <button id="maps-back" class="menu-back" type="button">← MAIN MENU</button>
-          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">09 COURSES</span></div>
+          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">01 COURSE</span></div>
           <fieldset class="physics-setting"><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic" type="button">CS-style</button><button data-preset="practice" type="button">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset>
           <div id="map-grid" class="map-grid" role="group" aria-label="Choose a course"></div>
-          <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">Easy · 3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
+          <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
-          <button id="endless-leaderboard" class="text-button" type="button">Endless leaderboard ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
         </section>
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
@@ -77,6 +76,12 @@
         <label class="volume-label" for="audio-volume">MOVEMENT &amp; CHIME VOLUME <output id="audio-volume-value">65%</output><input id="audio-volume" type="range" min="0" max="100" step="1" value="65"></label>
         <p id="audio-status" role="status">Choose a chime to hear it. Your choice is saved.</p>
       </div></details>
+      <details class="menu-music-settings" open><summary>Menu music <span>+</span></summary><div class="sound-content">
+        <label class="sound-toggle"><input id="menu-music-enabled" type="checkbox"> Play music in the main menu &amp; pause screen</label>
+        <label class="volume-label music-volume" for="menu-music-volume">MUSIC VOLUME <output id="menu-music-volume-value">35%</output><input id="menu-music-volume" type="range" min="0" max="100" step="1" value="35"></label>
+        <p id="menu-music-status" role="status" aria-live="polite">Menu music is off.</p>
+        <p class="music-tracks">Defend The Train OST - BTHG HQ<br>Surya Hearts - Retrofit</p>
+      </div></details>
         </section>
       </main>
     </section>
@@ -94,7 +99,7 @@
       <p class="input-note">Ends the current run.</p>
     </main>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="next-course" class="text-button">Next course →</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
   <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module" src="app.js"></script>
 </body>

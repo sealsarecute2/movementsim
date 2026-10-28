@@ -137,10 +137,7 @@ export function createRenderer(canvas, boxes) {
         }
         continue;
       }
-      addBox(b,b.shortcut?[.56,.38,.13]:b.roof?0.35:0.46);
-      if(b.skipLaunch) {
-        addBox({min:[b.min[0]+3,b.max[1]+.15,b.min[2]+3],max:[b.max[0]-3,b.max[1]+.4,b.min[2]+6]},[.85,.53,.16]);
-      }
+      addBox(b,b.roof?0.35:0.46);
       if(b.label) {
         const cx=(b.min[0]+b.max[0])/2, top=b.max[1]+0.12;
         const start=b.min[2]+20, end=b.max[2]-20;

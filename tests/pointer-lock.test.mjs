@@ -10,6 +10,7 @@ import * as audioModule from '../dist/game-audio.js';
 import * as leaderboardModule from '../dist/leaderboard.js';
 import * as skyboxModule from '../dist/skybox.js';
 import * as menuModule from '../dist/menu.js';
+import * as musicModule from '../dist/menu-music.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -32,17 +33,21 @@ function boot(stored = {}, search = '', renderError = null) {
     if(!elements.has(id))elements.set(id,element());
     return elements.get(id);
   };
-  document.querySelectorAll=()=>[];document.body=element();document.pointerLockElement=null;
+  document.querySelectorAll=()=>[];document.body=element();document.pointerLockElement=null;document.hidden=false;document.hasFocus=()=>true;
   const canvas=document.getElementById('world');let requests=0,lastCamera,lastTarget,lastFov,lastSkybox;
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
-  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,document,window,
+  const musicAudio={paused:true,ended:false,currentTime:0,plays:0,loads:0,pauses:0,
+    addEventListener(){},load(){this.loads++;this.paused=true;this.currentTime=0;this.ended=false;},
+    play(){this.plays++;this.paused=false;return Promise.resolve();},pause(){this.pauses++;this.paused=true;}};
+  class TestMenuMusic extends musicModule.MenuMusic {constructor(options){super({...options,createAudio:()=>musicAudio});}}
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,MenuMusic:TestMenuMusic,document,window,
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
     requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},draw(p,fov,target){lastCamera=p;lastFov=fov;lastTarget=target;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
-  return {context,document,window,canvas,element:id=>document.getElementById(id),
+  return {context,document,window,canvas,musicAudio,element:id=>document.getElementById(id),
     requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,read:source=>vm.runInContext(source,context),storage,
     lock(){document.pointerLockElement=canvas;document.fire('pointerlockchange');}};
 }
@@ -83,18 +88,16 @@ test('losing focus cancels a pending capture and a late grant cannot start play'
   assert.equal(app.document.body.classList.contains('playing'),false);
   assert.equal(app.element('play').disabled,false);
 });
-test('course select resets the run and renders the selected course and section count',()=>{
-  const app=boot();
-  assert.match(app.element('map-grid').innerHTML,/Deadpoint/);
-  app.read("runTime=30;checkpoint=2;keys.add('Space')");
-  app.element('map-grid').fire('click',{target:{closest:()=>({dataset:{map:'circuit'}})}});
-  assert.equal(app.read('map'),'circuit');assert.equal(app.read('runTime'),0);
-  assert.equal(app.read('checkpoint'),0);assert.equal(app.read('keys.size'),0);
-  assert.equal(app.element('progress-count').textContent,'01 / 04');
-  assert.equal(app.element('course-title').textContent,'SWITCHBACK FOUNDRY');
-  assert.equal(app.read('player.x'),course.MAPS.circuit.spawns[0].x);
-  assert.equal(JSON.parse(app.storage.get('movement-lab-settings-v1')).map,'circuit');
+test('selecting Starter resets the run and renders its sections and spawn',()=>{
+ const app=boot();assert.match(app.element('map-grid').innerHTML,/Starter course/);
+ assert.ok(!/Deadpoint|Overdrive|Vertigo/.test(app.element('map-grid').innerHTML));
+ app.read("runTime=30;checkpoint=2;keys.add('Space')");
+ app.element('map-grid').fire('click',{target:{closest:()=>({dataset:{map:'course'}})}});
+ assert.equal(app.read('map'),'course');assert.equal(app.read('runTime'),0);assert.equal(app.read('checkpoint'),0);
+ assert.equal(app.read('keys.size'),0);assert.equal(app.element('progress-count').textContent,'01 / 03');
+ assert.equal(app.read('player.z'),course.MAPS.course.spawns[0].z);
 });
+
 test('all course checkpoints work in order and respawn on the active course',()=>{
   for(const map of course.MAP_LIST.filter(m=>m.timed)) {
     const app=boot();app.read(`chooseMap('${map.id}')`);
@@ -110,32 +113,30 @@ test('all course checkpoints work in order and respawn on the active course',()=
     assert.equal(app.read('completed'),true,`${map.title} must finish after its last checkpoint`);
   }
 });
-test('skipping checkpoints cannot complete a course',()=>{
-  const app=boot();app.read("chooseMap('gauntlet');player=createPlayer(MAPS.gauntlet.spawns[3]);tick()");
-  assert.equal(app.read('checkpoint'),0);
-  app.read('player=createPlayer({x:400,y:144,z:-3890,yaw:0});tick()');
-  assert.equal(app.read('completed'),false);
+test('skipping Starter checkpoints cannot complete the course',()=>{
+ const app=boot();app.read('player=createPlayer(MAPS.course.spawns[2]);tick()');
+ assert.equal(app.read('checkpoint'),0);
+ app.read('var end=boxes.find(b=>b.finish);player=createPlayer({x:(end.min[0]+end.max[0])/2,y:end.max[1],z:(end.min[2]+end.max[2])/2,yaw:0});tick()');
+ assert.equal(app.read('completed'),false);
 });
-test('personal bests are separate per map and preset and retain old starter records',()=>{
-  const app=boot({'movement-lab-bests-v1':JSON.stringify({classic:20})});
-  assert.equal(app.element('best').textContent,'00:20.000');
-  app.read("chooseMap('zigzag');runTime=12;finishRun()");
-  app.read("chooseMap('skyline');runTime=17;finishRun()");
-  app.read("chooseMap('zigzag');choosePreset('practice');runTime=9;finishRun()");
-  const bests=JSON.parse(app.storage.get('movement-lab-bests-v1'));
-  assert.equal(bests['course:classic'],20);assert.equal(bests['zigzag:v2:classic'],12);
-  assert.equal(bests['skyline:v2:classic'],17);assert.equal(bests['zigzag:v2:practice'],9);
-  app.read("choosePreset('classic');chooseMap('zigzag')");
-  assert.equal(app.element('best').textContent,'00:12.000');
-  app.read("chooseMap('free')");assert.equal(app.element('best').textContent,'—');
+
+test('Starter bests are separate per preset and retain original single-course records',()=>{
+ const app=boot({'movement-lab-bests-v1':JSON.stringify({classic:20})});
+ assert.equal(app.element('best').textContent,'00:20.000');app.read('runTime=12;finishRun()');
+ app.read("choosePreset('practice');runTime=9;finishRun()");
+ const bests=JSON.parse(app.storage.get('movement-lab-bests-v1'));
+ assert.equal(bests['course:classic'],12);assert.equal(bests['course:practice'],9);
+ app.read("choosePreset('classic')");assert.equal(app.element('best').textContent,'00:12.000');
+ app.read("chooseMap('free')");assert.equal(app.element('best').textContent,'—');
 });
-test('saved course restores its spawn and next-course button advances and captures the mouse',()=>{
-  const app=boot({'movement-lab-settings-v1':JSON.stringify({map:'skyline'})});
-  assert.equal(app.read('map'),'skyline');assert.equal(app.read('player.y'),course.MAPS.skyline.spawns[0].y);
-  app.element('next-course').fire('click');
-  assert.equal(app.read('map'),'circuit');assert.equal(app.requests(),1);
-  app.lock();assert.equal(app.document.body.classList.contains('playing'),true);
+
+test('removed saved maps and course URLs fall back to Starter without breaking play',()=>{
+ const app=boot({'movement-lab-settings-v1':JSON.stringify({map:'skyline'})},'?course=circuit');
+ assert.equal(app.read('map'),'course');assert.equal(app.read('player.y'),course.MAPS.course.spawns[0].y);
+ assert.equal(app.element('next-course'),null);app.element('play').fire('click');app.lock();
+ assert.equal(app.read('playing'),true);
 });
+
 test('every course is selectable and starts without requiring a previous completion',()=>{
   for(const map of course.MAP_LIST.filter(m=>m.timed)) {
     const app=boot();
@@ -417,7 +418,7 @@ test('background defaults to black and all sky choices persist across courses an
   const app=boot();assert.equal(app.skybox(),'black');assert.equal(app.element('skybox-select').value,'black');
   for(const name of ['dawn','midday','dusk','midnight','black']) {
     app.element('skybox-select').value=name;app.element('skybox-select').fire('change');
-    assert.equal(app.skybox(),name);app.read("chooseMap('circuit');reset()");assert.equal(app.skybox(),name);
+    assert.equal(app.skybox(),name);app.read("chooseMap('free');reset()");assert.equal(app.skybox(),name);
     const saved=app.storage.get('movement-lab-settings-v1'),restored=boot({'movement-lab-settings-v1':saved});
     assert.equal(restored.skybox(),name);assert.equal(restored.element('skybox-select').value,name);
   }
@@ -491,27 +492,64 @@ test('returning from Endless saves distance and clears the route for the next ru
   assert.equal(app.read('endless.distance'),0);assert.equal(app.read('runTime'),0);
   assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v2:classic'],3210);
 });
-test('Endless leaderboard keeps the selected course and a modal Escape does not change views',()=>{
-  const app=boot();app.element('open-map-select').fire('click');
-  app.read("chooseMap('needles')");app.element('endless-leaderboard').fire('click');
-  assert.equal(app.read('map'),'needles');assert.equal(app.read('leaderboardMap'),'endless');
-  app.document.fire('keydown',{code:'Escape'});assert.equal(app.read('mainView'),'maps');
+test('only Starter can open a leaderboard, including from direct app actions',()=>{
+ const app=boot();app.element('open-map-select').fire('click');
+ app.read("chooseMap('endless');openLeaderboard()");assert.equal(!!app.element('leaderboard').open,false);
+ assert.equal(app.element('leaderboard-button').disabled,true);assert.equal(app.element('endless-leaderboard'),null);
+ app.read("chooseMap('course');openLeaderboard()");assert.equal(app.element('leaderboard').open,true);
+ app.document.fire('keydown',{code:'Escape'});assert.equal(app.read('mainView'),'maps');
 });
 
-test('rebuilt maps preserve legacy bests but use a separate record key for new layouts',()=>{
+test('retired map records are ignored while Starter records remain intact',()=>{
  const original={'momentum:classic':8.123,'endless:practice':9000,'course:classic':20};
- const app=boot({'movement-lab-bests-v1':JSON.stringify(original)});
- app.read("chooseMap('momentum')");assert.equal(app.element('best').textContent,'—');
- app.read('runTime=25;finishRun()');
- const saved=JSON.parse(app.storage.get('movement-lab-bests-v1'));
- assert.equal(saved['momentum:classic'],8.123);assert.equal(saved['momentum:v2:classic'],25);
- assert.equal(saved['endless:practice'],9000);
- app.read("chooseMap('course')");assert.equal(app.element('best').textContent,'00:20.000');
+ const app=boot({'movement-lab-bests-v1':JSON.stringify(original),'movement-lab-settings-v1':JSON.stringify({map:'momentum'})});
+ assert.equal(app.read('map'),'course');assert.equal(app.element('best').textContent,'00:20.000');
+ app.read('runTime=25;finishRun()');const saved=JSON.parse(app.storage.get('movement-lab-bests-v1'));
+ assert.equal(saved['course:classic'],20);assert.equal(saved['momentum:classic'],8.123);
 });
+
 test('ladder movement reaches the HUD and reset clears attachment state',()=>{
- const app=boot();app.read("chooseMap('skyline');player=createPlayer({x:0,y:20,z:-632,yaw:0});keys.add('KeyW');tick();updateHud()");
+ const app=boot();app.read("chooseMap('free');player=createPlayer({x:0,y:20,z:-1304,yaw:0});keys.add('KeyW');tick();updateHud()");
  assert.equal(app.element('motion-state').textContent,'ON LADDER');
  assert.equal(app.element('speed').textContent,200);assert.equal(app.element('gain').textContent,'CLIMBING');
  assert.equal(app.read('!!player.ladder'),true);
  app.read('reset()');assert.equal(app.read('player.ladder'),null);
+});
+
+test('menu music defaults off, plays in both menus, and pauses during a captured run',async()=>{
+ const app=boot();assert.equal(app.element('menu-music-enabled').checked,false);assert.equal(app.musicAudio.plays,0);
+ app.element('menu-music-enabled').checked=true;app.element('menu-music-enabled').fire('change');await Promise.resolve();
+ assert.equal(app.musicAudio.paused,false);app.musicAudio.currentTime=42;
+ app.element('play').fire('click');app.lock();assert.equal(app.musicAudio.paused,true);
+ app.document.fire('keydown',{code:'Escape'});await Promise.resolve();
+ assert.equal(app.read('menuMode'),'pause');assert.equal(app.musicAudio.paused,false);assert.equal(app.musicAudio.currentTime,42);
+ app.window.fire('blur');assert.equal(app.musicAudio.paused,true);assert.equal(app.read('windowFocused'),false);
+ app.window.fire('focus');await Promise.resolve();assert.equal(app.musicAudio.paused,false);
+ app.document.hidden=true;app.document.fire('visibilitychange');assert.equal(app.musicAudio.paused,true);
+ app.document.hidden=false;app.document.fire('visibilitychange');await Promise.resolve();assert.equal(app.musicAudio.paused,false);
+ app.window.fire('pagehide');assert.equal(app.musicAudio.paused,true);
+});
+test('music volume persists independently from movement audio and the choice restores on reload',()=>{
+ const app=boot();app.element('menu-music-enabled').checked=true;app.element('menu-music-enabled').fire('change');
+ app.element('menu-music-volume').value='70';app.element('menu-music-volume').fire('input');
+ assert.equal(app.musicAudio.volume,.7);assert.equal(app.read('audioVolume'),.65);
+ const saved=app.storage.get('movement-lab-settings-v1'),next=boot({'movement-lab-settings-v1':saved});
+ assert.equal(next.element('menu-music-enabled').checked,true);assert.equal(next.element('menu-music-volume').value,70);
+ assert.equal(next.element('menu-music-volume-value').textContent,'70%');
+});
+test('losing focus stops previews and knife voices even when the game was already paused',()=>{
+ const app=boot();app.read('var stopped=0,muted=false;gameAudio={stopAll(){stopped++}};knife={audio:{stopAll(){stopped++},setMuted(value){muted=value}}}');
+ app.window.fire('blur');assert.equal(app.read('stopped'),2);assert.equal(app.read('muted'),true);
+ app.read('activateGameAudio()');assert.equal(app.read('stopped'),2,'background preview activation is rejected before audio starts');
+});
+test('map selection shows section counts and has no difficulty or shortcut labels',()=>{
+ const app=boot();assert.ok(!/Easy|Hard|Expert|Extreme|skip|shortcut/.test(app.element('map-grid').innerHTML));
+ assert.match(app.element('map-grid').innerHTML,/sections/);app.read("chooseMap('course')");
+ assert.ok(!/Hard|Expert|Extreme|skip|shortcut/.test(app.element('map-meta').textContent));
+});
+
+test('page navigation pauses a captured run and restoring the page leaves it paused',()=>{
+ const app=boot();app.element('play').fire('click');app.lock();app.window.fire('pagehide');
+ assert.equal(app.read('playing'),false);assert.equal(app.read('menuMode'),'pause');assert.equal(app.document.pointerLockElement,null);
+ app.window.fire('pageshow');assert.equal(app.read('playing'),false);
 });

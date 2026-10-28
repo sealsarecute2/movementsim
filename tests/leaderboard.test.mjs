@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -31,7 +31,7 @@ test('cloud loading only reads the selected text file and reports failures inste
   await assert.rejects(loadLeaderboard('course','classic',{fetcher:async()=>({ok:false})}),/unavailable/);
 });
 test('each scored course has an editable root text file and accepts owner-published records',()=>{
-  for(const map of MAP_LIST.filter(m=>m.timed||m.endless)) {
+  for(const map of MAP_LIST.filter(m=>m.id==='course')) {
     const root=readFileSync(new URL('../leaderboards/'+map.id+(map.revision>1?'-v'+map.revision:'')+'.txt',import.meta.url),'utf8');
     assert.doesNotThrow(()=>parseLeaderboard(root,{endless:!!map.endless}));
     const example=map.endless?'Real player | 12345 | classic':'Real player | 12.345 | classic';
@@ -42,21 +42,18 @@ test('a rebuild preserves owner-edited root records and updates the preview copy
   const folder=mkdtempSync(join(tmpdir(),'movement-leaderboard-build-'));
   try {
     copyFileSync(new URL('../build-standalone.py',import.meta.url),join(folder,'build-standalone.py'));
-    for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
-    for(const name of ['index.html','style.css','endless.js','course.js','physics.js','skybox.js','renderer.js','game-audio.js','leaderboard.js','menu.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
-    writeFileSync(join(folder,'leaderboards/course.txt'),'Seal | 12.345 | classic\n');writeFileSync(join(folder,'dist/leaderboards/course.txt'),'# stale preview\n');
+    for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/music','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
+    for(const name of ['index.html','style.css','endless.js','course.js','physics.js','skybox.js','renderer.js','game-audio.js','leaderboard.js','menu.js','menu-music.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
+    writeFileSync(join(folder,'leaderboards/course.txt'),'Seal | 12.345 | classic\n');writeFileSync(join(folder,'dist/leaderboards/course.txt'),'# stale preview\n');writeFileSync(join(folder,'dist/leaderboards/endless.txt'),'# retired\n');
     const result=spawnSync('python3',[join(folder,'build-standalone.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+    assert.equal(existsSync(join(folder,'dist/leaderboards/endless.txt')),false);
     assert.equal(readFileSync(join(folder,'leaderboards/course.txt'),'utf8'),'Seal | 12.345 | classic\n');assert.equal(readFileSync(join(folder,'dist/leaderboards/course.txt'),'utf8'),'Seal | 12.345 | classic\n');
   } finally {rmSync(folder,{recursive:true,force:true});}
 });
 
-test('rebuilt routes load separate revision files and Endless still parses distance',async()=>{
- const calls=[];
- const records=await loadLeaderboard('endless','practice',{revision:2,fetcher:async(url)=>{
-  calls.push(url);return {ok:true,text:async()=> 'Seal | 12345 | practice'};
- }});
- assert.match(calls[0],/^leaderboards\/endless-v2\.txt\?/);
- assert.deepEqual(records,[{name:'Seal',value:12345}]);
- await assert.rejects(loadLeaderboard('course','classic',{revision:'../../secret'}),/Invalid/);
- await assert.rejects(loadLeaderboard('course','classic',{revision:-1}),/Invalid/);
+test('retired courses and Endless cannot load a non-Starter board',async()=>{
+ let calls=0;const fetcher=async()=>{calls++;return {ok:true,text:async()=>''};};
+ for(const id of ['momentum','zigzag','skyline','circuit','balance','underpass','needles','gauntlet','endless','free'])await assert.rejects(loadLeaderboard(id,'classic',{fetcher}),/Invalid/);
+ await assert.rejects(loadLeaderboard('course','classic',{revision:2,fetcher}),/Invalid/);assert.equal(calls,0);
+ for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')),['course.txt']);
 });

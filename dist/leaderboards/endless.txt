@@ -1,5 +1,0 @@
-# Endless
-# One entry per line: player name | distance in whole Source units | classic or practice
-# The mode is optional and defaults to classic. Lines beginning with # are comments.
-# Example only — remove # and replace the score to publish a real record:
-# seals_are_cute | 10000 | classic

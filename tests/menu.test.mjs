@@ -50,7 +50,7 @@ test('snapshot encoding failure and unavailable 2D canvas always restore the gam
   assert.equal(calls.at(-2)[1],originalBoxes);assert.deepEqual(calls.at(-1),['sky','black']);
 });
 function slideshow(reducedMotion=false) {
-  const maps=MAP_LIST.filter(m=>m.timed);
+  const maps=MAP_LIST;
   const slides=maps.map(()=>({active:false,classList:{toggle(name,value){slides[slides.findIndex(s=>s.classList===this)].active=value;}},setAttribute(name,value){this[name]=value;}}));
   const title={},count={};
   return {gallery:createMenuSlideshow({slides,maps,title,count,reducedMotion}),slides,title,count};
@@ -59,12 +59,12 @@ test('slideshow advances, wraps, updates its caption and stops its clock outside
   const {gallery,slides,title,count}=slideshow();
   assert.equal(gallery.current,0);assert.equal(slides.filter(s=>s.active).length,1);
   gallery.step(0);gallery.step(6499);assert.equal(gallery.current,0);
-  gallery.step(6500);assert.equal(gallery.current,1);assert.equal(title.textContent,'Overdrive');
-  assert.equal(count.textContent,'02 / 09');assert.equal(slides[0]['aria-hidden'],'true');
+  gallery.step(6500);assert.equal(gallery.current,1);assert.equal(title.textContent,'Endless');
+  assert.equal(count.textContent,'02 / 03');assert.equal(slides[0]['aria-hidden'],'true');
   gallery.step(7000,false);gallery.step(30000);assert.equal(gallery.current,1);
   gallery.step(36500);assert.equal(gallery.current,2);
-  gallery.show(8);gallery.next();assert.equal(gallery.current,0);
-  gallery.previous();assert.equal(gallery.current,8);
+  gallery.show(2);gallery.next();assert.equal(gallery.current,0);
+  gallery.previous();assert.equal(gallery.current,2);
 });
 test('reduced motion disables automatic slideshow movement and leaves manual controls usable',()=>{
   const {gallery}=slideshow(true);gallery.step(0);gallery.step(50000);
