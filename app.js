@@ -4,7 +4,7 @@ import { createEndless } from './endless.js';
 import { createRenderer } from './renderer.js';
 import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
-import { loadLeaderboard, leaderboardRows } from './leaderboard.js';
+import { loadLeaderboard, leaderboardRows, hasLeaderboard } from './leaderboard.js';
 import { mapPreviewSVG, createMenuSlideshow, captureMapScreenshot } from './menu.js';
 import { MenuMusic } from './menu-music.js';
 import { loadSourceMap } from './source-map.js';
@@ -128,7 +128,7 @@ async function refreshLeaderboard() {
 }
 function openLeaderboard(value=map) {
   const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
-  if(selected!=='course')return;
+  if(!hasLeaderboard(selected,MAPS[selected].revision||1))return;
   leaderboardMap=selected;
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
@@ -290,7 +290,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`:'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
   if(selected.source)$('map-source-link').href=selected.source;
-  $('leaderboard-button').disabled=selected.id!=='course';
+  $('leaderboard-button').disabled=!hasLeaderboard(selected.id,selected.revision||1);
   $('stage-markers').innerHTML=selected.stages.map(()=>'<i></i>').join('');
   clearInput();
   if(resetRun) reset();
@@ -345,7 +345,7 @@ function finishRun() {
   $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
   $('finish-time').textContent=format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
-  $('finish-leaderboard').classList.toggle('hidden',map!=='course');
+  $('finish-leaderboard').classList.toggle('hidden',!hasLeaderboard(map,MAPS[map].revision||1));
   gameAudio?.finish();
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
 }

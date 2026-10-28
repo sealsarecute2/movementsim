@@ -419,9 +419,9 @@ test('invalid stored crosshair settings fall back safely and numeric values stay
   const old=boot({'movement-lab-settings-v1':JSON.stringify({crosshair:null})});
   assert.equal(old.element('crosshair').style.color,'rgb(221, 221, 221)');
 });
-test('background defaults to black and both choices persist across courses and reloads',()=>{
+test('background defaults to black and all three choices persist across courses and reloads',()=>{
   const app=boot();assert.equal(app.skybox(),'black');assert.equal(app.element('skybox-select').value,'black');
-  for(const name of ['cycle','black']) {
+  for(const name of ['cycle','blackhole','black']) {
     app.element('skybox-select').value=name;app.element('skybox-select').fire('change');
     assert.equal(app.skybox(),name);app.read("chooseMap('free');reset()");assert.equal(app.skybox(),name);
     const saved=app.storage.get('movement-lab-settings-v1'),restored=boot({'movement-lab-settings-v1':saved});
@@ -499,7 +499,7 @@ test('returning from Endless saves distance and clears the route for the next ru
   assert.equal(app.read('endless.distance'),0);assert.equal(app.read('runTime'),0);
   assert.equal(JSON.parse(app.storage.get('movement-lab-bests-v1'))['endless:v2:classic'],3210);
 });
-test('only Starter can open a leaderboard, including from direct app actions',()=>{
+test('Starter can open a leaderboard while Endless stays excluded, including from direct app actions',()=>{
  const app=boot();app.element('open-map-select').fire('click');
  app.read("chooseMap('endless');openLeaderboard()");assert.equal(!!app.element('leaderboard').open,false);
  assert.equal(app.element('leaderboard-button').disabled,true);assert.equal(app.element('endless-leaderboard'),null);
@@ -601,6 +601,24 @@ test('selecting a native map while decoding prevents a stale import from replaci
 const greyGeometry=()=>JSON.parse(readFileSync(new URL('../dist/maps/bhop_lego.json',import.meta.url),'utf8'));
 const greyFetch=async()=>({ok:true,json:async()=>greyGeometry()});
 const finishMicrotasks=()=>new Promise(resolve=>setImmediate(resolve));
+test('bhop_lego exposes its leaderboard from map selection and the finish screen in both modes',async()=>{
+ const app=boot({},'',null,{fetch:greyFetch});app.context.leaderboardCalls=[];
+ app.read('loadLeaderboard=async(id,mode,options)=>{leaderboardCalls.push({id,mode,revision:options.revision});return [{name:"<Seal>",value:154.567}];}');
+ try {
+  await app.context.selectCommunityMap(course.COMMUNITY_MAPS[0]);
+  assert.equal(app.element('leaderboard-button').disabled,false);
+  app.element('leaderboard-button').fire('click');await app.read('refreshLeaderboard()');
+  assert.equal(app.element('leaderboard').open,true);assert.equal(app.element('leaderboard-title').textContent,'bhop_lego');
+  assert.match(app.element('leaderboard-rows').innerHTML,/&lt;Seal&gt;/);assert.match(app.element('leaderboard-rows').innerHTML,/02:34.567/);
+  assert.equal(app.context.leaderboardCalls.at(-1).id,'bhop_lego');assert.equal(app.context.leaderboardCalls.at(-1).revision,2);
+  app.element('leaderboard-close').fire('click');app.read("choosePreset('practice');runTime=154.567;finishRun()");
+  assert.equal(app.element('finish-leaderboard').classList.contains('hidden'),false);
+  app.element('finish-leaderboard').fire('click');await app.read('refreshLeaderboard()');
+  assert.equal(app.context.leaderboardCalls.at(-1).mode,'practice');assert.equal(app.element('leaderboard-mode').textContent,'Bhop practice');
+  app.element('leaderboard-close').fire('click');app.read("chooseMap('free');openLeaderboard()");
+  assert.equal(app.element('leaderboard').open,false);assert.equal(app.element('leaderboard-button').disabled,true);
+ } finally {delete course.MAPS.bhop_lego;}
+});
 test('refresh restores the selected map and safe checkpoint with the timer paused',async()=>{
  const session=new Map(),app=boot({},'',null,{session,fetch:greyFetch});
  try {

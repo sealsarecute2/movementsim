@@ -75,11 +75,11 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   const skyGround=gl.getUniformLocation(program,'uSkyGround'),fogGain=gl.getUniformLocation(program,'uFogGain');
   const fogEye=gl.getUniformLocation(program,'uFogEye');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
-  let skybox='black',skyRenderer=null,cycleStarted=0;
+  let skybox='black',skyRenderer=null,skyStarted=0;
   function setSkybox(value) {
     const next=normaliseSkybox(value);
     if(next!=='black'&&!skyRenderer)skyRenderer=createSkyRenderer(gl);
-    if(next==='cycle'&&skybox!=='cycle')cycleStarted=now();
+    if(next!=='black'&&skybox!==next)skyStarted=now();
     skybox=next;
   }
   let vertices = [], count = 0, currentBoxes = boxes;
@@ -162,7 +162,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   }
   function draw(p,fov=100,target=null) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-    const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=sampleSkybox(skybox,(now()-cycleStarted)/1000);
+    const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=sampleSkybox(skybox,(now()-skyStarted)/1000);
     if(skybox!=='black') {
       for(const {loc} of attributes)gl.disableVertexAttribArray(loc);
       skyRenderer.draw(p,scaleX,f,preset);

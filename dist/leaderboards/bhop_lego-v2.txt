@@ -1,0 +1,5 @@
+# bhop_lego — plain parkour route, revision 2
+# One clean run per line: player name | time as MM:SS.mmm or seconds | classic or practice
+# Records are published by the owner. Keep checkpoint-assisted runs off this board.
+# Example format only — replace with a real player and verified time:
+# Player | 02:34.567 | practice

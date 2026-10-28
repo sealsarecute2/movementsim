@@ -29,14 +29,30 @@ function fixture(t) {
   return {renderer,camera,box,gl,draws,programs,uploads,setTime:seconds=>{clock=seconds*1000;}};
 }
 
-test('only black and the day/night cycle are selectable; removed and invalid settings fall back to black',()=>{
-  assert.deepEqual(Object.keys(SKYBOXES),['black','cycle']);
+test('black, the day/night cycle and the black hole are selectable; old settings fall back to black',()=>{
+  assert.deepEqual(Object.keys(SKYBOXES),['black','cycle','blackhole']);
   for(const value of [undefined,null,'unknown','__proto__',3,'dawn','midday','dusk','midnight'])assert.equal(normaliseSkybox(value),'black');
   assert.equal(normaliseSkybox('cycle'),'cycle');
   assert.equal(sampleSkybox('black',450),SKYBOXES.black);
   const html=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
   const select=html.match(/<select id="skybox-select">(.*?)<\/select>/s)[1];
-  assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['black','cycle']);
+  assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['black','cycle','blackhole']);
+});
+test('the black hole uses a night palette, a bounded animation clock and its own rendering pass',t=>{
+  const start=sampleSkybox('blackhole',0);
+  assert.equal(normaliseSkybox('blackhole'),'blackhole');assert.equal(start.blackHole,1);assert.equal(start.sunVisibility,0);
+  assert.deepEqual(sampleSkybox('blackhole',600),start);assert.deepEqual(sampleSkybox('blackhole',NaN),start);
+  assert.ok(start.horizon.every(n=>n>=0&&n<.05));
+  const f=fixture(t);f.setTime(100);f.renderer.setSkybox('blackhole');f.setTime(125);f.renderer.draw(f.camera,100,f.box);
+  const [sky,world,glow]=f.draws;
+  assert.equal(sky.uniforms.uBlackHole,1);assert.equal(sky.uniforms.uSkyTime,25);
+  assert.deepEqual(sky.uniforms.uSkyAngles,[f.camera.yaw,f.camera.pitch]);assert.deepEqual(sky.uniforms.uSkyScale,world.uniforms.uScale);
+  assert.deepEqual(world.uniforms.uSkyHorizon,start.horizon);assert.equal(glow.uniforms.uFogGain,0);
+  f.renderer.setBoxes([f.box]);f.renderer.setSkybox('blackhole');f.draws.length=0;f.setTime(140);f.renderer.draw(f.camera);
+  assert.equal(f.draws[0].uniforms.uSkyTime,40);
+  f.renderer.setSkybox('cycle');f.draws.length=0;f.renderer.draw(f.camera);
+  assert.equal(f.draws[0].uniforms.uBlackHole,0);assert.equal(f.draws[0].uniforms.uSkyTime,0);
+  f.renderer.setSkybox('black');f.draws.length=0;f.renderer.draw(f.camera);assert.equal(f.draws.length,1);
 });
 test('the twenty-minute cycle has four distinct phases, an orbiting sun and an opposite moon',()=>{
   assert.equal(DAY_NIGHT_CYCLE_SECONDS,1200);

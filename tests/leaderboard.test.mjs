@@ -4,8 +4,8 @@ import { readFileSync, readdirSync, existsSync, mkdtempSync, mkdirSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { parseLeaderboard, formatLeaderboardScore, leaderboardRows, loadLeaderboard } from '../dist/leaderboard.js';
-import { MAP_LIST } from '../dist/course.js';
+import { parseLeaderboard, formatLeaderboardScore, leaderboardRows, loadLeaderboard, hasLeaderboard } from '../dist/leaderboard.js';
+import { MAP_LIST, COMMUNITY_MAPS } from '../dist/course.js';
 
 test('plain text records support either time format, separate modes, and keep each player’s best result',()=>{
   const text='\uFEFF# comment\r\nYouhong | 00:23.456 | classic\r\nAlice | 22.1\r\nyouhong | 21.000 | classic\nAlice | 20 | practice\nBob | 01:01.005 | classic\n';
@@ -31,12 +31,22 @@ test('cloud loading only reads the selected text file and reports failures inste
   await assert.rejects(loadLeaderboard('course','classic',{fetcher:async()=>({ok:false})}),/unavailable/);
 });
 test('each scored course has an editable root text file and accepts owner-published records',()=>{
-  for(const map of MAP_LIST.filter(m=>m.id==='course')) {
+  for(const map of [...MAP_LIST.filter(m=>m.id==='course'),...COMMUNITY_MAPS]) {
     const root=readFileSync(new URL('../leaderboards/'+map.id+(map.revision>1?'-v'+map.revision:'')+'.txt',import.meta.url),'utf8');
+    assert.equal(readFileSync(new URL('../dist/leaderboards/'+map.id+(map.revision>1?'-v'+map.revision:'')+'.txt',import.meta.url),'utf8'),root);
     assert.doesNotThrow(()=>parseLeaderboard(root,{endless:!!map.endless}));
     const example=map.endless?'Real player | 12345 | classic':'Real player | 12.345 | classic';
     assert.ok(parseLeaderboard(root+'\n'+example,{endless:!!map.endless}).some(entry=>entry.name==='Real player'));
   }
+});
+test('bhop_lego reads its revision-specific board and separates both physics modes',async()=>{
+  const calls=[],fetcher=async(url,options)=>{calls.push({url,options});return {ok:true,text:async()=> 'Seal | 02:34.567 | practice\nClassic player | 210 | classic\nSeal | 180 | practice'};};
+  assert.equal(hasLeaderboard('bhop_lego',2),true);assert.equal(hasLeaderboard('bhop_lego',1),false);
+  assert.deepEqual(await loadLeaderboard('bhop_lego','practice',{revision:2,fetcher}),[{name:'Seal',value:154.567}]);
+  assert.deepEqual(await loadLeaderboard('bhop_lego','classic',{revision:2,fetcher}),[{name:'Classic player',value:210}]);
+  assert.ok(calls.every(c=>/^leaderboards\/bhop_lego-v2\.txt\?v=\d+$/.test(c.url)&&c.options.cache==='no-store'&&c.options.method===undefined));
+  for(const revision of [1,3,NaN])await assert.rejects(loadLeaderboard('bhop_lego','practice',{revision,fetcher}),/Invalid/);
+  assert.equal(calls.length,2,'invalid revisions do not fetch an older board');
 });
 test('a rebuild preserves owner-edited root records and updates the preview copy',()=>{
   const folder=mkdtempSync(join(tmpdir(),'movement-leaderboard-build-'));
@@ -45,15 +55,17 @@ test('a rebuild preserves owner-edited root records and updates the preview copy
     for(const path of ['dist/butterfly','dist/vendor','dist/sounds','dist/music','dist/maps','dist/leaderboards','leaderboards'])mkdirSync(join(folder,path),{recursive:true});
     for(const name of ['index.html','style.css','endless.js','course.js','physics.js','skybox.js','parkour-map.js','source-map.js','source-runtime.js','source-renderer.js','renderer.js','game-audio.js','leaderboard.js','menu.js','menu-music.js','app.js','favicon.ico','favicon.svg'])writeFileSync(join(folder,'dist',name),'');
     writeFileSync(join(folder,'leaderboards/course.txt'),'Seal | 12.345 | classic\n');writeFileSync(join(folder,'dist/leaderboards/course.txt'),'# stale preview\n');writeFileSync(join(folder,'dist/leaderboards/endless.txt'),'# retired\n');
+    writeFileSync(join(folder,'leaderboards/bhop_lego-v2.txt'),'Seal | 154.567 | practice\n');writeFileSync(join(folder,'dist/leaderboards/bhop_lego-v2.txt'),'# stale community preview\n');
     const result=spawnSync('python3',[join(folder,'build-standalone.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
     assert.equal(existsSync(join(folder,'dist/leaderboards/endless.txt')),false);
     assert.equal(readFileSync(join(folder,'leaderboards/course.txt'),'utf8'),'Seal | 12.345 | classic\n');assert.equal(readFileSync(join(folder,'dist/leaderboards/course.txt'),'utf8'),'Seal | 12.345 | classic\n');
+    assert.equal(readFileSync(join(folder,'leaderboards/bhop_lego-v2.txt'),'utf8'),'Seal | 154.567 | practice\n');assert.equal(readFileSync(join(folder,'dist/leaderboards/bhop_lego-v2.txt'),'utf8'),'Seal | 154.567 | practice\n');
   } finally {rmSync(folder,{recursive:true,force:true});}
 });
 
-test('retired courses and Endless cannot load a non-Starter board',async()=>{
+test('retired courses, local imports and unknown IDs cannot load shared boards',async()=>{
  let calls=0;const fetcher=async()=>{calls++;return {ok:true,text:async()=>''};};
- for(const id of ['momentum','zigzag','skyline','circuit','balance','underpass','needles','gauntlet','endless','free'])await assert.rejects(loadLeaderboard(id,'classic',{fetcher}),/Invalid/);
+ for(const id of ['momentum','zigzag','skyline','circuit','balance','underpass','needles','gauntlet','endless','free','local-map','other-community','__proto__','../bhop_lego'])await assert.rejects(loadLeaderboard(id,'classic',{fetcher}),/Invalid/);
  await assert.rejects(loadLeaderboard('course','classic',{revision:2,fetcher}),/Invalid/);assert.equal(calls,0);
- for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')),['course.txt']);
+ for(const path of ['../leaderboards/','../dist/leaderboards/'])assert.deepEqual(readdirSync(new URL(path,import.meta.url)).filter(n=>n.endsWith('.txt')).sort(),['bhop_lego-v2.txt','course.txt']);
 });

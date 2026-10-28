@@ -71,13 +71,15 @@ Press **E** for another attempt from that checkpoint, or **Q** for a fresh run. 
 
 Refreshing the page restores your timed or community-map run at its checkpoint, paused. Click **Continue** to resume. Keep the same tab open: this is temporary progress. Restarting, changing maps or physics, or finishing clears the previous run. Endless keeps your best distance in your browser.
 
-The **Starter course** has a shared leaderboard. Records are added by the owner; finishing a run does not automatically publish your score. [Leaderboard information](leaderboards/README.md).
+**Starter course** and **bhop_lego** have shared leaderboards with separate CS-style and Bhop practice rankings. Select either map and click **Leaderboard**, or open it after finishing. Records are added by the owner; finishing a run does not automatically publish your score. [Leaderboard information](leaderboards/README.md).
 
 ## Make it comfortable
 
 Open **Settings** to change mouse sensitivity, field of view, your crosshair, the background, or sound volume. These preferences save automatically in your browser.
 
-**Background** has two choices: **Black** (the default) and **Day / night cycle**. Turning on the cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
+**Background** offers **Black** (the default), **Day / night cycle**, and **Black hole**. Turning on the day/night cycle starts at dawn, reaches midday after five minutes, dusk after ten, and midnight after fifteen, then returns to dawn at twenty minutes and repeats. The sun and moon move across the sky as colours, drifting clouds, stars, and distance haze change smoothly. The cycle keeps moving while you play or pause; turning it off and on starts a new dawn.
+
+**Black hole** adds a dark centre, glowing rings, a swirling accretion disk, and a warped star field. It is an original browser effect inspired by the look of IterationT's Minecraft End sky. Choose it in **Settings → Background**; it works on every map.
 
 **Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
 
