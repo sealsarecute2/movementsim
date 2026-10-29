@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MultiplayerRoom,createRoomSignaling,makeRoomCode,normaliseRoomCode,displayRoomCode,sanitiseRoomState,interpolateRoomPlayer,validateRoomCourse} from '../dist/multiplayer.js';
+import {readFileSync} from 'node:fs';
+import {MultiplayerRoom,createRoomSignaling,makeRoomCode,normaliseRoomCode,displayRoomCode,sanitiseRoomState,interpolateRoomPlayer,validateRoomCourse,roomPlayerSpawn} from '../dist/multiplayer.js';
 import {buildRemotePlayerMesh} from '../dist/players.js';
 import {projectWorldPoint} from '../dist/renderer.js';
+import {MAP_LIST} from '../dist/course.js';
+import {createPlayer,step,PRESETS} from '../dist/physics.js';
 
 const courses=[{id:'course'},{id:'endless',revision:3},{id:'bhop_kitsune',revision:3}];
 const course={id:'course',revision:1,preset:'practice'};
@@ -77,6 +80,7 @@ test('four players share the host map and receive each other through the host; a
  const net=network();try{
   const host=net.create();await host.room.start({host:true,name:'Host',course});
   const guests=[];for(let i=0;i<3;i++)guests.push(await net.join(host,'Guest '+i));
+  assert.deepEqual([host.room.slot,...guests.map(g=>g.room.slot)],[0,1,2,3]);
   guests[0].local.x=345;guests[1].local.time=17;host.local.completed=true;
   net.pump();net.pump();
   assert.equal(host.room.roster().length,4);
@@ -152,11 +156,48 @@ test('interpolation smooths ordinary movement, snaps portals and hides stale pla
  assert.equal(interpolateRoomPlayer(samples,4000),null);
 });
 test('avatars have finite coloured geometry and label projection follows the camera',()=>{
- const mesh=buildRemotePlayerMesh([{...state(),slot:1}]);assert.equal(mesh.length/11,7*36);assert.ok([...mesh].every(Number.isFinite));
+ const mesh=buildRemotePlayerMesh([{...state(),slot:1}]);assert.equal(mesh.length/11,11*36);assert.ok([...mesh].every(Number.isFinite));
  assert.equal(buildRemotePlayerMesh([{...state({x:NaN}),slot:1}]).length,0);
  const camera=state({z:0});assert.deepEqual(projectWorldPoint(camera,{x:0,y:64,z:-100},1280,720),{x:640,y:360});
  assert.equal(projectWorldPoint(camera,{x:0,y:64,z:100},1280,720),null);
  const ducked=buildRemotePlayerMesh([{...state({duckAmount:1}),slot:2}]);assert.equal(Math.max(...[...ducked].filter((_,i)=>i%11===1)),54);
+});
+test('crouching bends the knees progressively while the feet stay planted and the head lowers smoothly',()=>{
+ const pose=duckAmount=>buildRemotePlayerMesh([{...state({z:0,duckAmount}),slot:1}]);
+ const standing=pose(0),half=pose(.5),ducked=pose(1);
+ const component=(mesh,start,end,axis)=>[...mesh.slice(start*36*11,end*36*11)].filter((_,i)=>i%11===axis);
+ for(const [mesh,height] of [[standing,72],[half,63],[ducked,54]]){
+  assert.ok([...mesh].every(Number.isFinite));assert.equal(Math.max(...component(mesh,1,2,1)),height);
+  assert.equal(Math.min(...component(mesh,0,11,1)),0);
+  assert.deepEqual(mesh.slice(6*36*11,8*36*11),standing.slice(6*36*11,8*36*11),'feet stay fixed throughout the crouch');
+ }
+ const kneeFront=mesh=>Math.min(...component(mesh,2,4,2));
+ assert.ok(kneeFront(ducked)<kneeFront(half)&&kneeFront(half)<kneeFront(standing));
+ assert.deepEqual(pose(0),standing,'standing restores the original pose');
+});
+test('all shared maps start four players apart on supported ground, preserving the solo spawn and facing',()=>{
+ const maps=[...MAP_LIST,...['bhop_lego','bhop_kitsune'].map(id=>JSON.parse(readFileSync(new URL('../dist/maps/'+id+'.json',import.meta.url),'utf8')))];
+ for(const map of maps){
+  const spawn=map.spawns[0],original={...spawn},seats=Array.from({length:4},(_,slot)=>roomPlayerSpawn(spawn,slot,map.boxes));
+  for(let i=0;i<seats.length;i++){
+   const seat=seats[i];assert.equal(seat.y,spawn.y);assert.equal(seat.yaw,spawn.yaw);
+   assert.ok(Math.hypot(seat.x-spawn.x,seat.z-spawn.z)<96,'spawning must not start the community map timer');
+   for(const other of seats.slice(i+1))assert.ok(Math.hypot(seat.x-other.x,seat.z-other.z)>=48,map.id+' separates each player');
+   const p=createPlayer(seat);for(let n=0;n<32;n++)step(p,{},map.boxes,PRESETS.practice);
+   assert.ok(p.grounded,map.id+' spawn is supported');assert.equal(p.y,spawn.y);
+  }
+  assert.deepEqual(spawn,original);assert.deepEqual(roomPlayerSpawn(spawn,null,map.boxes),spawn);
+ }
+});
+test('spawn spacing avoids roofs and narrow edges, keeping the checkpoint when it cannot fit four players',()=>{
+ const spawn={x:0,y:0,z:0,yaw:0},floor={min:[-160,-120,-120],max:[160,0,160]},roof={min:[-48,40,-16],max:[-16,60,16]};
+ for(let slot=0;slot<4;slot++){
+  const p=roomPlayerSpawn(spawn,slot,[floor,roof]);
+  assert.ok(p.x+16<=roof.min[0]||p.x-16>=roof.max[0]||p.z+16<=roof.min[2]||p.z-16>=roof.max[2],'standing hull clears the roof');
+  const narrow=roomPlayerSpawn(spawn,slot,[{min:[-16,-120,-80],max:[16,0,80]}]);
+  assert.equal(narrow.x,0);assert.ok(Math.abs(narrow.z)<=64);assert.equal(narrow.y,0);
+ }
+ assert.deepEqual(roomPlayerSpawn(spawn,3,[]),spawn);
 });
 
 class Socket {

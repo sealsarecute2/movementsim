@@ -14,6 +14,32 @@ export function displayRoomCode(code) {return code.match(/.{1,4}/g)?.join('-')||
 export function roomPlayerName(value) {
   return [...String(value||'').replace(/[\u0000-\u001f\u007f]/g,'').trim()].slice(0,24).join('')||'Player';
 }
+export function roomPlayerSpawn(spawn,slot,boxes) {
+  if(!Number.isInteger(slot)||slot<0||slot>=ROOM_LIMIT)return {...spawn};
+  const layouts=[
+    [[-32,0],[32,0],[-32,64],[32,64]],
+    [[-32,-32],[32,-32],[-32,32],[32,32]],
+    [[-72,0],[-24,0],[24,0],[72,0]],
+    [[0,-72],[0,-24],[0,24],[0,72]],
+  ];
+  const cy=Math.cos(spawn.yaw),sy=Math.sin(spawn.yaw);
+  const position=([side,back])=>({...spawn,x:spawn.x+side*cy-back*sy,z:spawn.z+side*sy+back*cy});
+  const safe=p=>{
+    const nearby=boxes.nearby?boxes.nearby(p):boxes;
+    return nearby.some(b=>!b.ladder&&Math.abs(b.max[1]-p.y)<.01&&p.x-16>=b.min[0]&&p.x+16<=b.max[0]&&p.z-16>=b.min[2]&&p.z+16<=b.max[2])&&
+      !nearby.some(b=>!b.ladder&&p.x+16>b.min[0]+.001&&p.x-16<b.max[0]-.001&&p.z+16>b.min[2]+.001&&p.z-16<b.max[2]-.001&&p.y+72>b.min[1]+.001&&p.y<b.max[1]-.001);
+  };
+  for(const layout of layouts){const seats=layout.map(position);if(seats.every(safe))return seats[slot];}
+  // A narrow checkpoint may have fewer than four safe places. Preserve the
+  // original spawn rather than placing a player in a wall or over an edge.
+  const seats=[];
+  for(const offset of [...layouts.flat(),[0,0]]){
+    const p=position(offset);
+    if(safe(p)&&seats.every(s=>Math.hypot(p.x-s.x,p.z-s.z)>=47.99))seats.push(p);
+    if(seats.length===ROOM_LIMIT)break;
+  }
+  return seats[slot]||{...spawn};
+}
 export function validateRoomCourse(course,courses) {
   const known=courses.find(c=>c.id===course?.id&&(c.revision||1)===course.revision);
   if(!known||!['classic','practice'].includes(course.preset))throw Error('This room uses a different map version. Refresh the game and retry.');
@@ -105,7 +131,7 @@ export class MultiplayerRoom {
   notify(){this.onChange(this);}
   async start({host,code,name,course}) {
     this.leave('',false);const generation=++this.generation;
-    this.host=host;this.code=host?makeRoomCode():normaliseRoomCode(code);this.name=roomPlayerName(name);
+    this.host=host;this.slot=host?0:null;this.code=host?makeRoomCode():normaliseRoomCode(code);this.name=roomPlayerName(name);
     if(!this.code)throw Error('Enter the full 12-character room code.');
     if(host)this.course=validateRoomCourse(course,this.courses);
     this.phase='connecting';this.status=host?'Opening your room…':'Finding the host…';this.notify();
@@ -135,7 +161,7 @@ export class MultiplayerRoom {
     if(this.timer!==undefined)this.clearIntervalFn(this.timer);this.timer=undefined;
     this.signaling?.close();this.signaling=null;
     for(const link of this.links.values()){link.closed=true;link.pc.close();}
-    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.session=null;this.course=null;this.earlyCandidates=new Map();
+    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.slot=null;this.session=null;this.course=null;this.earlyCandidates=new Map();
     if(notify)this.notify();
   }
   async signal(id,data) {

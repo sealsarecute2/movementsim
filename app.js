@@ -11,7 +11,7 @@ import { loadSourceMap } from './source-map.js';
 import { createSourceRuntime } from './source-runtime.js';
 import { hydrateParkourMap } from './parkour-map.js';
 import { MULTIPLAYER_CONFIG } from './multiplayer-config.js';
-import { MultiplayerRoom, ROOM_LIMIT, displayRoomCode, roomPlayerName } from './multiplayer.js';
+import { MultiplayerRoom, ROOM_LIMIT, displayRoomCode, roomPlayerName, roomPlayerSpawn } from './multiplayer.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -165,6 +165,7 @@ function saveEndlessBest() {
   try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {}
 }
 function clearInput() { keys.clear(); pendingJump=false; }
+function spawnForPlayer(spawn){return room?.busy?roomPlayerSpawn(spawn,room.slot,boxes):spawn;}
 function reset(full=true) {
   gameAudio?.stopAll();
   if(sourceRuntime)clearInput();
@@ -175,7 +176,7 @@ function reset(full=true) {
     endless=createEndless(room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
   const previousPeak=player.peakSpeed;
-  player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
+  player=createPlayer(spawnForPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]));
   sourceRuntime?.reset(checkpoint);
   if(endless) {
     endless.update(player);boxes=endless.boxes;renderer.setBoxes(boxes);
@@ -396,7 +397,7 @@ function tick() {
     if(!runActive&&Math.hypot(player.x-first.x,player.z-first.z)>96)runActive=true;
     if(runActive)runTime+=DT;
     for(const event of sourceRuntime.step(player,previousDraw,DT)){
-      if(event.type==='portal')previousDraw={...player};
+      if(event.type==='portal'){Object.assign(player,spawnForPlayer(player));previousDraw={...player};}
       if(event.type==='respawn'){respawns++;reset(false);saveRunCheckpoint();toast('BACK AT CHECKPOINT — TIMER CONTINUES');return;}
       if(event.type==='teleport'){
         previousDraw={...player};
@@ -683,7 +684,7 @@ function drawRoomLabels(camera,players){
   const width=canvas.clientWidth,height=canvas.clientHeight;
   if(!started||!width||!height){$('player-labels').innerHTML='';return;}
   $('player-labels').innerHTML=players.flatMap(p=>{
-    const point=projectWorldPoint(camera,{x:p.x,y:p.y+83-p.duckAmount*18,z:p.z},width,height,fov);
+    const point=projectWorldPoint(camera,{x:p.x+Math.sin(p.yaw)*p.duckAmount*4,y:p.y+83-p.duckAmount*18,z:p.z-Math.cos(p.yaw)*p.duckAmount*4},width,height,fov);
     return point?[`<span class="remote-player-label" data-slot="${p.slot}" style="left:${point.x.toFixed(1)}px;top:${point.y.toFixed(1)}px">${escapeRoomText(p.name)}</span>`]:[];
   }).join('');
 }

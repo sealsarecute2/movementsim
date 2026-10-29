@@ -62,7 +62,7 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
 class AppRoom {
  constructor(options){this.options=options;this.active=false;this.busy=false;this.status='';this.code='ABCDEFGHJKLM';this.ping=42.4;}
  async start({host,name,course:selection}){
-  this.host=host;this.course=host?selection:{id:'bhop_kitsune',revision:3,preset:'practice'};this.name=name;
+  this.host=host;this.slot=host?0:1;this.course=host?selection:{id:'bhop_kitsune',revision:3,preset:'practice'};this.name=name;
   this.busy=true;if(!host)await this.options.onCourse(this.course);
   this.active=true;this.status='Connected';this.options.onChange();
  }
@@ -96,10 +96,24 @@ test('joining applies the host community map and mode before allowing play, and 
  try{
   app.element('room-name').value='Guest';app.element('room-code-input').value='ABCD-EFGH-JKLM';await app.context.startRoom(false);
   assert.equal(app.read('map'),'bhop_kitsune');assert.equal(app.read('preset'),'practice');assert.equal(app.read('checkpoint'),0);
+  const spawn=multiplayerModule.roomPlayerSpawn(geometry.spawns[0],1,geometry.boxes);
+  assert.equal(app.read('player.x'),spawn.x);assert.equal(app.read('player.z'),spawn.z);
   assert.equal(app.element('network-ping').textContent,'42 ms');assert.equal(app.element('room-code').textContent,'ABCD-EFGH-JKLM');
   app.element('room-play').fire('click');assert.equal(app.requests(),1);
   app.element('room-leave').fire('click');app.read("chooseMap('course')");assert.equal(app.read('map'),'course');assert.equal(app.element('import-source-map').disabled,false);
  }finally{delete course.MAPS.bhop_kitsune;}
+});
+test('multiplayer restarts and checkpoint returns use each assigned spot, and leaving restores solo spawns',async()=>{
+ const app=boot({},'',null,roomAppOptions);await app.context.startRoom(true);
+ for(let slot=0;slot<4;slot++){
+  app.read(`room.slot=${slot};reset()`);
+  let spawn=multiplayerModule.roomPlayerSpawn(course.MAPS.course.spawns[0],slot,course.MAPS.course.boxes);
+  assert.equal(app.read('player.x'),spawn.x);assert.equal(app.read('player.z'),spawn.z);
+  app.read('checkpoint=1;reset(false)');spawn=multiplayerModule.roomPlayerSpawn(course.MAPS.course.spawns[1],slot,course.MAPS.course.boxes);
+  assert.equal(app.read('checkpoint'),1);assert.equal(app.read('player.x'),spawn.x);assert.equal(app.read('player.z'),spawn.z);
+ }
+ app.element('room-leave').fire('click');app.read('reset()');
+ assert.equal(app.read('player.x'),course.MAPS.course.spawns[0].x);assert.equal(app.read('player.z'),course.MAPS.course.spawns[0].z);
 });
 test('an invalid invite gives a useful error and does not disable solo play or retry',async()=>{
  const app=boot({},'',null,{RTCPeerConnection:function(){}});app.element('room-code-input').value='short';await app.context.startRoom(false);
