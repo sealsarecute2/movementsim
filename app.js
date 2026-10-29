@@ -1,7 +1,7 @@
 import { DT, PRESETS, createPlayer, step, speed, support, platformAirspace } from './physics.js';
 import { MAPS, MAP_LIST, COMMUNITY_MAPS } from './course.js';
 import { createEndless } from './endless.js';
-import { createRenderer } from './renderer.js';
+import { createRenderer, projectWorldPoint } from './renderer.js';
 import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
 import { loadLeaderboard, leaderboardRows, hasLeaderboard } from './leaderboard.js';
@@ -10,6 +10,8 @@ import { MenuMusic } from './menu-music.js';
 import { loadSourceMap } from './source-map.js';
 import { createSourceRuntime } from './source-runtime.js';
 import { hydrateParkourMap } from './parkour-map.js';
+import { MULTIPLAYER_CONFIG } from './multiplayer-config.js';
+import { MultiplayerRoom, ROOM_LIMIT, displayRoomCode, roomPlayerName } from './multiplayer.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -33,6 +35,7 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
+let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
 let pendingRunRestore=null;
 try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
@@ -169,7 +172,7 @@ function reset(full=true) {
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
-    endless=createEndless();boxes=endless.boxes;renderer.setBoxes(boxes);
+    endless=createEndless(room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
   const previousPeak=player.peakSpeed;
   player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
@@ -194,10 +197,10 @@ function showMain(view='home',focus=true) {
   overlay.dataset.menu='main';overlay.classList.remove('hidden');
   $('main-menu').classList.remove('hidden');$('pause-menu').classList.add('hidden');
   document.body.classList.add('main-menu-open');
-  for(const name of ['home','maps','settings']) $(name+'-view').classList.toggle('hidden',name!==view);
+  for(const name of ['home','maps','rooms','settings']) $(name+'-view').classList.toggle('hidden',name!==view);
   overlay.scrollTop=0;
   updateMenuMusic();
-  if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':'settings-back').focus();
+  if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':view==='rooms'?'rooms-back':'settings-back').focus();
 }
 function showPause() {
   menuMode='pause';overlay.dataset.menu='pause';overlay.classList.remove('hidden');
@@ -256,6 +259,7 @@ function play() {
   } catch { mouseCaptureFailed(); }
 }
 function choosePreset(value,resetRun=true) {
+  if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE PHYSICS');return;}
   if(!PRESETS[value]) return;
   if(resetRun)try{sessionStorage.removeItem('movement-lab-run-v1');pendingRunRestore=null;}catch{}
   saveEndlessBest();
@@ -270,6 +274,7 @@ function choosePreset(value,resetRun=true) {
   saveSettings(); updateHud();
 }
 function chooseMap(value,resetRun=true,preserveSavedRun=false) {
+  if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE MAPS');return;}
   if(!Object.hasOwn(MAPS,value)) return;
   if(!preserveSavedRun){try{sessionStorage.removeItem('movement-lab-run-v1');}catch{}pendingRunRestore=null;}
   sourceLoadGeneration++;sourceLoadController?.abort();
@@ -298,6 +303,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   saveSettings(); updateHud();
 }
 async function selectCommunityMap(metadata,file=null,restore=false) {
+  if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE MAPS');return;}
   if(playing||lockPending)pause();
   if(MAPS[metadata.id]&&!file){chooseMap(metadata.id,true,restore);if(restore){restoreSavedRun(pendingRunRestore);pendingRunRestore=null;}return;}
   sourceLoadController?.abort();const generation=++sourceLoadGeneration;
@@ -475,7 +481,10 @@ function frame(now) {
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
   }
-  renderer.draw(camera,fov,target,started?camera:null);knife?.draw(elapsed,fov);updateHud();
+  const remotePlayers=room?.active?room.remotePlayers(endless?.originZ||0):[];
+  renderer.draw(camera,fov,target,started?camera:null,remotePlayers);knife?.draw(elapsed,fov);updateHud();
+  drawRoomLabels(camera,remotePlayers);
+  if(room?.busy&&now-roomUiAt>=250){roomUiAt=now;updateRoomUi();}
   slideshow?.step(now,galleryVisible);
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
@@ -483,13 +492,16 @@ function frame(now) {
 $('play').addEventListener('click',play);
 $('continue').addEventListener('click',play);
 $('open-map-select').addEventListener('click',()=>{
+  if(room?.busy){showMain('rooms');return;}
   if(!MAPS[map].timed)chooseMap('course');showMain('maps');
 });
 $('open-settings').addEventListener('click',()=>showMain('settings'));
+$('open-rooms').addEventListener('click',()=>{if(!room?.busy){$('room-map').value=map==='local-map'?'course':map;$('room-preset').value=preset;}showMain('rooms');updateRoomUi();});
+$('rooms-back').addEventListener('click',()=>showMain());
 $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
 $('back-to-main').addEventListener('click',()=>returnToMain());
-$('play-sandbox').addEventListener('click',()=>{if(lockPending)return;chooseMap('free');play();});
+$('play-sandbox').addEventListener('click',()=>{if(lockPending)return;if(room?.busy){showMain('rooms');return;}chooseMap('free');play();});
 const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);
 $('map-grid').classList.toggle('single-map',timedMaps.length===1);
 $('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.stages.length} sections</span></button>`).join('');
@@ -548,7 +560,7 @@ $('audio-volume').addEventListener('input',()=>{
   audioVolume=Number($('audio-volume').value)/100;gameAudio?.setVolume(audioVolume);
   $('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;saveSettings();
 });
-$('play-endless').addEventListener('click',()=>{if(lockPending)return;chooseMap('endless');play();});
+$('play-endless').addEventListener('click',()=>{if(lockPending)return;if(room?.busy){showMain('rooms');return;}chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>{if(playing)pause();else if(started)showPause();else showMain();});
 $('again').addEventListener('click',()=>{reset();play();});
 $('finish-settings').addEventListener('click',()=>returnToMain('settings'));
@@ -610,7 +622,7 @@ window.addEventListener('blur',()=>{
 window.addEventListener('focus',()=>{
   windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
 });
-window.addEventListener('pagehide',()=>{saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pagehide',()=>{leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
 window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
@@ -626,6 +638,87 @@ $('menu-music-volume').addEventListener('input',()=>{
   menuMusic.setVolume(musicVolume);$('menu-music-volume-value').textContent=Math.round(musicVolume*100)+'%';saveSettings();
 });
 document.addEventListener('pointerdown',()=>{if(windowFocused&&!document.hidden)menuMusic.retry();});
+const roomCourses=[...MAP_LIST,...COMMUNITY_MAPS];
+$('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${course.title}</option>`).join('');
+$('room-map').value='course';$('room-preset').value=preset;
+try{$('room-name').value=roomPlayerName(localStorage.getItem('movement-lab-player-name')||'Player');}catch{$('room-name').value='Player';}
+function escapeRoomText(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function roomLocalState(){
+  return {x:player.x,y:player.y,z:player.z-(endless?.originZ||0),yaw:player.yaw,pitch:player.pitch,duckAmount:player.duckAmount,
+    time:runTime,checkpoint,distance:endless?.distance||0,paused:!playing,completed};
+}
+async function applyRoomCourse(course){
+  roomApplyingCourse=true;
+  try{
+    if(playing||lockPending)pause();
+    choosePreset(course.preset);
+    const community=COMMUNITY_MAPS.find(c=>c.id===course.id);
+    if(community)await selectCommunityMap(community);else chooseMap(course.id);
+    if(map!==course.id)throw Error('The room map could not load. Try joining again.');
+    started=false;reset();
+  }finally{roomApplyingCourse=false;}
+}
+function updateRoomUi(){
+  const busy=room?.busy===true,active=room?.active===true;
+  $('room-setup').classList.toggle('hidden',busy);$('room-session').classList.toggle('hidden',!active);$('room-leave').classList.toggle('hidden',!busy);
+  $('room-leave').textContent=active?'LEAVE ROOM':'CANCEL CONNECTION';
+  $('room-status').textContent=room?.status||'Host a private room or join a friend.';
+  $('room-host').disabled=busy||!rendererReady;$('room-join').disabled=busy||!rendererReady;
+  $('network-hud').classList.toggle('hidden',!active);
+  $('import-source-map').disabled=busy;
+  if(!active){$('room-players').innerHTML='';$('player-labels').innerHTML='';return;}
+  const roster=room.roster(),code=displayRoomCode(room.code);
+  $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
+  $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
+  const course=roomCourses.find(c=>c.id===room.course.id);
+  $('room-course').textContent=`${course.title} / ${PRESETS[room.course.preset].title} · Leave the room to change maps.`;
+  $('room-players').innerHTML=roster.map(member=>{
+    const state=member.self?roomLocalState():member.state;
+    const progress=!state?'Joining…':state.completed?'Finished · '+format(state.time):room.course.id==='endless'?`${Math.floor(state.distance)} u`:format(state.time)+(state.paused?' · paused':'');
+    const ping=member.host?'HOST':member.ping===null?'—':Math.round(member.ping)+' ms';
+    return `<tr><td><i class="room-swatch" data-slot="${member.slot}"></i>${escapeRoomText(member.name)}${member.self?' · you':''}</td><td>${progress}</td><td>${ping}</td></tr>`;
+  }).join('');
+}
+function drawRoomLabels(camera,players){
+  const width=canvas.clientWidth,height=canvas.clientHeight;
+  if(!started||!width||!height){$('player-labels').innerHTML='';return;}
+  $('player-labels').innerHTML=players.flatMap(p=>{
+    const point=projectWorldPoint(camera,{x:p.x,y:p.y+83-p.duckAmount*18,z:p.z},width,height,fov);
+    return point?[`<span class="remote-player-label" data-slot="${p.slot}" style="left:${point.x.toFixed(1)}px;top:${point.y.toFixed(1)}px">${escapeRoomText(p.name)}</span>`]:[];
+  }).join('');
+}
+async function startRoom(host){
+  if(roomStarting||room?.busy||!rendererReady)return;
+  if(typeof globalThis.RTCPeerConnection!=='function'){$('room-status').textContent='This browser does not support multiplayer connections. Use a current desktop browser.';return;}
+  const name=roomPlayerName($('room-name').value);try{localStorage.setItem('movement-lab-player-name',name);}catch{}
+  roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;
+  $('room-copy').textContent='COPY';
+  try{
+    const selected=roomCourses.find(c=>c.id===$('room-map').value)||roomCourses[0];
+    const course={id:selected.id,revision:selected.revision||1,preset:$('room-preset').value==='practice'?'practice':'classic',
+      ...(selected.id==='endless'?{seed:globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}:{})};
+    if(host)await applyRoomCourse(course);
+    room=new MultiplayerRoom({config:MULTIPLAYER_CONFIG,courses:roomCourses,getState:roomLocalState,onCourse:applyRoomCourse,onChange:updateRoomUi});
+    await room.start({host,code:$('room-code-input').value,name,course});
+    if(host){started=false;reset();}
+    updateRoomUi();
+  }catch(error){if(room?.busy)room.leave(error.message);$('room-status').textContent=error.message||'Could not connect. Try again.';$('room-host').disabled=!rendererReady;$('room-join').disabled=!rendererReady;}
+  finally{roomStarting=false;}
+}
+$('room-host').addEventListener('click',()=>void startRoom(true));
+$('room-join').addEventListener('click',()=>void startRoom(false));
+$('room-play').addEventListener('click',()=>{if(room?.active)play();});
+function leaveRoom(message){
+  if(roomApplyingCourse){sourceLoadGeneration++;sourceLoadController?.abort();}
+  room?.leave(message);updateRoomUi();
+}
+$('room-leave').addEventListener('click',()=>leaveRoom());
+$('room-copy').addEventListener('click',async()=>{
+  try{await globalThis.navigator.clipboard.writeText(displayRoomCode(room.code));$('room-copy').textContent='COPIED';}
+  catch{$('room-status').textContent='Select and copy the invite code above.';}
+});
+$('room-code-input').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();void startRoom(false);}});
+
 if(Number.isFinite(settings.sensitivity)) {
   const multiplier=settings.sensitivityVersion===2?settings.sensitivity:settings.sensitivity/2;
   sensitivity=Math.min(5,Math.max(0.1,multiplier));

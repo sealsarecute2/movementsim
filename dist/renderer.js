@@ -1,10 +1,20 @@
 import { sampleSkybox, normaliseSkybox, SKY_GRADIENT_GLSL, createSkyRenderer } from './skybox.js';
 import { sampleSceneLight, projectPlayerShadow } from './lighting.js';
 import { buildSignMesh } from './signs.js';
+import { buildRemotePlayerMesh } from './players.js';
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 export function verticalFov(fov = 100) {
   return 2 * Math.atan(Math.tan(fov * Math.PI / 360) * 0.75) * 180 / Math.PI;
+}
+
+export function projectWorldPoint(camera,point,width,height,fov=100) {
+  const x=point.x-camera.x,y=point.y-camera.y-(64-camera.duckAmount*18),z=point.z-camera.z;
+  const cy=Math.cos(camera.yaw),sy=Math.sin(camera.yaw),cp=Math.cos(camera.pitch),sp=Math.sin(camera.pitch);
+  const right=x*cy+z*sy,forward=x*sy-z*cy,up=y*cp-forward*sp,depth=forward*cp+y*sp;
+  if(depth<=1||Math.hypot(x,y,z)>6500)return null;
+  const f=1/Math.tan(verticalFov(fov)*Math.PI/360),screenX=(.5+right*f/(width/height)/depth*.5)*width,screenY=(.5-up*f/depth*.5)*height;
+  return screenX>=0&&screenX<=width&&screenY>=0&&screenY<=height?{x:screenX,y:screenY}:null;
 }
 
 export const WORLD_VERTEX_GLSL = `attribute vec3 aPosition; attribute vec3 aColor; attribute float aTop;
@@ -77,7 +87,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
-  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer();
+  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer();
   const attributes = [];
   for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24], ['aNormal',3,28], ['aShade',1,40]]) {
     const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
@@ -186,7 +196,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
-  function draw(p,fov=100,target=null,shadowCaster=null) {
+  function draw(p,fov=100,target=null,shadowCaster=null,remotePlayers=[]) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=sampleSkybox(skybox,(now()-skyStarted)/1000);
     if(skybox!=='black') {
@@ -213,6 +223,12 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     }
     bindGeometry(buffer);
     gl.drawArrays(gl.TRIANGLES,0,count);
+    if(remotePlayers.length){
+      const mesh=buildRemotePlayerMesh(remotePlayers);
+      gl.uniform1f(targetActive,0);gl.uniform1f(shadowOpacity,0);
+      bindGeometry(playerBuffer);gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.DYNAMIC_DRAW||gl.STATIC_DRAW);
+      gl.drawArrays(gl.TRIANGLES,0,mesh.length/11);
+    }
     setGlow(target);
     if(glowCount) {
       gl.uniform1f(targetActive,0);

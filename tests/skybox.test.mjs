@@ -85,6 +85,15 @@ test('default black keeps the original clear colour and skips the sky rendering 
   assert.equal(f.programs.length,1,'default mode does not compile an unused sky program');
   assert.equal(f.draws.length,1);assert.equal(f.draws[0].sky,false);assert.equal(f.draws[0].uniforms.uFogGain,0);
 });
+test('remote players draw with depth testing in their own pass and never receive checkpoint glow',t=>{
+ const f=fixture(t),remote={x:0,y:0,z:-100,yaw:0,duckAmount:0,slot:1};
+ f.renderer.draw(f.camera,100,f.box,null,[remote]);
+ assert.equal(f.draws.length,3);const [world,avatar,glow]=f.draws;
+ assert.equal(world.uniforms.uTargetActive,1);assert.equal(avatar.uniforms.uTargetActive,0);assert.equal(avatar.count,7*36);
+ assert.ok(avatar.depth);assert.ok(avatar.writeDepth);assert.equal(avatar.blend,false);assert.equal(glow.blend,true);
+ assert.equal(f.renderer.boxes.length,1,'visual characters never alter the world collision geometry');
+ f.draws.length=0;f.renderer.draw(f.camera,100);assert.equal(f.draws.length,1);
+});
 test('every cycle phase draws behind geometry with matching camera, lens and distance haze',t=>{
   const f=fixture(t);
   f.renderer.setSkybox('cycle');

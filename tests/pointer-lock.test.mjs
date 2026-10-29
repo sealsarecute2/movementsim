@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import * as physics from '../dist/physics.js';
 import * as course from '../dist/course.js';
 import * as endlessModule from '../dist/endless.js';
-import { verticalFov } from '../dist/renderer.js';
+import { verticalFov, projectWorldPoint } from '../dist/renderer.js';
 import * as audioModule from '../dist/game-audio.js';
 import * as leaderboardModule from '../dist/leaderboard.js';
 import * as skyboxModule from '../dist/skybox.js';
@@ -13,6 +13,8 @@ import * as menuModule from '../dist/menu.js';
 import * as musicModule from '../dist/menu-music.js';
 import * as sourceRuntimeModule from '../dist/source-runtime.js';
 import * as parkourModule from '../dist/parkour-map.js';
+import * as multiplayerModule from '../dist/multiplayer.js';
+import { MULTIPLAYER_CONFIG } from '../dist/multiplayer-config.js';
 const markup=readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -36,7 +38,7 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
     return elements.get(id);
   };
   document.querySelectorAll=()=>[];document.body=element();document.pointerLockElement=null;document.hidden=false;document.hasFocus=()=>true;
-  const canvas=document.getElementById('world');let requests=0,lastCamera,lastTarget,lastFov,lastSkybox,lastShaders,lastShadowCaster;
+  const canvas=document.getElementById('world');let requests=0,lastCamera,lastTarget,lastFov,lastSkybox,lastShaders,lastShadowCaster,lastRemotePlayers;
   canvas.requestPointerLock=()=>{requests++;};
   document.exitPointerLock=()=>{document.pointerLockElement=null;document.fire('pointerlockchange');};
   const storage=new Map(Object.entries(stored));
@@ -45,17 +47,73 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
     play(){this.plays++;this.paused=false;return Promise.resolve();},pause(){this.pauses++;this.paused=true;}};
   class TestMenuMusic extends musicModule.MenuMusic {constructor(options){super({...options,createAudio:()=>musicAudio});}}
   const session=sourceOptions.session||new Map();
-  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,...parkourModule,MenuMusic:TestMenuMusic,document,window,
-    AbortController,fetch:sourceOptions.fetch,loadSourceMap:sourceOptions.load,
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,...parkourModule,...multiplayerModule,MULTIPLAYER_CONFIG,projectWorldPoint,MenuMusic:TestMenuMusic,document,window,
+    AbortController,fetch:sourceOptions.fetch,loadSourceMap:sourceOptions.load,crypto:globalThis.crypto,
+    RTCPeerConnection:sourceOptions.RTCPeerConnection,MultiplayerRoom:sourceOptions.RoomClass||multiplayerModule.MultiplayerRoom,
     sessionStorage:{getItem:key=>session.get(key)||null,setItem:(key,value)=>session.set(key,value),removeItem:key=>session.delete(key)},
     performance:{now:()=>0},URLSearchParams,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
-    requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},setShaders(value){lastShaders=value;},draw(p,fov,target,caster){lastCamera=p;lastFov=fov;lastTarget=target;lastShadowCaster=caster;}};}});
+    requestAnimationFrame(){},createRenderer:()=>{if(renderError)throw new Error(renderError);return {setBoxes(){},setSkybox(value){lastSkybox=value;},setShaders(value){lastShaders=value;},draw(p,fov,target,caster,remotes){lastCamera=p;lastFov=fov;lastTarget=target;lastShadowCaster=caster;lastRemotePlayers=remotes;}};}});
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
   vm.runInContext(source,context);
   return {context,document,window,canvas,musicAudio,element:id=>document.getElementById(id),
-    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,shaders:()=>lastShaders,shadowCaster:()=>lastShadowCaster,read:source=>vm.runInContext(source,context),storage,session,
+    requests:()=>requests,camera:()=>lastCamera,target:()=>lastTarget,fov:()=>lastFov,skybox:()=>lastSkybox,shaders:()=>lastShaders,shadowCaster:()=>lastShadowCaster,remotePlayers:()=>lastRemotePlayers,read:source=>vm.runInContext(source,context),storage,session,
     lock(){document.pointerLockElement=canvas;document.fire('pointerlockchange');}};
 }
+class AppRoom {
+ constructor(options){this.options=options;this.active=false;this.busy=false;this.status='';this.code='ABCDEFGHJKLM';this.ping=42.4;}
+ async start({host,name,course:selection}){
+  this.host=host;this.course=host?selection:{id:'bhop_kitsune',revision:3,preset:'practice'};this.name=name;
+  this.busy=true;if(!host)await this.options.onCourse(this.course);
+  this.active=true;this.status='Connected';this.options.onChange();
+ }
+ leave(){this.active=false;this.busy=false;this.status='Left room';this.options.onChange();}
+ roster(){return [{id:'self',name:this.name,slot:this.host?0:1,host:this.host,self:true,ping:this.host?null:this.ping},
+  {id:'other',name:'<Seal>',slot:this.host?1:0,host:!this.host,self:false,ping:33,state:{time:12,paused:false}}];}
+ remotePlayers(){return [{x:0,y:0,z:-100,yaw:0,pitch:0,duckAmount:0,name:'<Seal>',slot:1}];}
+}
+const roomAppOptions={RoomClass:AppRoom,RTCPeerConnection:function(){}};
+test('the multiplayer menu opens without starting a connection and leaves solo play available',()=>{
+ const app=boot();app.element('open-rooms').fire('click');
+ assert.equal(app.read('mainView'),'rooms');assert.equal(app.read('room'),null);
+ assert.equal(app.element('rooms-view').classList.contains('hidden'),false);assert.equal(app.element('home-view').classList.contains('hidden'),true);
+ assert.match(app.element('room-map').innerHTML,/bhop_kitsune/);assert.ok(!app.element('room-map').innerHTML.includes('local-map'));
+ app.element('rooms-back').fire('click');app.element('play').fire('click');assert.equal(app.requests(),1);
+});
+test('a hosted Endless room shares its seed, locks map changes, and renders visual players with ping in the roster',async()=>{
+ const app=boot({},'',null,roomAppOptions);app.element('room-map').value='endless';app.element('room-preset').value='practice';app.element('room-name').value='Host';
+ await app.context.startRoom(true);
+ assert.equal(app.read('map'),'endless');assert.equal(app.read('preset'),'practice');assert.equal(app.read('endless.seed'),app.read('room.course.seed'));
+ assert.equal(app.element('network-ping').textContent,'HOST');assert.match(app.element('room-players').innerHTML,/33 ms/);assert.match(app.element('room-players').innerHTML,/&lt;Seal&gt;/);
+ assert.equal(app.element('room-session').classList.contains('hidden'),false);assert.equal(app.element('import-source-map').disabled,true);
+ const seed=app.read('endless.seed');app.read("chooseMap('course');choosePreset('classic');reset()");assert.equal(app.read('map'),'endless');assert.equal(app.read('preset'),'practice');assert.equal(app.read('endless.seed'),seed);
+ app.element('room-play').fire('click');app.lock();const length=app.read('boxes.length');app.context.frame(0);
+ assert.equal(app.remotePlayers().length,1);assert.equal(app.read('boxes.length'),length);
+ app.window.fire('pagehide');assert.equal(app.read('room.active'),false);assert.equal(app.element('network-hud').classList.contains('hidden'),true);
+});
+test('joining applies the host community map and mode before allowing play, and shows measured ping',async()=>{
+ const geometry=JSON.parse(readFileSync(new URL('../dist/maps/bhop_kitsune.json',import.meta.url),'utf8'));
+ const app=boot({},'',null,{...roomAppOptions,fetch:async()=>({ok:true,json:async()=>geometry})});
+ try{
+  app.element('room-name').value='Guest';app.element('room-code-input').value='ABCD-EFGH-JKLM';await app.context.startRoom(false);
+  assert.equal(app.read('map'),'bhop_kitsune');assert.equal(app.read('preset'),'practice');assert.equal(app.read('checkpoint'),0);
+  assert.equal(app.element('network-ping').textContent,'42 ms');assert.equal(app.element('room-code').textContent,'ABCD-EFGH-JKLM');
+  app.element('room-play').fire('click');assert.equal(app.requests(),1);
+  app.element('room-leave').fire('click');app.read("chooseMap('course')");assert.equal(app.read('map'),'course');assert.equal(app.element('import-source-map').disabled,false);
+ }finally{delete course.MAPS.bhop_kitsune;}
+});
+test('an invalid invite gives a useful error and does not disable solo play or retry',async()=>{
+ const app=boot({},'',null,{RTCPeerConnection:function(){}});app.element('room-code-input').value='short';await app.context.startRoom(false);
+ assert.match(app.element('room-status').textContent,/12-character/);assert.equal(app.element('room-join').disabled,false);assert.equal(app.read('room.busy'),false);
+ app.element('play').fire('click');assert.equal(app.requests(),1);
+});
+test('cancelling a room while its community map downloads prevents a late map switch',async()=>{
+ let resolve;const geometry=JSON.parse(readFileSync(new URL('../dist/maps/bhop_kitsune.json',import.meta.url),'utf8'));
+ const app=boot({},'',null,{...roomAppOptions,fetch:()=>new Promise(r=>{resolve=r;})});
+ const request=app.context.startRoom(false);await new Promise(r=>setImmediate(r));
+ assert.equal(app.read('roomApplyingCourse'),true);app.element('room-leave').fire('click');app.read("chooseMap('free')");
+ resolve({ok:true,json:async()=>geometry});await request;
+ assert.equal(app.read('map'),'free');assert.equal(app.read('room.active'),false);assert.equal(app.read('roomApplyingCourse'),false);
+});
 test('Enter waits for capture, then mouse movement looks without dragging',()=>{
   const app=boot();app.element('play').fire('click');
   assert.equal(app.requests(),1);

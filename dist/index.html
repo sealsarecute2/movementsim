@@ -12,7 +12,9 @@
 </head>
 <body class="main-menu-open">
   <div class="fps-counter" aria-label="Frames per second"><span id="fps">—</span> FPS</div>
+  <div id="network-hud" class="network-hud hidden" aria-label="Multiplayer connection"><span id="network-room"></span><span id="network-ping">— ms</span></div>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
+  <div id="player-labels" class="player-labels" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
@@ -43,7 +45,8 @@
           <nav class="main-navigation" aria-label="Main menu">
             <button id="open-map-select" type="button"><span><small>01</small> PLAY</span><b>↗</b></button>
             <button id="play-sandbox" type="button"><span><small>02</small> SANDBOX</span><b>↗</b></button>
-            <button id="open-settings" type="button"><span><small>03</small> SETTINGS</span><b>↗</b></button>
+            <button id="open-rooms" type="button"><span><small>03</small> MULTIPLAYER</span><b>↗</b></button>
+            <button id="open-settings" type="button"><span><small>04</small> SETTINGS</span><b>↗</b></button>
           </nav>
           <p class="menu-footnote">BUILT FOR THE NEXT CLEAN RUN.</p>
         </section>
@@ -62,6 +65,28 @@
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
+        </section>
+        <section id="rooms-view" class="menu-view hidden" aria-labelledby="rooms-title">
+          <button id="rooms-back" class="menu-back" type="button">← MAIN MENU</button>
+          <div class="view-heading"><h2 id="rooms-title">PRIVATE ROOMS</h2><span class="eyebrow">UP TO 4 PLAYERS</span></div>
+          <p class="room-description">Share a map. Find your flow together.<br>Players pass through each other.</p>
+          <div id="room-setup" class="room-setup">
+            <label class="room-field" for="room-name">YOUR NAME<input id="room-name" maxlength="24" placeholder="Player" autocomplete="nickname"></label>
+            <div class="room-options"><label class="room-field" for="room-map">MAP<select id="room-map"></select></label><label class="room-field" for="room-preset">PHYSICS<select id="room-preset"><option value="classic">CS-style</option><option value="practice">Bhop practice</option></select></label></div>
+            <button id="room-host" class="play" type="button">HOST ROOM <span>↗</span></button>
+            <div class="room-divider"><span>OR JOIN A FRIEND</span></div>
+            <label class="room-field" for="room-code-input">INVITE CODE<input id="room-code-input" maxlength="20" placeholder="ABCD-EFGH-JKLM" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+            <button id="room-join" class="room-join" type="button">JOIN ROOM <span>↗</span></button>
+          </div>
+          <p id="room-status" class="room-status" role="status" aria-live="polite">Host a private room or join a friend.</p>
+          <div id="room-session" class="room-session hidden">
+            <div class="room-invite"><div><span class="eyebrow">PRIVATE INVITE CODE</span><strong id="room-code"></strong></div><button id="room-copy" type="button">COPY</button></div>
+            <p id="room-course" class="room-description"></p>
+            <div class="room-table"><table><thead><tr><th scope="col">PLAYER</th><th scope="col">RUN</th><th scope="col">PING TO HOST</th></tr></thead><tbody id="room-players"></tbody></table></div>
+            <p class="room-description">Ping is measured in milliseconds. Lower is better.<br>The room closes when the host leaves. Keep the host’s game tab open.</p>
+            <button id="room-play" class="play" type="button">ENTER MAP <span>↗</span></button>
+          </div>
+          <button id="room-leave" class="text-button hidden" type="button">LEAVE ROOM</button>
         </section>
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
           <button id="settings-back" class="menu-back" type="button">← MAIN MENU</button>

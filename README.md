@@ -11,6 +11,19 @@
 
 You can also open **Sandbox** from the main menu to practise on a wide floor.
 
+## Play with friends
+
+1. Open **Multiplayer** from the main menu and enter your name.
+2. To host, choose a map and physics mode, then click **Host room**.
+3. Copy the private invite code and share it with your friends. They enter the code and click **Join room**.
+4. Click **Enter map**. Up to four players can practise together; players pass through each other.
+
+Your ping appears while playing, and the room list shows each player's ping to the host in milliseconds. Lower is better. The host row says **HOST**. Everyone shares the same map and physics; Endless also shares its random seed. Checkpoints, restarts, and timers are individual.
+
+Keep the host's computer awake and game tab open. Leaving or refreshing closes the room; guests can continue solo. Leave the room before choosing another map or physics mode. Local map imports are for solo play.
+
+Rooms use the free PeerJS connection service by default, with gameplay sent between browsers. Some networks need a relay to connect; the site supports optional Metered relay configuration. No account or installation is needed for players. [Room hosting configuration](MULTIPLAYER.md).
+
 ## How to bhop
 
 **Bhop** means bunny hop: jumping again as soon as you land, so you carry your speed between jumps. **Air strafing** means steering while you are in the air.

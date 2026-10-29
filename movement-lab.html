@@ -273,12 +273,43 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .shader-setting p { margin:.45rem 0 0; color:#888; font-size:max(10px,.6rem); line-height:1.6; }
 .gallery-slide.gallery-route { object-fit:contain; padding:2rem; background:#080b0e; }
 
+/* Private rooms share the existing menu typography and spacing. */
+#rooms-view { margin-top:2rem; }
+.room-description,.room-status { font-size:max(11px,.625rem); color:#8d9ba6; line-height:1.8; margin:1rem 0; }
+.room-status { color:#b4d8ee; }
+.room-field { display:block; font-size:max(10px,.5625rem); letter-spacing:.08em; color:#9aabb8; margin:1rem 0; }
+.room-field input,.room-field select { display:block; width:100%; box-sizing:border-box; min-height:2.75rem; margin-top:.5rem; padding:.75rem; border:1px solid #39444d; background:#11171c; color:#e5edf3; font:inherit; letter-spacing:.02em; color-scheme:dark; }
+.room-field input:focus,.room-field select:focus { outline:1px solid #a6d9ff; outline-offset:2px; }
+.room-options { display:grid; grid-template-columns:1.2fr 1fr; gap:.75rem; }
+.room-divider { display:flex; align-items:center; gap:1rem; margin:1.5rem 0; color:#687783; font-size:max(9px,.5rem); letter-spacing:.12em; }
+.room-divider:before,.room-divider:after { content:''; height:1px; background:#2e3942; flex:1; }
+.room-join { display:flex; justify-content:space-between; width:100%; padding:.875rem 1rem; font-size:max(11px,.625rem); border-color:#668297; background:#162632; }
+.room-invite { display:flex; justify-content:space-between; align-items:center; gap:.75rem; border:1px solid #4d6b82; background:#14212c; padding:1rem; }
+.room-invite strong { display:block; font-size:clamp(.9rem,1.5vw,1.3rem); font-weight:400; letter-spacing:.08em; margin-top:.5rem; user-select:text; }
+.room-invite button { font-size:max(10px,.5625rem); padding:.65rem; background:transparent; }
+.room-table { width:100%; overflow:auto; margin:1.5rem 0; }
+.room-table table { width:100%; border-collapse:collapse; font-size:max(11px,.625rem); text-align:left; }
+.room-table th { color:#738797; font-size:max(9px,.5rem); font-weight:400; letter-spacing:.06em; }
+.room-table th,.room-table td { padding:.75rem .375rem; border-bottom:1px solid #28343d; }
+.room-table th:last-child,.room-table td:last-child { text-align:right; white-space:nowrap; }
+.room-table td:nth-child(2) { color:#91a6b7; white-space:nowrap; }
+.room-swatch { display:inline-block; width:.45rem; height:.45rem; margin-right:.5rem; background:#7bc4ff; }
+.room-swatch[data-slot="1"] { background:#ffad66; }.room-swatch[data-slot="2"] { background:#75e5b3; }.room-swatch[data-slot="3"] { background:#c7a6ff; }
+.network-hud { position:fixed; top:1.8rem; left:.875rem; z-index:12; display:flex; gap:.75rem; padding:.25rem .375rem; background:#071018cc; color:#9db6ca; font-size:max(10px,.5625rem); pointer-events:none; }
+.network-hud span:last-child { color:#d3e8f8; }
+.player-labels { position:fixed; inset:0; pointer-events:none; z-index:3; overflow:hidden; }
+.remote-player-label { position:absolute; transform:translate(-50%,-100%); padding:.3rem .45rem; background:#071018aa; border-bottom:2px solid #7bc4ff; color:#e3edf5; font-size:max(10px,.625rem); white-space:nowrap; }
+.remote-player-label[data-slot="1"] { border-color:#ffad66; }.remote-player-label[data-slot="2"] { border-color:#75e5b3; }.remote-player-label[data-slot="3"] { border-color:#c7a6ff; }
+@media(max-width:760px) { .room-options { grid-template-columns:1fr; gap:0; }.room-field { margin:.75rem 0; }.room-invite strong { font-size:1.1rem; }.network-hud { top:2rem; } }
+
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 </head>
 <body class="main-menu-open">
   <div class="fps-counter" aria-label="Frames per second"><span id="fps">—</span> FPS</div>
+  <div id="network-hud" class="network-hud hidden" aria-label="Multiplayer connection"><span id="network-room"></span><span id="network-ping">— ms</span></div>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
+  <div id="player-labels" class="player-labels" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
@@ -309,7 +340,8 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
           <nav class="main-navigation" aria-label="Main menu">
             <button id="open-map-select" type="button"><span><small>01</small> PLAY</span><b>↗</b></button>
             <button id="play-sandbox" type="button"><span><small>02</small> SANDBOX</span><b>↗</b></button>
-            <button id="open-settings" type="button"><span><small>03</small> SETTINGS</span><b>↗</b></button>
+            <button id="open-rooms" type="button"><span><small>03</small> MULTIPLAYER</span><b>↗</b></button>
+            <button id="open-settings" type="button"><span><small>04</small> SETTINGS</span><b>↗</b></button>
           </nav>
           <p class="menu-footnote">BUILT FOR THE NEXT CLEAN RUN.</p>
         </section>
@@ -328,6 +360,28 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
+        </section>
+        <section id="rooms-view" class="menu-view hidden" aria-labelledby="rooms-title">
+          <button id="rooms-back" class="menu-back" type="button">← MAIN MENU</button>
+          <div class="view-heading"><h2 id="rooms-title">PRIVATE ROOMS</h2><span class="eyebrow">UP TO 4 PLAYERS</span></div>
+          <p class="room-description">Share a map. Find your flow together.<br>Players pass through each other.</p>
+          <div id="room-setup" class="room-setup">
+            <label class="room-field" for="room-name">YOUR NAME<input id="room-name" maxlength="24" placeholder="Player" autocomplete="nickname"></label>
+            <div class="room-options"><label class="room-field" for="room-map">MAP<select id="room-map"></select></label><label class="room-field" for="room-preset">PHYSICS<select id="room-preset"><option value="classic">CS-style</option><option value="practice">Bhop practice</option></select></label></div>
+            <button id="room-host" class="play" type="button">HOST ROOM <span>↗</span></button>
+            <div class="room-divider"><span>OR JOIN A FRIEND</span></div>
+            <label class="room-field" for="room-code-input">INVITE CODE<input id="room-code-input" maxlength="20" placeholder="ABCD-EFGH-JKLM" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+            <button id="room-join" class="room-join" type="button">JOIN ROOM <span>↗</span></button>
+          </div>
+          <p id="room-status" class="room-status" role="status" aria-live="polite">Host a private room or join a friend.</p>
+          <div id="room-session" class="room-session hidden">
+            <div class="room-invite"><div><span class="eyebrow">PRIVATE INVITE CODE</span><strong id="room-code"></strong></div><button id="room-copy" type="button">COPY</button></div>
+            <p id="room-course" class="room-description"></p>
+            <div class="room-table"><table><thead><tr><th scope="col">PLAYER</th><th scope="col">RUN</th><th scope="col">PING TO HOST</th></tr></thead><tbody id="room-players"></tbody></table></div>
+            <p class="room-description">Ping is measured in milliseconds. Lower is better.<br>The room closes when the host leaves. Keep the host’s game tab open.</p>
+            <button id="room-play" class="play" type="button">ENTER MAP <span>↗</span></button>
+          </div>
+          <button id="room-leave" class="text-button hidden" type="button">LEAVE ROOM</button>
         </section>
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
           <button id="settings-back" class="menu-back" type="button">← MAIN MENU</button>
@@ -1629,10 +1683,43 @@ function createParkourRuntime(map) {
   };
 }
 
+const ROOM_PLAYER_COLOURS = [[.48,.77,1],[1,.68,.4],[.46,.9,.7],[.78,.65,1]];
+// Remote players are visual geometry only; these boxes never enter collision.
+function buildRemotePlayerMesh(players) {
+  const result=[];
+  for(const p of players){
+    if(![p.x,p.y,p.z,p.yaw,p.duckAmount].every(Number.isFinite))continue;
+    const colour=ROOM_PLAYER_COLOURS[p.slot]||ROOM_PLAYER_COLOURS[0],height=72-Math.max(0,Math.min(1,p.duckAmount))*18;
+    const cy=Math.cos(p.yaw),sy=Math.sin(p.yaw);
+    function box(x,y,z,X,Y,Z,rgb){
+      const faces=[[[[x,Y,z],[x,Y,Z],[X,Y,Z],[X,Y,z]],[0,1,0],1.12],[[[x,y,z],[X,y,z],[X,y,Z],[x,y,Z]],[0,-1,0],.38],
+        [[[x,y,z],[x,y,Z],[x,Y,Z],[x,Y,z]],[-1,0,0],.65],[[[X,y,Z],[X,y,z],[X,Y,z],[X,Y,Z]],[1,0,0],.8],
+        [[[X,y,z],[x,y,z],[x,Y,z],[X,Y,z]],[0,0,-1],.72],[[[x,y,Z],[X,y,Z],[X,Y,Z],[x,Y,Z]],[0,0,1],.87]];
+      for(const [points,n,shade] of faces)for(const index of [0,1,2,0,2,3]){
+        const [a,b,c]=points[index];result.push(p.x+a*cy-c*sy,p.y+b,p.z+a*sy+c*cy,...rgb,0,n[0]*cy-n[2]*sy,n[1],n[0]*sy+n[2]*cy,shade);
+      }
+    }
+    box(-13,18,-8,13,height-19,8,colour);box(-10,height-19,-10,10,height,10,[.8,.83,.85]);
+    box(-13,0,-7,-2,18,7,colour.map(c=>c*.6));box(2,0,-7,13,18,7,colour.map(c=>c*.6));
+    box(-21,20,-6,-14,height-22,6,colour);box(14,20,-6,21,height-22,6,colour);
+    box(-6,height-12,-12,6,height-8,-10,[.08,.1,.12]);
+  }
+  return new Float32Array(result);
+}
+
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 function verticalFov(fov = 100) {
   return 2 * Math.atan(Math.tan(fov * Math.PI / 360) * 0.75) * 180 / Math.PI;
+}
+
+function projectWorldPoint(camera,point,width,height,fov=100) {
+  const x=point.x-camera.x,y=point.y-camera.y-(64-camera.duckAmount*18),z=point.z-camera.z;
+  const cy=Math.cos(camera.yaw),sy=Math.sin(camera.yaw),cp=Math.cos(camera.pitch),sp=Math.sin(camera.pitch);
+  const right=x*cy+z*sy,forward=x*sy-z*cy,up=y*cp-forward*sp,depth=forward*cp+y*sp;
+  if(depth<=1||Math.hypot(x,y,z)>6500)return null;
+  const f=1/Math.tan(verticalFov(fov)*Math.PI/360),screenX=(.5+right*f/(width/height)/depth*.5)*width,screenY=(.5-up*f/depth*.5)*height;
+  return screenX>=0&&screenX<=width&&screenY>=0&&screenY<=height?{x:screenX,y:screenY}:null;
 }
 
 const WORLD_VERTEX_GLSL = `attribute vec3 aPosition; attribute vec3 aColor; attribute float aTop;
@@ -1705,7 +1792,7 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
   gl.useProgram(program);
-  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer();
+  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer();
   const attributes = [];
   for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24], ['aNormal',3,28], ['aShade',1,40]]) {
     const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
@@ -1814,7 +1901,7 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const w=Math.round(canvas.clientWidth*ratio),h=Math.round(canvas.clientHeight*ratio);
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
-  function draw(p,fov=100,target=null,shadowCaster=null) {
+  function draw(p,fov=100,target=null,shadowCaster=null,remotePlayers=[]) {
     resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=sampleSkybox(skybox,(now()-skyStarted)/1000);
     if(skybox!=='black') {
@@ -1841,6 +1928,12 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     }
     bindGeometry(buffer);
     gl.drawArrays(gl.TRIANGLES,0,count);
+    if(remotePlayers.length){
+      const mesh=buildRemotePlayerMesh(remotePlayers);
+      gl.uniform1f(targetActive,0);gl.uniform1f(shadowOpacity,0);
+      bindGeometry(playerBuffer);gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.DYNAMIC_DRAW||gl.STATIC_DRAW);
+      gl.drawArrays(gl.TRIANGLES,0,mesh.length/11);
+    }
     setGlow(target);
     if(glowCount) {
       gl.uniform1f(targetActive,0);
@@ -2248,6 +2341,297 @@ class MenuMusic {
   retry(){if(this.blocked){this.blocked=false;this.update();}}
 }
 
+// Optional: use one Metered publishable browser key for the whole website.
+// Leave empty to use PeerJS's free public signaling service.
+// Never put a Metered secret/API key in this public file.
+const MULTIPLAYER_CONFIG = Object.freeze({
+  meteredPublishableKey: '',
+  meteredChannelPrefix: 'movement-lab',
+});
+
+// Browser-hosted rooms. Signaling exchanges connection details only; gameplay
+// and ping packets use WebRTC data channels. No microphone/camera permissions.
+const ROOM_PROTOCOL = 1;
+const ROOM_LIMIT = 4;
+const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function makeRoomCode(random = globalThis.crypto) {
+  return [...random.getRandomValues(new Uint8Array(12))].map(n=>ROOM_ALPHABET[n%32]).join('');
+}
+function normaliseRoomCode(value) {
+  const code=String(value||'').toUpperCase().replace(/[\s-]/g,'');
+  return /^[A-HJ-NP-Z2-9]{12}$/.test(code)?code:null;
+}
+function displayRoomCode(code) {return code.match(/.{1,4}/g)?.join('-')||'';}
+function roomPlayerName(value) {
+  return [...String(value||'').replace(/[\u0000-\u001f\u007f]/g,'').trim()].slice(0,24).join('')||'Player';
+}
+function validateRoomCourse(course,courses) {
+  const known=courses.find(c=>c.id===course?.id&&(c.revision||1)===course.revision);
+  if(!known||!['classic','practice'].includes(course.preset))throw Error('This room uses a different map version. Refresh the game and retry.');
+  if(course.id==='endless'&&(!Number.isInteger(course.seed)||course.seed<0||course.seed>0xffffffff))throw Error('Invalid Endless room.');
+  return {id:course.id,revision:course.revision,preset:course.preset,...(course.id==='endless'?{seed:course.seed}:{})};
+}
+function sanitiseRoomState(value) {
+  if(!value||!['x','y','z','yaw','pitch','duckAmount','time','checkpoint','distance'].every(k=>Number.isFinite(value[k])))return null;
+  if(['x','y','z'].some(k=>Math.abs(value[k])>1e9)||Math.abs(value.yaw)>1e9||Math.abs(value.pitch)>1.6||value.time<0||value.time>86400*7||!Number.isInteger(value.checkpoint)||value.checkpoint<0||value.checkpoint>1e7||value.distance<0||value.distance>1e9)return null;
+  return {x:value.x,y:value.y,z:value.z,yaw:value.yaw,pitch:value.pitch,duckAmount:Math.max(0,Math.min(1,value.duckAmount)),time:value.time,checkpoint:value.checkpoint,distance:value.distance,paused:value.paused===true,completed:value.completed===true};
+}
+function interpolateRoomPlayer(samples,now) {
+  if(!samples?.length||now-samples.at(-1).at>3000)return null;
+  const newest=samples.at(-1),target=now-100;
+  let a=samples[0],b=newest;
+  for(let i=1;i<samples.length;i++)if(samples[i].at>=target){a=samples[i-1];b=samples[i];break;}
+  if(target>=newest.at)return {...newest.state};
+  if(Math.hypot(b.state.x-a.state.x,b.state.y-a.state.y,b.state.z-a.state.z)>256)return {...b.state};
+  const f=Math.max(0,Math.min(1,(target-a.at)/Math.max(1,b.at-a.at))),result={...b.state};
+  for(const k of ['x','y','z','pitch','duckAmount'])result[k]=a.state[k]+(b.state[k]-a.state[k])*f;
+  const angle=Math.atan2(Math.sin(b.state.yaw-a.state.yaw),Math.cos(b.state.yaw-a.state.yaw));
+  result.yaw=a.state.yaw+angle*f;return result;
+}
+
+// Both services stamp the sender's ID server-side. Peers cannot choose the
+// `from` field on an incoming signal. Private codes are never listed publicly.
+function createRoomSignaling({host,code,config={},WebSocketClass=globalThis.WebSocket,onSignal,onClose,onError,setIntervalFn=globalThis.setInterval,clearIntervalFn=globalThis.clearInterval}) {
+  const metered=!!config.meteredPublishableKey;
+  if(metered&&!/^pk_live_[A-Za-z0-9_-]+$/.test(config.meteredPublishableKey))throw Error('The room service needs a publishable browser key.');
+  const ownId=host?'movement-lab-rooms1-'+code:'movement-lab-guest-'+makeRoomCode();
+  const channel=(config.meteredChannelPrefix||'movement-lab')+'/'+code;
+  const url=metered?'wss://rms.metered.ca/v1?key='+encodeURIComponent(config.meteredPublishableKey):
+    'wss://0.peerjs.com/peerjs?key=peerjs&id='+ownId+'&token='+makeRoomCode();
+  const ws=new WebSocketClass(url);let id=ownId,closed=false,heartbeat=null,opened=false,resolveReady,rejectReady;
+  const ready=new Promise((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
+  const send=message=>{if(ws.readyState===1)ws.send(JSON.stringify(message));};
+  const fail=message=>{const error=new Error(message);if(!opened)rejectReady(error);else onError?.(error);};
+  ws.onmessage=event=>{
+    if(closed||typeof event.data!=='string'||event.data.length>65536)return;
+    let message;try{message=JSON.parse(event.data);}catch{return;}
+    if(!message||typeof message!=='object')return;
+    if(metered){
+      if(message.type==='welcome'){
+        if(typeof message.peerId!=='string')return;
+        id=message.peerId;opened=true;
+        send({type:'subscribe',channel,requestId:'room-subscribe'});
+        resolveReady({id,iceServers:message.metadata?.iceServers||[{urls:'stun:stun.cloudflare.com:3478'}]});
+      }else if(message.type==='ack'&&message.requestId==='room-subscribe'&&!host){send({type:'publish',channel,data:{kind:'knock',code,protocol:ROOM_PROTOCOL}});}
+      else if(message.type==='message'&&message.channel===channel&&typeof message.from==='string')onSignal?.(message.from,message.data);
+      else if(message.type==='direct'&&typeof message.from==='string')onSignal?.(message.from,message.data);
+      else if(message.type==='error')fail('Room service rejected the connection. Check the service configuration and free quota.');
+    }else{
+      if(message.type==='OPEN'){
+        opened=true;heartbeat=setIntervalFn(()=>send({type:'HEARTBEAT'}),20000);heartbeat?.unref?.();
+        resolveReady({id,iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],offerTo:host?null:'movement-lab-rooms1-'+code});
+      }else if(['OFFER','ANSWER','CANDIDATE','LEAVE'].includes(message.type)&&typeof message.src==='string')onSignal?.(message.src,message.payload?.metadata?.movementLabSignal||message.payload?.signal);
+      else if(message.type==='ID-TAKEN')fail('That room code is already in use. Try hosting again.');
+      else if(message.type==='EXPIRE')fail('Room not found. Check the code and that the host is online.');
+      else if(message.type==='ERROR')fail('The room service is unavailable. Try again shortly.');
+    }
+  };
+  ws.onerror=()=>{if(!closed)fail('Could not reach the room service. Check your connection and retry.');};
+  ws.onclose=()=>{if(!closed){fail('The room connection closed.');onClose?.();}};
+  return {ready,get id(){return id;},get provider(){return metered?'metered':'peerjs';},
+    knock(){if(!metered)this.send('movement-lab-rooms1-'+code,{kind:'knock',code,protocol:ROOM_PROTOCOL});},
+    send(to,body){
+      if(closed)return;
+      const data={...body,code,protocol:ROOM_PROTOCOL};
+      if(metered)send({type:'send',to,data});
+      // End-of-candidates can carry a room rejection without allocating another
+      // peer connection. PeerServer's LEAVE command is handled separately.
+      else send({type:body.kind==='answer'?'ANSWER':['candidate','reject'].includes(body.kind)?'CANDIDATE':'OFFER',dst:to,
+        payload:{type:'data',connectionId:'mlab-'+code,label:'movement-room',serialization:'json',reliable:true,
+          ...(body.sdp?{sdp:body.sdp}:{}),...(body.candidate?{candidate:body.candidate}:body.kind==='reject'?{candidate:{candidate:'',sdpMid:'0',sdpMLineIndex:0}}:{}),metadata:{movementLabSignal:data}}});
+    },
+    close(){closed=true;if(heartbeat!==null)clearIntervalFn(heartbeat);rejectReady(Error('Connection cancelled.'));ws.close();},
+  };
+}
+
+class MultiplayerRoom {
+  constructor({config={},courses=[],getState=()=>null,onChange=()=>{},onCourse=async()=>{},now=()=>performance.now(),
+    signalingFactory=createRoomSignaling,peerFactory=options=>new RTCPeerConnection(options),
+    setIntervalFn=globalThis.setInterval,clearIntervalFn=globalThis.clearInterval}={}) {
+    Object.assign(this,{config,courses,getState,onChange,onCourse,now,signalingFactory,peerFactory,setIntervalFn,clearIntervalFn});
+    this.phase='idle';this.status='Host a private room or join a friend.';this.links=new Map();this.members=new Map();this.sequence=0;this.generation=0;
+  }
+  get active(){return this.phase==='hosting'||this.phase==='connected';}
+  get busy(){return this.active||this.phase==='connecting';}
+  notify(){this.onChange(this);}
+  async start({host,code,name,course}) {
+    this.leave('',false);const generation=++this.generation;
+    this.host=host;this.code=host?makeRoomCode():normaliseRoomCode(code);this.name=roomPlayerName(name);
+    if(!this.code)throw Error('Enter the full 12-character room code.');
+    if(host)this.course=validateRoomCourse(course,this.courses);
+    this.phase='connecting';this.status=host?'Opening your room…':'Finding the host…';this.notify();
+    const joined=new Promise((resolve,reject)=>{this.resolveStart=resolve;this.rejectStart=reject;});joined.catch(()=>{});
+    this.startedAt=this.now();this.timer=this.setIntervalFn(()=>this.pump(),50);this.timer?.unref?.();
+    try{
+      this.signaling=this.signalingFactory({host,code:this.code,config:this.config,
+        onSignal:(id,data)=>{if(generation===this.generation)void this.signal(id,data).catch(()=>{if(generation===this.generation)this.fail('Could not establish the player connection.');});},
+        onClose:()=>{if(generation===this.generation)this.fail('Connection service disconnected. Rejoin to open the room again.');},
+        onError:error=>{if(generation===this.generation)this.fail(error.message);}});
+      const result=await this.signaling.ready;if(generation!==this.generation)throw Error('Connection cancelled.');
+      this.id=result.id;this.iceServers=result.iceServers;
+      if(host){
+        this.session=makeRoomCode();this.phase='hosting';this.status='Room open. Share the code with friends.';
+        this.members.set(this.id,{id:this.id,name:this.name,slot:0,host:true,ping:null,samples:[],lastSeen:this.now()});this.resolveStart(this);this.notify();
+      }else if(result.offerTo){
+        this.hostId=result.offerTo;const link=this.makeLink(this.hostId,true);
+        const offer=await link.pc.createOffer();await link.pc.setLocalDescription(offer);
+        if(!link.closed)this.signaling.send(this.hostId,{kind:'offer',sdp:link.pc.localDescription});
+      }else this.signaling.knock();
+      return await joined;
+    }catch(error){if(generation===this.generation)this.fail(error.message);throw error;}
+  }
+  fail(message){this.leave(message);}
+  leave(message='Left the room.',notify=true){
+    this.generation++;this.phase='idle';this.status=message;this.rejectStart?.(Error(message||'Connection cancelled.'));this.rejectStart=null;this.resolveStart=null;
+    if(this.timer!==undefined)this.clearIntervalFn(this.timer);this.timer=undefined;
+    this.signaling?.close();this.signaling=null;
+    for(const link of this.links.values()){link.closed=true;link.pc.close();}
+    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.session=null;this.course=null;this.earlyCandidates=new Map();
+    if(notify)this.notify();
+  }
+  async signal(id,data) {
+    if(!this.busy||!data||data.code!==this.code||data.protocol!==ROOM_PROTOCOL||id===this.id||id.length>128)return;
+    if(this.host&&data.kind==='knock'){
+      if(this.links.has(id))return;
+      if(this.links.size>=ROOM_LIMIT-1){this.signaling.send(id,{kind:'reject',message:'This room is full (4 players).'});return;}
+      const link=this.makeLink(id);const offer=await link.pc.createOffer();await link.pc.setLocalDescription(offer);
+      if(!link.closed)this.signaling?.send(id,{kind:'offer',sdp:link.pc.localDescription});return;
+    }
+    if(this.host&&data.kind==='offer'&&!this.links.has(id)){
+      if(this.links.size>=ROOM_LIMIT-1){this.signaling.send(id,{kind:'reject',message:'This room is full (4 players).'});return;}
+      const link=this.makeLink(id,false);await link.pc.setRemoteDescription(data.sdp);await this.flushCandidates(link);
+      const answer=await link.pc.createAnswer();await link.pc.setLocalDescription(answer);
+      if(!link.closed)this.signaling?.send(id,{kind:'answer',sdp:link.pc.localDescription});return;
+    }
+    if(!this.host&&data.kind==='reject'&&(!this.hostId||this.hostId===id)){this.fail(data.message==='This room is full (4 players).'?data.message:'The host declined the connection.');return;}
+    if(!this.host&&data.kind==='offer'&&!this.hostId){
+      this.hostId=id;const link=this.makeLink(id);
+      await link.pc.setRemoteDescription(data.sdp);await this.flushCandidates(link);
+      const answer=await link.pc.createAnswer();await link.pc.setLocalDescription(answer);
+      if(!link.closed)this.signaling?.send(id,{kind:'answer',sdp:link.pc.localDescription});return;
+    }
+    const link=this.links.get(id);
+    if(!link&&data.kind==='candidate'&&data.candidate&&this.earlyCandidates.size<4){
+      if(!this.earlyCandidates.has(id))this.earlyCandidates.set(id,[]);
+      const queued=this.earlyCandidates.get(id);if(queued.length<100)queued.push(data.candidate);return;
+    }
+    if(!link||link.closed)return;
+    if(data.kind==='answer'&&link.pc.signalingState==='have-local-offer'){
+      await link.pc.setRemoteDescription(data.sdp);await this.flushCandidates(link);
+    }else if(data.kind==='candidate'&&data.candidate){
+      if(link.pc.remoteDescription)await link.pc.addIceCandidate(data.candidate);else if(link.candidates.length<100)link.candidates.push(data.candidate);
+    }
+  }
+  async flushCandidates(link){for(const candidate of link.candidates.splice(0))await link.pc.addIceCandidate(candidate);}
+  makeLink(id,initiator=this.host) {
+    const pc=this.peerFactory({iceServers:this.iceServers}),used=new Set([...this.links.values()].map(l=>l.slot));
+    const slot=[1,2,3].find(n=>!used.has(n));
+    const link={id,pc,slot,candidates:this.earlyCandidates?.get(id)||[],lastSeen:this.now(),lastPing:-Infinity,pings:new Map(),ping:null,accepted:false,closed:false,seq:-1};
+    this.earlyCandidates?.delete(id);
+    this.links.set(id,link);
+    pc.onicecandidate=event=>{if(event.candidate&&!link.closed)this.signaling?.send(id,{kind:'candidate',candidate:event.candidate.toJSON?.()||event.candidate});};
+    pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed')this.drop(id,'Player connection failed. Try rejoining.');};
+    const bind=channel=>{
+      if(!['control','movement'].includes(channel.label)||link[channel.label]){channel.close();return;}
+      link[channel.label]=channel;
+      channel.onopen=()=>{
+        if(channel.label!=='control')return;
+        if(this.host)this.send(link,{type:'welcome',protocol:ROOM_PROTOCOL,session:this.session,course:this.course,id,name:this.name,hostId:this.id,slot});
+        else if(link.prepared)this.send(link,{type:'ready',session:this.session,name:this.name});
+      };
+      channel.onmessage=event=>{void this.receive(link,event.data,channel.label).catch(()=>this.drop(id,'Could not load the room map.'));};
+      channel.onclose=()=>{if(!link.closed)this.drop(id,this.host?'A player left the room.':'The host left. You can keep playing solo.');};
+      channel.onerror=()=>{if(!link.closed)this.drop(id,'Player connection interrupted.');};
+    };
+    if(initiator){bind(pc.createDataChannel('control',{ordered:true}));bind(pc.createDataChannel('movement',{ordered:false,maxRetransmits:0}));}
+    else pc.ondatachannel=event=>bind(event.channel);
+    return link;
+  }
+  send(link,message,kind='control') {
+    const channel=link[kind];if(link.closed||channel?.readyState!=='open'||channel.bufferedAmount>65536)return false;
+    try{channel.send(JSON.stringify(message));return true;}catch{return false;}
+  }
+  async receive(link,raw,kind) {
+    if(link.closed||typeof raw!=='string'||raw.length>16384)return;
+    let data;try{data=JSON.parse(raw);}catch{return;}
+    if(!data||typeof data!=='object')return;
+    const now=this.now();link.lastSeen=now;
+    if(kind==='control'&&data.type==='welcome'&&!this.host&&!this.active&&!link.loading){
+      if(data.protocol!==ROOM_PROTOCOL||typeof data.session!=='string'||data.hostId!==link.id||![1,2,3].includes(data.slot)||data.id!==this.id){this.fail('This room uses a different multiplayer version. Refresh and retry.');return;}
+      link.loading=true;this.status='Loading the host’s map…';this.notify();
+      const generation=this.generation;this.course=validateRoomCourse(data.course,this.courses);this.session=data.session;this.slot=data.slot;
+      await this.onCourse(this.course);if(generation!==this.generation||link.closed)return;
+      link.prepared=true;link.lastReady=now;this.status='Joining the room…';
+      this.members.set(this.id,{id:this.id,name:this.name,slot:this.slot,host:false,ping:null,samples:[],lastSeen:now});
+      this.members.set(link.id,{id:link.id,name:roomPlayerName(data.name),slot:0,host:true,ping:null,samples:[],lastSeen:now});
+      this.send(link,{type:'ready',session:this.session,name:this.name});this.notify();return;
+    }
+    if(data.session!==this.session||!this.session)return;
+    if(kind==='control'&&data.type==='ready'&&this.host){
+      if(!link.accepted){link.accepted=true;this.members.set(link.id,{id:link.id,name:roomPlayerName(data.name),slot:link.slot,host:false,ping:null,samples:[],lastSeen:now});this.notify();}
+      this.send(link,{type:'joined',session:this.session});return;
+    }
+    if(kind==='control'&&data.type==='joined'&&!this.host&&link.prepared&&!link.accepted){
+      link.accepted=true;this.phase='connected';this.status='Connected. Enter the map when ready.';this.resolveStart?.(this);this.notify();return;
+    }
+    if(!link.accepted)return;
+    if(kind==='control'&&data.type==='ping'&&Number.isSafeInteger(data.id))this.send(link,{type:'pong',id:data.id,session:this.session});
+    else if(kind==='control'&&data.type==='pong'&&link.pings.has(data.id)){
+      const elapsed=now-link.pings.get(data.id);link.pings.delete(data.id);
+      if(elapsed>=0&&elapsed<15000){link.ping=link.ping===null?elapsed:link.ping*.7+elapsed*.3;link.lastPong=now;this.notify();}
+    }else if(kind==='movement'&&data.type==='state'&&this.host&&Number.isSafeInteger(data.seq)&&data.seq>link.seq){
+      const state=sanitiseRoomState(data.state);if(!state)return;link.seq=data.seq;this.sample(this.members.get(link.id),state,now);
+    }else if(kind==='movement'&&data.type==='world'&&!this.host&&Number.isSafeInteger(data.seq)&&data.seq>link.seq){
+      if(!Array.isArray(data.players)||data.players.length>ROOM_LIMIT)return;link.seq=data.seq;
+      const keep=new Set([this.id]),slots=new Set();
+      for(const entry of data.players){
+        if(typeof entry.id!=='string'||entry.id.length>128||!Number.isInteger(entry.slot)||entry.slot<0||entry.slot>=ROOM_LIMIT||slots.has(entry.slot))continue;
+        slots.add(entry.slot);keep.add(entry.id);let member=this.members.get(entry.id);
+        if(!member){member={id:entry.id,samples:[]};this.members.set(entry.id,member);}
+        Object.assign(member,{name:roomPlayerName(entry.name),slot:entry.slot,host:entry.id===this.hostId,ping:Number.isFinite(entry.ping)&&entry.ping>=0&&entry.ping<15000?entry.ping:null,lastSeen:now});
+        const state=sanitiseRoomState(entry.state);if(state)this.sample(member,state,now);
+      }
+      for(const id of this.members.keys())if(!keep.has(id))this.members.delete(id);
+    }else if(kind==='control'&&data.type==='closed'&&!this.host)this.fail('The host left. You can keep playing solo.');
+  }
+  sample(member,state,at){if(!member)return;member.state=state;member.lastSeen=at;member.samples.push({state,at});if(member.samples.length>10)member.samples.shift();}
+  pump() {
+    if(!this.busy)return;const now=this.now();
+    if(this.phase==='connecting'&&now-this.startedAt>30000){this.fail('Could not join. Check the code or try a different network.');return;}
+    const own=this.members.get(this.id),state=sanitiseRoomState(this.getState());if(own&&state)this.sample(own,state,now);
+    for(const link of [...this.links.values()]){
+      if(now-link.lastSeen>20000){this.drop(link.id,this.host?'A player disconnected.':'The host disconnected. You can keep playing solo.');continue;}
+      if(!this.host&&link.prepared&&!link.accepted&&now-link.lastReady>500){link.lastReady=now;this.send(link,{type:'ready',session:this.session,name:this.name});}
+      if(link.accepted&&now-link.lastPing>=1000){
+        link.lastPing=now;const id=++this.sequence;link.pings.set(id,now);
+        for(const [key,sent] of link.pings)if(now-sent>5000)link.pings.delete(key);
+        this.send(link,{type:'ping',id,session:this.session});
+      }
+      if(link.accepted&&now-(link.lastPong??-Infinity)>5000)link.ping=null;
+    }
+    if(!this.active)return;
+    if(this.host){
+      const players=[...this.members.values()].map(member=>({id:member.id,name:member.name,slot:member.slot,ping:this.links.get(member.id)?.ping??null,state:member.state||null}));
+      const message={type:'world',session:this.session,seq:++this.sequence,players};
+      for(const link of this.links.values())if(link.accepted)this.send(link,message,'movement');
+    }else{
+      const link=this.links.get(this.hostId);if(link&&state)this.send(link,{type:'state',session:this.session,seq:++this.sequence,state},'movement');
+    }
+  }
+  drop(id,message) {
+    const link=this.links.get(id);if(!link||link.closed)return;
+    link.closed=true;this.links.delete(id);this.members.delete(id);link.pc.close();
+    if(!this.host)this.fail(message);else{this.status=message;this.notify();}
+  }
+  get ping(){return this.host?null:this.links.get(this.hostId)?.ping??null;}
+  roster(){return [...this.members.values()].sort((a,b)=>a.slot-b.slot).map(member=>({...member,self:member.id===this.id,ping:member.id===this.id?this.ping:this.host?this.links.get(member.id)?.ping??null:member.ping}));}
+  remotePlayers(originZ=0){
+    const now=this.now();return this.roster().filter(member=>!member.self).flatMap(member=>{
+      const state=interpolateRoomPlayer(member.samples,now);return state?[{...state,z:state.z+originZ,id:member.id,name:member.name,slot:member.slot}]:[];
+    });
+  }
+}
+
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -2271,6 +2655,7 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
+let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
 let pendingRunRestore=null;
 try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
@@ -2407,7 +2792,7 @@ function reset(full=true) {
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
-    endless=createEndless();boxes=endless.boxes;renderer.setBoxes(boxes);
+    endless=createEndless(room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
   const previousPeak=player.peakSpeed;
   player=createPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]);
@@ -2432,10 +2817,10 @@ function showMain(view='home',focus=true) {
   overlay.dataset.menu='main';overlay.classList.remove('hidden');
   $('main-menu').classList.remove('hidden');$('pause-menu').classList.add('hidden');
   document.body.classList.add('main-menu-open');
-  for(const name of ['home','maps','settings']) $(name+'-view').classList.toggle('hidden',name!==view);
+  for(const name of ['home','maps','rooms','settings']) $(name+'-view').classList.toggle('hidden',name!==view);
   overlay.scrollTop=0;
   updateMenuMusic();
-  if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':'settings-back').focus();
+  if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':view==='rooms'?'rooms-back':'settings-back').focus();
 }
 function showPause() {
   menuMode='pause';overlay.dataset.menu='pause';overlay.classList.remove('hidden');
@@ -2494,6 +2879,7 @@ function play() {
   } catch { mouseCaptureFailed(); }
 }
 function choosePreset(value,resetRun=true) {
+  if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE PHYSICS');return;}
   if(!PRESETS[value]) return;
   if(resetRun)try{sessionStorage.removeItem('movement-lab-run-v1');pendingRunRestore=null;}catch{}
   saveEndlessBest();
@@ -2508,6 +2894,7 @@ function choosePreset(value,resetRun=true) {
   saveSettings(); updateHud();
 }
 function chooseMap(value,resetRun=true,preserveSavedRun=false) {
+  if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE MAPS');return;}
   if(!Object.hasOwn(MAPS,value)) return;
   if(!preserveSavedRun){try{sessionStorage.removeItem('movement-lab-run-v1');}catch{}pendingRunRestore=null;}
   sourceLoadGeneration++;sourceLoadController?.abort();
@@ -2536,6 +2923,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   saveSettings(); updateHud();
 }
 async function selectCommunityMap(metadata,file=null,restore=false) {
+  if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE MAPS');return;}
   if(playing||lockPending)pause();
   if(MAPS[metadata.id]&&!file){chooseMap(metadata.id,true,restore);if(restore){restoreSavedRun(pendingRunRestore);pendingRunRestore=null;}return;}
   sourceLoadController?.abort();const generation=++sourceLoadGeneration;
@@ -2713,7 +3101,10 @@ function frame(now) {
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
   }
-  renderer.draw(camera,fov,target,started?camera:null);knife?.draw(elapsed,fov);updateHud();
+  const remotePlayers=room?.active?room.remotePlayers(endless?.originZ||0):[];
+  renderer.draw(camera,fov,target,started?camera:null,remotePlayers);knife?.draw(elapsed,fov);updateHud();
+  drawRoomLabels(camera,remotePlayers);
+  if(room?.busy&&now-roomUiAt>=250){roomUiAt=now;updateRoomUi();}
   slideshow?.step(now,galleryVisible);
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
@@ -2721,13 +3112,16 @@ function frame(now) {
 $('play').addEventListener('click',play);
 $('continue').addEventListener('click',play);
 $('open-map-select').addEventListener('click',()=>{
+  if(room?.busy){showMain('rooms');return;}
   if(!MAPS[map].timed)chooseMap('course');showMain('maps');
 });
 $('open-settings').addEventListener('click',()=>showMain('settings'));
+$('open-rooms').addEventListener('click',()=>{if(!room?.busy){$('room-map').value=map==='local-map'?'course':map;$('room-preset').value=preset;}showMain('rooms');updateRoomUi();});
+$('rooms-back').addEventListener('click',()=>showMain());
 $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
 $('back-to-main').addEventListener('click',()=>returnToMain());
-$('play-sandbox').addEventListener('click',()=>{if(lockPending)return;chooseMap('free');play();});
+$('play-sandbox').addEventListener('click',()=>{if(lockPending)return;if(room?.busy){showMain('rooms');return;}chooseMap('free');play();});
 const timedMaps=MAP_LIST.filter(m=>m.timed),galleryMaps=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);
 $('map-grid').classList.toggle('single-map',timedMaps.length===1);
 $('map-grid').innerHTML=timedMaps.map((m,i)=>`<button type="button" class="map-card" data-map="${m.id}" aria-pressed="false"><span class="map-preview">${mapPreviewSVG(m)}</span><span class="map-card-title">${m.title}</span><span class="map-card-meta"><span>${String(i+1).padStart(2,'0')}</span>${m.stages.length} sections</span></button>`).join('');
@@ -2786,7 +3180,7 @@ $('audio-volume').addEventListener('input',()=>{
   audioVolume=Number($('audio-volume').value)/100;gameAudio?.setVolume(audioVolume);
   $('audio-volume-value').textContent=`${Math.round(audioVolume*100)}%`;saveSettings();
 });
-$('play-endless').addEventListener('click',()=>{if(lockPending)return;chooseMap('endless');play();});
+$('play-endless').addEventListener('click',()=>{if(lockPending)return;if(room?.busy){showMain('rooms');return;}chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>{if(playing)pause();else if(started)showPause();else showMain();});
 $('again').addEventListener('click',()=>{reset();play();});
 $('finish-settings').addEventListener('click',()=>returnToMain('settings'));
@@ -2848,7 +3242,7 @@ window.addEventListener('blur',()=>{
 window.addEventListener('focus',()=>{
   windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
 });
-window.addEventListener('pagehide',()=>{saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pagehide',()=>{leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
 window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
@@ -2864,6 +3258,87 @@ $('menu-music-volume').addEventListener('input',()=>{
   menuMusic.setVolume(musicVolume);$('menu-music-volume-value').textContent=Math.round(musicVolume*100)+'%';saveSettings();
 });
 document.addEventListener('pointerdown',()=>{if(windowFocused&&!document.hidden)menuMusic.retry();});
+const roomCourses=[...MAP_LIST,...COMMUNITY_MAPS];
+$('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${course.title}</option>`).join('');
+$('room-map').value='course';$('room-preset').value=preset;
+try{$('room-name').value=roomPlayerName(localStorage.getItem('movement-lab-player-name')||'Player');}catch{$('room-name').value='Player';}
+function escapeRoomText(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function roomLocalState(){
+  return {x:player.x,y:player.y,z:player.z-(endless?.originZ||0),yaw:player.yaw,pitch:player.pitch,duckAmount:player.duckAmount,
+    time:runTime,checkpoint,distance:endless?.distance||0,paused:!playing,completed};
+}
+async function applyRoomCourse(course){
+  roomApplyingCourse=true;
+  try{
+    if(playing||lockPending)pause();
+    choosePreset(course.preset);
+    const community=COMMUNITY_MAPS.find(c=>c.id===course.id);
+    if(community)await selectCommunityMap(community);else chooseMap(course.id);
+    if(map!==course.id)throw Error('The room map could not load. Try joining again.');
+    started=false;reset();
+  }finally{roomApplyingCourse=false;}
+}
+function updateRoomUi(){
+  const busy=room?.busy===true,active=room?.active===true;
+  $('room-setup').classList.toggle('hidden',busy);$('room-session').classList.toggle('hidden',!active);$('room-leave').classList.toggle('hidden',!busy);
+  $('room-leave').textContent=active?'LEAVE ROOM':'CANCEL CONNECTION';
+  $('room-status').textContent=room?.status||'Host a private room or join a friend.';
+  $('room-host').disabled=busy||!rendererReady;$('room-join').disabled=busy||!rendererReady;
+  $('network-hud').classList.toggle('hidden',!active);
+  $('import-source-map').disabled=busy;
+  if(!active){$('room-players').innerHTML='';$('player-labels').innerHTML='';return;}
+  const roster=room.roster(),code=displayRoomCode(room.code);
+  $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
+  $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
+  const course=roomCourses.find(c=>c.id===room.course.id);
+  $('room-course').textContent=`${course.title} / ${PRESETS[room.course.preset].title} · Leave the room to change maps.`;
+  $('room-players').innerHTML=roster.map(member=>{
+    const state=member.self?roomLocalState():member.state;
+    const progress=!state?'Joining…':state.completed?'Finished · '+format(state.time):room.course.id==='endless'?`${Math.floor(state.distance)} u`:format(state.time)+(state.paused?' · paused':'');
+    const ping=member.host?'HOST':member.ping===null?'—':Math.round(member.ping)+' ms';
+    return `<tr><td><i class="room-swatch" data-slot="${member.slot}"></i>${escapeRoomText(member.name)}${member.self?' · you':''}</td><td>${progress}</td><td>${ping}</td></tr>`;
+  }).join('');
+}
+function drawRoomLabels(camera,players){
+  const width=canvas.clientWidth,height=canvas.clientHeight;
+  if(!started||!width||!height){$('player-labels').innerHTML='';return;}
+  $('player-labels').innerHTML=players.flatMap(p=>{
+    const point=projectWorldPoint(camera,{x:p.x,y:p.y+83-p.duckAmount*18,z:p.z},width,height,fov);
+    return point?[`<span class="remote-player-label" data-slot="${p.slot}" style="left:${point.x.toFixed(1)}px;top:${point.y.toFixed(1)}px">${escapeRoomText(p.name)}</span>`]:[];
+  }).join('');
+}
+async function startRoom(host){
+  if(roomStarting||room?.busy||!rendererReady)return;
+  if(typeof globalThis.RTCPeerConnection!=='function'){$('room-status').textContent='This browser does not support multiplayer connections. Use a current desktop browser.';return;}
+  const name=roomPlayerName($('room-name').value);try{localStorage.setItem('movement-lab-player-name',name);}catch{}
+  roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;
+  $('room-copy').textContent='COPY';
+  try{
+    const selected=roomCourses.find(c=>c.id===$('room-map').value)||roomCourses[0];
+    const course={id:selected.id,revision:selected.revision||1,preset:$('room-preset').value==='practice'?'practice':'classic',
+      ...(selected.id==='endless'?{seed:globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}:{})};
+    if(host)await applyRoomCourse(course);
+    room=new MultiplayerRoom({config:MULTIPLAYER_CONFIG,courses:roomCourses,getState:roomLocalState,onCourse:applyRoomCourse,onChange:updateRoomUi});
+    await room.start({host,code:$('room-code-input').value,name,course});
+    if(host){started=false;reset();}
+    updateRoomUi();
+  }catch(error){if(room?.busy)room.leave(error.message);$('room-status').textContent=error.message||'Could not connect. Try again.';$('room-host').disabled=!rendererReady;$('room-join').disabled=!rendererReady;}
+  finally{roomStarting=false;}
+}
+$('room-host').addEventListener('click',()=>void startRoom(true));
+$('room-join').addEventListener('click',()=>void startRoom(false));
+$('room-play').addEventListener('click',()=>{if(room?.active)play();});
+function leaveRoom(message){
+  if(roomApplyingCourse){sourceLoadGeneration++;sourceLoadController?.abort();}
+  room?.leave(message);updateRoomUi();
+}
+$('room-leave').addEventListener('click',()=>leaveRoom());
+$('room-copy').addEventListener('click',async()=>{
+  try{await globalThis.navigator.clipboard.writeText(displayRoomCode(room.code));$('room-copy').textContent='COPIED';}
+  catch{$('room-status').textContent='Select and copy the invite code above.';}
+});
+$('room-code-input').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();void startRoom(false);}});
+
 if(Number.isFinite(settings.sensitivity)) {
   const multiplier=settings.sensitivityVersion===2?settings.sensitivity:settings.sensitivity/2;
   sensitivity=Math.min(5,Math.max(0.1,multiplier));
