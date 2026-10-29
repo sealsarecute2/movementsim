@@ -1,4 +1,4 @@
-import { sampleSkybox, normaliseSkybox, SKY_GRADIENT_GLSL, createSkyRenderer } from './skybox.js';
+import { sampleSkybox, normaliseSkybox, SKY_GRADIENT_GLSL, SKY_ATMOSPHERE_GLSL, createSkyRenderer } from './skybox.js';
 import { sampleSceneLight, projectPlayerShadow } from './lighting.js';
 import { buildSignMesh } from './signs.js';
 import { buildRemotePlayerMesh } from './players.js';
@@ -44,10 +44,12 @@ export const WORLD_FRAGMENT_GLSL = `
     #endif
     uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
+    uniform vec3 uAtmosphereSun; uniform vec3 uAtmosphereColour; uniform vec3 uAtmosphereState;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
     uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
+    ${SKY_ATMOSPHERE_GLSL}
     #ifdef GALLERY_SHADOWS
     ${GALLERY_SHADOW_GLSL}
     #endif
@@ -83,7 +85,11 @@ export const WORLD_FRAGMENT_GLSL = `
       color+=vec3(0.015,0.22,0.65)*glow*target;
       float fade=1.0-smoothstep(1700.0,6500.0,vDistance);
       vec3 fog=vec3(0.0);
-      if(uFogGain>0.5)fog=backgroundGradient(normalize(vWorld-uFogEye),uSkyHorizon,uSkyZenith,uSkyGround);
+      if(uFogGain>0.5){
+        vec3 direction=normalize(vWorld-uFogEye);
+        fog=uAtmosphereState.x>0.5?cycleAtmosphere(direction,uSkyHorizon,uSkyZenith,uSkyGround,uAtmosphereSun,uAtmosphereColour,uAtmosphereState.y,uAtmosphereState.z):
+          backgroundGradient(direction,uSkyHorizon,uSkyZenith,uSkyGround);
+      }
       gl_FragColor=vec4(mix(fog,color,fade),1.0);
     }`;
 
@@ -104,7 +110,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24],['aNormal',3,28],['aShade',1,40]]
       .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
     const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
-      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uShadowOpacity',
+      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
       ...(gallery?['uGalleryShadowMatrix','uGalleryShadowMap','uGalleryShadowTexel','uGalleryShadowNormalMatrix']:[])].map(name=>[name,gl.getUniformLocation(program,name)]));
     return {program,attributes,uniforms};
   }
@@ -223,6 +229,8 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     gl.uniform2f(u.uScale,scaleX,f);
     gl.uniform3f(u.uSkyHorizon,...preset.horizon);gl.uniform3f(u.uSkyZenith,...preset.zenith);gl.uniform3f(u.uSkyGround,...preset.ground);
     gl.uniform1f(u.uFogGain,skybox==='black'?0:1);
+    gl.uniform3f(u.uAtmosphereState,skybox==='cycle'?1:0,preset.daylight||0,preset.twilight||0);
+    if(skybox==='cycle'){gl.uniform3f(u.uAtmosphereSun,...preset.sunDirection);gl.uniform3f(u.uAtmosphereColour,...preset.sun);}
     gl.uniform1f(u.uShadersGain,captureState||shadersEnabled?1:0);
     const light=captureState?.light||sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
     gl.uniform3f(u.uLightDirection,...light.direction);gl.uniform3f(u.uLightColour,...light.colour);gl.uniform3f(u.uAmbientColour,...light.ambient);gl.uniform1f(u.uLightPower,light.power);

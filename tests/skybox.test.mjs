@@ -114,6 +114,26 @@ test('palettes, stars, clouds and celestial motion blend smoothly at phase bound
   assert.deepEqual(sampleSkybox('cycle',NaN),sampleSkybox('cycle',0));
   assert.notDeepEqual(sampleSkybox('cycle',150).cloudOffset,sampleSkybox('cycle',0).cloudOffset);
 });
+test('twilight is strongest at the horizon and stars emerge after sunset as daylight fades',()=>{
+ const dawn=sampleSkybox('cycle',0),day=sampleSkybox('cycle',300),dusk=sampleSkybox('cycle',600),evening=sampleSkybox('cycle',630),night=sampleSkybox('cycle',900);
+ assert.equal(dawn.twilight,1);assert.equal(dusk.twilight,1);assert.equal(day.twilight,0);assert.equal(night.twilight,0);
+ assert.equal(day.daylight,1);assert.equal(night.daylight,0);assert.ok(evening.daylight<dusk.daylight);
+ assert.equal(dusk.stars,0);assert.ok(evening.stars>dusk.stars&&evening.stars<night.stars);
+ for(let time=-1200;time<=2400;time+=7){
+  const sky=sampleSkybox('cycle',time);for(const key of ['daylight','twilight','stars'])assert.ok(sky[key]>=0&&sky[key]<=1);
+ }
+});
+test('sky and distance haze receive identical sun direction and twilight parameters',t=>{
+ const f=fixture(t);f.renderer.setSkybox('cycle');
+ for(const time of [0,30,300,600,630,900,1199]){
+  f.setTime(time);f.draws.length=0;f.renderer.draw(f.camera);
+  const [sky,world]=f.draws;
+  assert.deepEqual(world.uniforms.uAtmosphereState,[1,sky.uniforms.uDaylight,sky.uniforms.uTwilight]);
+  assert.deepEqual(world.uniforms.uAtmosphereSun,sky.uniforms.uSunDirection);assert.deepEqual(world.uniforms.uAtmosphereColour,sky.uniforms.uSunColour);
+ }
+ f.renderer.setSkybox('blackhole');f.draws.length=0;f.renderer.draw(f.camera);assert.equal(f.draws[1].uniforms.uAtmosphereState[0],0);
+ f.renderer.setSkybox('black');f.draws.length=0;f.renderer.draw(f.camera);assert.equal(f.draws[0].uniforms.uAtmosphereState[0],0);
+});
 test('default black keeps the original clear colour and skips the sky rendering pass',t=>{
   const f=fixture(t);f.renderer.draw(f.camera);
   assert.equal(f.renderer.skybox,'black');assert.deepEqual(f.gl.background,[0,0,0,1]);
