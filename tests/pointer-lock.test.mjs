@@ -33,7 +33,7 @@ function boot(stored = {}, search = '', renderError = null, sourceOptions = {}) 
   const elements=new Map(),document=element(),window=element();
   window.location={search};
   document.getElementById=id=>{
-    if(!elementIds.has(id))return null;
+    if(!elementIds.has(id)&&![...elements.values()].some(e=>e.innerHTML.includes(`id="${id}"`)))return null;
     if(!elements.has(id))elements.set(id,element());
     return elements.get(id);
   };
@@ -793,7 +793,26 @@ test('the room leaderboard supports Endless checkpoints and players still joinin
  app.element('room-map').value='endless';await app.context.startRoom(true);
  app.read("checkpoint=8;runTime=65.5;room.rows=[{id:'self',name:'Host',slot:0,self:true,host:true},{id:'joining',name:'Joining',slot:1}];room.roster=()=>room.rows;updateRoomUi()");
  const rows=app.element('room-leaderboard-players').innerHTML;
- assert.match(rows,/<td>8<\/td>/);assert.match(rows,/01:05\.500/);assert.match(rows,/<td>—<\/td><td>—<\/td>/);assert.doesNotMatch(rows,/NaN|8\//);
+ assert.match(rows,/<td>8<\/td>/);assert.match(rows,/01:05\.500/);assert.match(rows,/<td>—<\/td><td id="room-time-1">—<\/td>/);assert.doesNotMatch(rows,/NaN|8\//);
  app.read("reset();updateRoomUi()");
  assert.match(app.element('room-leaderboard-players').innerHTML,/<td>0<\/td>/);assert.match(app.element('room-leaderboard-players').innerHTML,/00:00\.000/);
+});
+test('leaderboard time cells update every frame between roster refreshes',async()=>{
+ const app=boot({},'',null,roomAppOptions);await app.context.startRoom(true);
+ const member={id:'remote',name:'Guest',slot:1,samples:[]};
+ new multiplayerModule.MultiplayerRoom().sample(member,multiplayerModule.sanitiseRoomState({x:0,y:0,z:0,yaw:0,pitch:0,duckAmount:0,time:12,checkpoint:0,distance:0,running:true}),0);
+ app.context.remoteTimerMember=member;
+ app.read("room.rows=[{id:'self',name:'Host',slot:0,self:true,host:true},remoteTimerMember];room.roster=()=>room.rows;roomUiAt=0;runTime=5;updateRoomUi()");
+ const originalRows=app.element('room-leaderboard-players').innerHTML;
+ app.context.frame(16);
+ assert.equal(app.element('room-time-0').textContent,'00:05.000');
+ assert.equal(app.element('room-time-1').textContent,'00:12.016');
+ app.read('runTime=5.025');app.context.frame(32);
+ assert.equal(app.element('room-time-0').textContent,'00:05.025');
+ assert.equal(app.element('room-time-1').textContent,'00:12.032');
+ assert.equal(app.element('room-leaderboard-players').innerHTML,originalRows,'animation only updates time cells');
+ assert.equal(app.read('room.rows[1].state.time'),12);
+ app.read('completed=true');assert.equal(app.read('roomLocalState().running'),false);
+ app.element('room-leave').fire('click');app.context.frame(48);
+ assert.equal(app.element('room-time-1'),null,'leaving removes the animated timer cells');
 });

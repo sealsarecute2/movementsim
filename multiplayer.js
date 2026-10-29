@@ -49,7 +49,19 @@ export function validateRoomCourse(course,courses) {
 export function sanitiseRoomState(value) {
   if(!value||!['x','y','z','yaw','pitch','duckAmount','time','checkpoint','distance'].every(k=>Number.isFinite(value[k])))return null;
   if(['x','y','z'].some(k=>Math.abs(value[k])>1e9)||Math.abs(value.yaw)>1e9||Math.abs(value.pitch)>1.6||value.time<0||value.time>86400*7||!Number.isInteger(value.checkpoint)||value.checkpoint<0||value.checkpoint>1e7||value.distance<0||value.distance>1e9)return null;
-  return {x:value.x,y:value.y,z:value.z,yaw:value.yaw,pitch:value.pitch,duckAmount:Math.max(0,Math.min(1,value.duckAmount)),time:value.time,checkpoint:value.checkpoint,distance:value.distance,paused:value.paused===true,completed:value.completed===true};
+  const paused=value.paused===true,completed=value.completed===true;
+  return {x:value.x,y:value.y,z:value.z,yaw:value.yaw,pitch:value.pitch,duckAmount:Math.max(0,Math.min(1,value.duckAmount)),time:value.time,checkpoint:value.checkpoint,distance:value.distance,paused,completed,
+    running:!paused&&!completed&&(typeof value.running==='boolean'?value.running:value.time>0)};
+}
+// Display clocks run between packets without changing the received race times.
+// Ease small network corrections over at least 250 ms, always moving forwards.
+export function roomPlayerTime(member,now) {
+  const timer=member?.timer;
+  if(!timer)return member?.state?.time??null;
+  if(!timer.running)return timer.time;
+  // Freeze a stale clock rather than inventing time through a lost connection.
+  const elapsed=Math.max(0,Math.min(1,(now-timer.at)/1000));
+  return timer.time+elapsed+timer.offset*Math.max(0,1-elapsed/timer.correction);
 }
 export function interpolateRoomPlayer(samples,now) {
   if(!samples?.length||now-samples.at(-1).at>3000)return null;
@@ -269,7 +281,19 @@ export class MultiplayerRoom {
       for(const id of this.members.keys())if(!keep.has(id))this.members.delete(id);
     }else if(kind==='control'&&data.type==='closed'&&!this.host)this.fail('The host left. You can keep playing solo.');
   }
-  sample(member,state,at){if(!member)return;member.state=state;member.lastSeen=at;member.samples.push({state,at});if(member.samples.length>10)member.samples.shift();}
+  sample(member,state,at){
+    if(!member)return;
+    const previous=member.timer,running=state.running??(!state.paused&&!state.completed&&state.time>0);
+    // The host may forward an unchanged guest snapshot. It must not restart
+    // that guest's display clock or keep a disconnected player's timer alive.
+    if(!previous||state.time!==previous.time||running!==previous.running){
+      const displayed=roomPlayerTime(member,at)??state.time;
+      const snap=!previous||!running||running!==previous.running||state.time<previous.time||Math.abs(displayed-state.time)>1;
+      const offset=snap?0:displayed-state.time;
+      member.timer={time:state.time,at,running,offset,correction:Math.max(.25,Math.abs(offset)*2)};
+    }
+    member.state=state;member.lastSeen=at;member.samples.push({state,at});if(member.samples.length>10)member.samples.shift();
+  }
   pump() {
     if(!this.busy)return;const now=this.now();
     if(this.phase==='connecting'&&now-this.startedAt>30000){this.fail('Could not join. Check the code or try a different network.');return;}

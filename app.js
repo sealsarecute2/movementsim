@@ -11,7 +11,7 @@ import { loadSourceMap } from './source-map.js';
 import { createSourceRuntime } from './source-runtime.js';
 import { hydrateParkourMap } from './parkour-map.js';
 import { MULTIPLAYER_CONFIG } from './multiplayer-config.js';
-import { MultiplayerRoom, ROOM_LIMIT, displayRoomCode, roomPlayerName, roomPlayerSpawn } from './multiplayer.js';
+import { MultiplayerRoom, ROOM_LIMIT, displayRoomCode, roomPlayerName, roomPlayerSpawn, roomPlayerTime } from './multiplayer.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -487,6 +487,7 @@ function frame(now) {
   renderer.draw(camera,fov,target,started?camera:null,remotePlayers);knife?.draw(elapsed,fov);updateHud();
   drawRoomLabels(camera,remotePlayers);
   if(room?.busy&&now-roomUiAt>=250){roomUiAt=now;updateRoomUi();}
+  updateRoomTimers(now);
   slideshow?.step(now,galleryVisible);
   if(now>toastUntil) $('toast').classList.remove('show');
   requestAnimationFrame(frame);
@@ -647,7 +648,7 @@ try{$('room-name').value=roomPlayerName(localStorage.getItem('movement-lab-playe
 function escapeRoomText(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function roomLocalState(){
   return {x:player.x,y:player.y,z:player.z-(endless?.originZ||0),yaw:player.yaw,pitch:player.pitch,duckAmount:player.duckAmount,
-    time:runTime,checkpoint,distance:endless?.distance||0,paused:!playing,completed};
+    time:runTime,checkpoint,distance:endless?.distance||0,paused:!playing,completed,running:playing&&runActive&&!completed};
 }
 async function applyRoomCourse(course){
   roomApplyingCourse=true;
@@ -690,8 +691,19 @@ function updateRoomUi(){
     const state=member.state,checkpoint=Number.isInteger(state?.checkpoint)?Math.max(0,state.checkpoint):null;
     const progress=checkpoint===null||total===0?'—':total===null?String(checkpoint):`${Math.min(checkpoint,total)}/${total}`;
     const name=escapeRoomText(member.name)+(member.self?' · you':'');
-    return `<tr data-self="${member.self===true}"><td><span class="room-player-cell"><span class="room-rank">${index+1}</span><i class="room-swatch" data-slot="${member.slot}"></i><span class="room-player-name">${name}</span></span></td><td>${progress}${state?.completed?' <span class="room-finished" aria-label="Finished">✓</span>':''}</td><td>${state?format(state.time):'—'}</td></tr>`;
+    const time=member.self?runTime:roomPlayerTime(member,performance.now());
+    return `<tr data-self="${member.self===true}"><td><span class="room-player-cell"><span class="room-rank">${index+1}</span><i class="room-swatch" data-slot="${member.slot}"></i><span class="room-player-name">${name}</span></span></td><td>${progress}${state?.completed?' <span class="room-finished" aria-label="Finished">✓</span>':''}</td><td id="room-time-${member.slot}">${time===null?'—':format(time)}</td></tr>`;
   }).join('');
+}
+function updateRoomTimers(now){
+  if(!room?.active)return;
+  for(const member of room.roster()){
+    const cell=$(`room-time-${member.slot}`);
+    if(!cell)continue;
+    const time=member.self?runTime:roomPlayerTime(member,now);
+    const text=time===null?'—':format(time);
+    if(cell.textContent!==text)cell.textContent=text;
+  }
 }
 function drawRoomLabels(camera,players){
   const width=canvas.clientWidth,height=canvas.clientHeight;

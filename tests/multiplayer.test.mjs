@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {MultiplayerRoom,createRoomSignaling,makeRoomCode,normaliseRoomCode,displayRoomCode,sanitiseRoomState,interpolateRoomPlayer,validateRoomCourse,roomPlayerSpawn} from '../dist/multiplayer.js';
+import {MultiplayerRoom,createRoomSignaling,makeRoomCode,normaliseRoomCode,displayRoomCode,sanitiseRoomState,interpolateRoomPlayer,validateRoomCourse,roomPlayerSpawn,roomPlayerTime} from '../dist/multiplayer.js';
 import {buildRemotePlayerMesh} from '../dist/players.js';
 import {projectWorldPoint} from '../dist/renderer.js';
 import {MAP_LIST} from '../dist/course.js';
@@ -154,6 +154,48 @@ test('interpolation smooths ordinary movement, snaps portals and hides stale pla
  const middle=interpolateRoomPlayer(samples,150);assert.equal(middle.x,50);assert.ok(Math.abs(middle.yaw-Math.PI)<1e-8);
  samples.push({at:200,state:state({x:2000,y:1000})});assert.equal(interpolateRoomPlayer(samples,250).x,2000);
  assert.equal(interpolateRoomPlayer(samples,4000),null);
+});
+test('display timers advance between packets and ease jitter without modifying race times',()=>{
+ const room=new MultiplayerRoom(),member={samples:[]};
+ assert.equal(roomPlayerTime(member,1000),null);
+ room.sample(member,sanitiseRoomState(state({time:10,running:true})),1000);
+ assert.equal(roomPlayerTime(member,1016),10.016);
+ assert.equal(roomPlayerTime(member,1032),10.032);
+ for(const [at,time] of [[1120,10.05],[1200,10.25],[1310,10.3],[1360,10.35]]){
+  const before=roomPlayerTime(member,at);
+  room.sample(member,sanitiseRoomState(state({time,running:true})),at);
+  assert.ok(Math.abs(roomPlayerTime(member,at)-before)<1e-9,'a new packet must not jump the display');
+  let previous=before;
+  for(let offset=16;offset<=64;offset+=16){
+   const displayed=roomPlayerTime(member,at+offset);
+   assert.ok(displayed>previous&&displayed-previous<.033,'small corrections keep the clock moving smoothly');previous=displayed;
+  }
+  assert.equal(member.state.time,time,'only the displayed time is estimated');
+ }
+});
+test('display timers preserve idle, pause, restart and final times exactly',()=>{
+ const room=new MultiplayerRoom(),member={samples:[]};
+ const sample=(time,at,changes={})=>room.sample(member,sanitiseRoomState(state({time,running:true,...changes})),at);
+ sample(0,0,{running:false});assert.equal(roomPlayerTime(member,900),0);
+ sample(2,1000);assert.equal(roomPlayerTime(member,1100),2.1);
+ sample(2.05,1120,{paused:true});assert.equal(roomPlayerTime(member,1500),2.05);
+ sample(2.05,2000);assert.ok(Math.abs(roomPlayerTime(member,2050)-2.1)<1e-9);
+ sample(2.123,2100,{completed:true});assert.equal(roomPlayerTime(member,2900),2.123);
+ sample(0,3000,{running:false});assert.equal(roomPlayerTime(member,3500),0);
+ sample(.1,3600);assert.ok(Math.abs(roomPlayerTime(member,3650)-.15)<1e-9);
+ assert.equal(sanitiseRoomState(state({time:12})).running,true,'older clients still have smooth running timers');
+ assert.equal(sanitiseRoomState(state({time:12,paused:true,running:true})).running,false);
+ assert.equal(sanitiseRoomState(state({time:12,completed:true,running:true})).running,false);
+});
+test('repeated relayed snapshots cannot reanchor or indefinitely advance stale timers',()=>{
+ const room=new MultiplayerRoom(),member={samples:[]},snapshot=sanitiseRoomState(state({time:12,running:true}));
+ room.sample(member,snapshot,1000);
+ const timer=member.timer;
+ for(let at=1050;at<=4000;at+=50)room.sample(member,{...snapshot},at);
+ assert.equal(member.timer,timer);
+ assert.equal(roomPlayerTime(member,1500),12.5);
+ assert.equal(roomPlayerTime(member,2100),13);
+ assert.equal(roomPlayerTime(member,4000),13);
 });
 test('avatars have finite coloured geometry and label projection follows the camera',()=>{
  const mesh=buildRemotePlayerMesh([{...state(),slot:1}]);assert.equal(mesh.length/11,11*36);assert.ok([...mesh].every(Number.isFinite));
