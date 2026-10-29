@@ -48,3 +48,10 @@ test('shadow projection safely handles no player, darkness and distant floors',(
   assert.equal(projectPlayerShadow({x:0,y:1000,z:0},[floor],vertical),null);
   assert.ok(projectPlayerShadow({...player,duckAmount:1},[floor],vertical).radius<projectPlayerShadow(player,[floor],vertical).radius);
 });
+
+test('the player shadow follows a sloping surface instead of its highest bounding corner',async()=>{
+ const {makeConvexBrush,boxPlanes}=await import('../dist/geometry.js');
+ const ramp=makeConvexBrush([...boxPlanes({min:[-200,-100,-100],max:[200,100,100]}),{normal:[-.25,1,0],distance:0}]);
+ const shadow=projectPlayerShadow({x:0,y:4,z:0},[ramp],vertical);
+ assert.equal(shadow.x,0);assert.equal(shadow.z,0);assert.ok(Math.abs(shadow.y)<1e-5);assert.ok(shadow.normal[0]<-.2&&shadow.normal[1]>.9);
+});

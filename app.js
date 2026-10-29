@@ -294,7 +294,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
   $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
-  $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`:'';
+  $('map-credit').textContent=selected.community?(boxes.sourceMap?.importedGeometry?'Local import · original brush shapes · untextured geometry.':`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
   if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=!hasLeaderboard(selected.id,selected.revision||1);
@@ -333,10 +333,10 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
     const imported=metadata.geometry&&!file?hydrateParkourMap(input):await loadSourceMap(input,metadata);
     if(generation!==sourceLoadGeneration)return;
     MAPS[metadata.id]={id:metadata.id,title:metadata.title,revision:imported.revision||metadata.revision||1,timed:imported.greybox?imported.finishPad!==null:!!imported.finish,community:true,author:metadata.author,source:metadata.source,
-      description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'A locally imported parkour map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+      description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'An imported map with its original solid brush shapes.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
     chooseMap(metadata.id,true,restore);
     if(restore)restoreSavedRun(pendingRunRestore);pendingRunRestore=null;
-    status.textContent=`${metadata.title} ready. Choose Bhop practice for uncapped movement.`;
+    status.textContent=`${metadata.title} ready.${imported.importedGeometry?' Original brush shapes preserved.':''} Choose Bhop practice for uncapped movement.`;
   } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
@@ -401,8 +401,8 @@ function tick() {
       if(event.type==='respawn'){respawns++;reset(false);saveRunCheckpoint();toast('BACK AT CHECKPOINT — TIMER CONTINUES');return;}
       if(event.type==='teleport'){
         previousDraw={...player};
-        const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
-        if(runActive&&index<=checkpoint)respawns++;
+        const destination=event.destination||boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>Math.hypot(s.x-destination.x,s.z-destination.z)<1&&Math.abs(s.y-destination.y)<=18);
+        if(runActive&&index>=0&&index<=checkpoint)respawns++;
       }
       if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`${MAPS[map].stages[checkpoint].title.toUpperCase()} SAVED — E TO RETURN`,true);}
       if(event.type==='finish'){finishRun();return;}
@@ -471,7 +471,7 @@ function frame(now) {
   }
   const sourcePortal=boxes.sourceMap?.portals?.find(p=>p.from===checkpoint);
   const target=completed?null:endless?endless.platform((checkpoint+1)*8):
-    MAPS[map].timed?(sourcePortal?boxes[sourcePortal.exitPad]:boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish)):null;
+    MAPS[map].timed?(sourcePortal?boxes[sourcePortal.exitPad]:boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.sourceMap?.finishArea||boxes.find(b=>b.finish)):null;
   const galleryVisible=menuMode==='main'&&!overlay.classList.contains('hidden')&&!document.hidden;
   if(rendererReady&&galleryVisible&&capturedMaps<galleryMaps.length&&screenshotCanvas) {
     const i=capturedMaps++, image=slides[i];

@@ -1,6 +1,17 @@
 // Interpret movement entities only; map strings are never executable code.
+import { brushCheckpointVolumes, hullPlaneDistance } from './geometry.js';
 export function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
   let enter=0,exit=1;
+  if(box.planes){
+    for(const plane of box.planes){
+      const n=plane.normal,start=from.x*n[0]+from.y*n[1]+from.z*n[2]-hullPlaneDistance(plane,height,radius);
+      const delta=(to.x-from.x)*n[0]+(to.y-from.y)*n[1]+(to.z-from.z)*n[2];
+      if(Math.abs(delta)<1e-9){if(start>0)return null;}
+      else if(delta<0)enter=Math.max(enter,-start/delta);else exit=Math.min(exit,-start/delta);
+      if(enter>exit)return null;
+    }
+    return {enter,exit};
+  }
   for(const [axis,key] of ['x','y','z'].entries()) {
     const low=box.min[axis]-(axis===1?height:radius),high=box.max[axis]+(axis===1?0:radius),delta=to[key]-from[key];
     if(Math.abs(delta)<1e-9){if(from[key]<=low||from[key]>=high)return null;}
@@ -83,14 +94,20 @@ export function createSourceRuntime(map) {
 }
 
 function createParkourRuntime(map) {
-  let current=0,finished=false;
-  const activation=(from,to,pad)=>sourceTriggerCrossing(from,to,{min:[pad.min[0],pad.max[1]-.01,pad.min[2]],max:[pad.max[0],pad.max[1]+96,pad.max[2]]},0);
+  let current=0,finished=false,teleportCooldown=0;
+  const activation=(from,to,pad)=>brushCheckpointVolumes(pad).map(volume=>sourceTriggerCrossing(from,to,volume,0,0)).filter(Boolean).sort((a,b)=>a.enter-b.enter)[0];
   return {
     get stage(){return current;},
-    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;},
+    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;teleportCooldown=0;},
     interact(){return false;},
     step(player,previous,dt) {
       const events=[];let lastTime=-1;
+      teleportCooldown=Math.max(0,teleportCooldown-dt);
+      const teleport=!teleportCooldown&&map.teleports?.find(t=>sourceTriggerCrossing(previous,player,t,player.ducked?54:72));
+      if(teleport){
+        Object.assign(player,teleport.destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ladderNormal:null,ducked:false,duckAmount:0});
+        teleportCooldown=.08;return [{type:'teleport',target:teleport.target,destination:teleport.destination}];
+      }
       const portal=map.portals?.find(p=>p.from===current&&sourceTriggerCrossing(previous,player,p,player.ducked?54:72));
       if(portal){
         current=portal.to;const spawn=map.spawns[current];
@@ -102,7 +119,7 @@ function createParkourRuntime(map) {
         if(!crossing||crossing.enter<lastTime)break;
         lastTime=crossing.enter;events.push({type:'checkpoint',stage:++current});
       }
-      if(map.finishPad!==null&&current===map.spawns.length-1&&!finished&&activation(previous,player,map.boxes[map.finishPad])){
+      if(map.finishPad!==null&&current===map.spawns.length-1&&!finished&&activation(previous,player,map.finishArea||map.boxes[map.finishPad])){
         finished=true;events.push({type:'finish'});return events;
       }
       if(player.y<map.sectionFalls[current]){events.push({type:'respawn',stage:current});return events;}

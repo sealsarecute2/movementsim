@@ -1,4 +1,5 @@
 import { BLACK_HOLE_DIRECTION } from './skybox.js';
+import { brushSurface } from './geometry.js';
 
 const unitLight=vector=>{const length=Math.hypot(...vector);return vector.map(n=>n/length);};
 const FIXED_LIGHT=unitLight([-.45,.85,.27]);
@@ -19,14 +20,16 @@ export function projectPlayerShadow(player,boxes,light) {
   const duck=Math.max(0,Math.min(1,player.duckAmount||0)),x=player.x,z=player.z;
   let hit=null,nearest=Infinity;
   for(const box of boxes) {
-    if(box.ladder||box.max[1]>player.y+.1)continue;
-    const gap=Math.max(0,player.y-box.max[1]);
+    if(box.ladder)continue;
+    const surface=box.planes?brushSurface(box,x,z,0,0):{height:box.max[1],normal:[0,1,0]};
+    if(!surface||surface.height>player.y+.1)continue;
+    const gap=Math.max(0,player.y-surface.height);
     if(gap>900||gap>=nearest)continue;
     const radius=19-duck*2+Math.min(24,gap*.065);
     const dx=x-Math.max(box.min[0],Math.min(box.max[0],x)),dz=z-Math.max(box.min[2],Math.min(box.max[2],z));
     if(dx*dx+dz*dz>=radius*radius)continue;
     nearest=gap;
-    hit={x,y:box.max[1],z,radius,opacity:.48*Math.min(1,light.power)*Math.exp(-gap/280)};
+    hit={x,y:surface.height,z,normal:surface.normal,radius,opacity:.48*Math.min(1,light.power)*Math.exp(-gap/280)};
   }
   return hit;
 }

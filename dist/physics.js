@@ -1,6 +1,7 @@
 // Independent Source-style movement recreation. No Valve code or assets included.
 // Projected air acceleration follows the model in Valve's public Source SDK.
 // CS2 subtick timing / landing penalties are approximated, not engine-identical.
+import { hullPlaneDistance, brushHullOverlap, brushSurface } from './geometry.js';
 export const DT = 1 / 256;
 export const RULES = Object.freeze({
   gravity: 800, jump: 301.993377, accelerate: 5.5, airAccelerate: 12,
@@ -63,16 +64,13 @@ function overlaps(a, b) {
   return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
 }
 function planeExtent(plane,height) {
-  const n=plane.normal;
-  return plane.distance+16*(Math.abs(n[0])+Math.abs(n[2]))-Math.min(0,n[1])*height;
+  return hullPlaneDistance(plane,height);
 }
 function brushOverlap(p,brush) {
-  const height=p.ducked?54:72;
-  return brush.planes.every(plane=>p.x*plane.normal[0]+p.y*plane.normal[1]+p.z*plane.normal[2]<planeExtent(plane,height)-EPS);
+  return brushHullOverlap(p,brush,p.ducked?54:72);
 }
 function supportHeight(p,box) {
-  if(!box.planes)return box.max[1];
-  return Math.min(...box.planes.filter(plane=>plane.normal[1]>.7).map(plane=>(planeExtent(plane,p.ducked?54:72)-p.x*plane.normal[0]-p.z*plane.normal[2])/plane.normal[1]));
+  return brushSurface(box,p.x,p.z,16,p.ducked?54:72)?.height??-Infinity;
 }
 function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
 export function support(p, boxes, distance = 0.08) {
@@ -80,7 +78,7 @@ export function support(p, boxes, distance = 0.08) {
   if(boxes.some(b=>b.planes))return boxes.find(b=>{
     if(b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
     const top=supportHeight(p,b);
-    return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance&&(!b.planes||b.planes.every(plane=>plane.normal[1]>.7||p.x*plane.normal[0]+top*plane.normal[1]+p.z*plane.normal[2]<=planeExtent(plane,p.ducked?54:72)+EPS));
+    return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance;
   });
   return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
@@ -97,6 +95,9 @@ function sweep(p, delta, boxes, includeLadders = false) {
       let enter=-Infinity,leave=1,normal=null,valid=true;
       for(const plane of b.planes) {
         const n=plane.normal,start=p.x*n[0]+p.y*n[1]+p.z*n[2]-planeExtent(plane,height),motion=delta[0]*n[0]+delta[1]*n[1]+delta[2]*n[2];
+        // Touching a surface while moving along/away from it is not entry.
+        // Otherwise coplanar brush seams act like invisible vertical walls.
+        if(start>=-EPS&&motion>=-1e-12){valid=false;break;}
         if(Math.abs(motion)<1e-12){if(start>EPS){valid=false;break;}continue;}
         const time=-start/motion;
         if(motion<0){if(time>enter){enter=time;normal=n;}}else leave=Math.min(leave,time);
@@ -264,7 +265,12 @@ export function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   if (!p.grounded) p.vy -= RULES.gravity * dt / 2;
   const result = move(p, dt, boxes, wasGrounded);
   if (!wasGrounded) p.vy -= RULES.gravity * dt / 2;
-  const landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
+  let landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
+  // Follow descending ramps and small steps while walking. A jump never snaps.
+  if(!landed&&wasGrounded&&p.vy<=0){
+    const down=sweep(p,[0,-RULES.stepHeight,0],boxes);
+    if(down.box&&down.normal[1]>.7){p.y-=RULES.stepHeight*down.t;landed=down.box;}
+  }
   if (landed) {
     p.grounded = true; p.vy = 0; p.y = supportHeight(p,landed); p.groundBox = landed;
     if (!wasGrounded) {

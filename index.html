@@ -455,6 +455,150 @@ body:not(.playing) .room-leaderboard { visibility:hidden; }
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
   <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module">
+// Untextured convex solids shared by the importer, renderer and player hull.
+// A curved brush is a polygonal solid; its original facets stay intact.
+const GEOMETRY_EPS = 1e-5;
+const geometryFaces = new WeakMap();
+const geometryDot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const geometryCross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const isShapedBrush = box => !!box.planes?.some(p=>p.normal.some(n=>Math.abs(n)>GEOMETRY_EPS&&Math.abs(n)<1-GEOMETRY_EPS));
+
+function boxPlanes(box) {
+  return [0,1,2].flatMap(axis=>[1,-1].map(sign=>({normal:[0,1,2].map(i=>i===axis?sign:0),distance:sign>0?box.max[axis]:-box.min[axis]})));
+}
+
+function clipGeometryFace(points,plane) {
+  const result=[];
+  for(let i=0;i<points.length;i++) {
+    const a=points[i],b=points[(i+1)%points.length],da=geometryDot(a,plane.normal)-plane.distance,db=geometryDot(b,plane.normal)-plane.distance;
+    if(da<=GEOMETRY_EPS)result.push(a);
+    if(da>GEOMETRY_EPS&&db<-GEOMETRY_EPS||da<-GEOMETRY_EPS&&db>GEOMETRY_EPS) {
+      const t=da/(da-db);result.push(a.map((v,j)=>v+(b[j]-v)*t));
+    }
+  }
+  return result.filter((p,i)=>Math.hypot(...p.map((v,j)=>v-result[(i+result.length-1)%result.length][j]))>GEOMETRY_EPS);
+}
+
+function convexFaces(box) {
+  if(geometryFaces.has(box))return geometryFaces.get(box);
+  const planes=box.planes||boxPlanes(box),extent=Math.max(131072,...planes.map(p=>Math.abs(p.distance)*4));
+  const faces=[];
+  for(const plane of planes) {
+    const n=plane.normal,axis=Math.abs(n[1])<.9?[0,1,0]:[1,0,0];
+    let u=geometryCross(axis,n);const length=Math.hypot(...u);u=u.map(v=>v/length);
+    const v=geometryCross(n,u),centre=n.map(t=>t*plane.distance);
+    let points=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([a,b])=>centre.map((t,j)=>t+extent*(a*u[j]+b*v[j])));
+    for(const other of planes)if(other!==plane&&points.length)points=clipGeometryFace(points,other);
+    if(points.length<3)continue;
+    // An open or corrupt hull must not generate an enormous fake platform.
+    if(points.some(p=>Math.abs(geometryDot(p.map((t,j)=>t-centre[j]),u))>extent-1||Math.abs(geometryDot(p.map((t,j)=>t-centre[j]),v))>extent-1))throw Error('The map contains an open collision shape.');
+    const area=points.slice(1,-1).reduce((sum,p,i)=>sum+Math.hypot(...geometryCross(p.map((t,j)=>t-points[0][j]),points[i+2].map((t,j)=>t-points[0][j]))),0);
+    if(area>GEOMETRY_EPS)faces.push({normal:n,distance:plane.distance,points});
+  }
+  geometryFaces.set(box,faces);return faces;
+}
+
+function makeConvexBrush(input) {
+  if(!Array.isArray(input)||input.length<4||input.length>512)throw Error('Unsupported collision shape.');
+  const planes=[];
+  for(const p of input) {
+    if(!p||!Array.isArray(p.normal)||p.normal.length!==3||!p.normal.every(Number.isFinite)||!Number.isFinite(p.distance))throw Error('Invalid collision planes.');
+    const length=Math.hypot(...p.normal);
+    if(length<1e-6||Math.abs(p.distance/length)>1000000)throw Error('Invalid collision planes.');
+    const normal=p.normal.map(n=>n/length),distance=p.distance/length;
+    const duplicate=planes.find(q=>normal.every((n,i)=>Math.abs(n-q.normal[i])<1e-7));
+    if(duplicate)duplicate.distance=Math.min(duplicate.distance,distance);else planes.push({normal,distance});
+  }
+  const brush={planes},min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+  // Most brushes are boxes. Avoid polygon clipping for this common case.
+  if(!isShapedBrush(brush)) {
+    min.fill(-Infinity);max.fill(Infinity);
+    for(const p of planes){const axis=p.normal.findIndex(n=>Math.abs(n)>.99999);if(p.normal[axis]>0)max[axis]=Math.min(max[axis],p.distance);else min[axis]=Math.max(min[axis],-p.distance);}
+  } else {
+    const faces=convexFaces(brush);
+    if(faces.length<4)throw Error('The map contains an empty collision shape.');
+    for(const face of faces)for(const point of face.points)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
+    // Hull/brush edge bevels make the swept square player exact at corners.
+    // Reconstruct them too when a rotated model has no world-axis bevels.
+    const points=faces.flatMap(f=>f.points);
+    const addAxis=normal=>{
+      const length=Math.hypot(...normal);if(length<1e-7)return;
+      normal=normal.map(n=>n/length);
+      if(planes.some(p=>normal.every((n,i)=>Math.abs(n-p.normal[i])<1e-6)))return;
+      planes.push({normal,distance:Math.max(...points.map(p=>geometryDot(p,normal)))});
+    };
+    for(let i=0;i<3;i++)for(const sign of [-1,1])addAxis([0,1,2].map(j=>i===j?sign:0));
+    for(const face of faces)for(let i=0;i<face.points.length;i++) {
+      const edge=face.points[(i+1)%face.points.length].map((v,j)=>v-face.points[i][j]);
+      for(const axis of [[1,0,0],[0,1,0],[0,0,1]]){const n=geometryCross(edge,axis);addAxis(n);addAxis(n.map(v=>-v));}
+    }
+  }
+  if(min.some((n,i)=>!Number.isFinite(n)||!Number.isFinite(max[i])||max[i]-n<GEOMETRY_EPS))throw Error('The map contains an empty collision shape.');
+  brush.min=min;brush.max=max;return brush;
+}
+
+function hullPlaneDistance(plane,height=72,radius=16) {
+  const n=plane.normal;return plane.distance+radius*(Math.abs(n[0])+Math.abs(n[2]))-Math.min(0,n[1])*height;
+}
+
+function brushHullOverlap(player,box,height=72,radius=16) {
+  const p=[player.x,player.y,player.z];
+  if(p.some((v,i)=>v+(i===1?height:radius)<=box.min[i]+GEOMETRY_EPS||v-(i===1?0:radius)>=box.max[i]-GEOMETRY_EPS))return false;
+  return !box.planes||box.planes.every(plane=>geometryDot(p,plane.normal)<hullPlaneDistance(plane,height,radius)-GEOMETRY_EPS);
+}
+
+// The highest actual contact under a hull, including sloping tops. Side and
+// bevel constraints reject empty corners of wedges and polygonal cylinders.
+function brushSurface(box,x,z,radius=16,height=72,minUp=.7) {
+  if(x+radius<=box.min[0]+GEOMETRY_EPS||x-radius>=box.max[0]-GEOMETRY_EPS||z+radius<=box.min[2]+GEOMETRY_EPS||z-radius>=box.max[2]-GEOMETRY_EPS)return null;
+  if(!box.planes)return {height:box.max[1],normal:[0,1,0]};
+  let y=Infinity,normal=null;
+  for(const plane of box.planes)if(plane.normal[1]>GEOMETRY_EPS) {
+    const top=(hullPlaneDistance(plane,height,radius)-x*plane.normal[0]-z*plane.normal[2])/plane.normal[1];
+    if(top<y){y=top;normal=plane.normal;}
+  }
+  if(!normal||normal[1]<minUp||!Number.isFinite(y)||box.planes.some(plane=>x*plane.normal[0]+y*plane.normal[1]+z*plane.normal[2]>hullPlaneDistance(plane,height,radius)+.0001))return null;
+  return {height:y,normal};
+}
+
+function safeGeometrySpawn(point,boxes,maxDrop=512) {
+  for(const [dx,dz] of [[0,0],...Array.from({length:3},(_,i)=>(i+1)*32).flatMap(r=>[[r,0],[-r,0],[0,r],[0,-r],[r,r],[-r,r],[r,-r],[-r,-r]])]) {
+    const x=point.x+dx,z=point.z+dz;
+    const candidates=boxes.filter(b=>!b.ladder).map(box=>({box,surface:brushSurface(box,x,z)}))
+      .filter(c=>c.surface&&c.surface.height<=point.y+18&&c.surface.height>=point.y-maxDrop).sort((a,b)=>b.surface.height-a.surface.height);
+    for(const {box,surface} of candidates) {
+      const spawn={...point,x,y:surface.height,z,pitch:0};
+      if(!boxes.some(b=>!b.ladder&&brushHullOverlap(spawn,b)))return {spawn,box};
+    }
+  }
+  throw Error('No clear standing space was found near the map spawn.');
+}
+
+// Extrude each upward face vertically to form an accurate checkpoint volume.
+const geometryCheckpointVolumes=new WeakMap();
+function brushCheckpointVolumes(box) {
+  if(!isShapedBrush(box))return [{min:[box.min[0],box.max[1]-.01,box.min[2]],max:[box.max[0],box.max[1]+96,box.max[2]]}];
+  if(geometryCheckpointVolumes.has(box))return geometryCheckpointVolumes.get(box);
+  const volumes=convexFaces(box).filter(f=>f.normal[1]>.7).map(face=>{
+    const n=face.normal,planes=[{normal:n,distance:face.distance+96*n[1]},{normal:n.map(v=>-v),distance:-face.distance+.01*n[1]}];
+    for(let i=0;i<face.points.length;i++) {
+      const a=face.points[i],b=face.points[(i+1)%face.points.length],normal=[a[2]-b[2],0,b[0]-a[0]];
+      planes.push({normal,distance:geometryDot(normal,a)});
+    }
+    return {planes};
+  });
+  geometryCheckpointVolumes.set(box,volumes);return volumes;
+}
+
+function buildBrushMesh(box,base=.46) {
+  const data=[],rgb=Array.isArray(base)?base:[base,base,base];
+  for(const {normal,points} of convexFaces(box)) {
+    const top=normal[1]>.7?1:0,shade=.76+.36*Math.max(0,normal[1])+.38*Math.min(0,normal[1])+.075*normal[0]+.075*normal[2];
+    for(let i=1;i<points.length-1;i++)for(const point of [points[0],points[i],points[i+1]])data.push(...point,...rgb,top,...normal,shade);
+  }
+  return data;
+}
+
 
 // Each section ends on the same safe deck, so any two section types connect.
 // x, z, width, depth, height, walk, crouch. Coordinates are relative to a deck.
@@ -785,16 +929,13 @@ function overlaps(a, b) {
   return a.min.every((v, i) => v < b.max[i] - EPS && a.max[i] > b.min[i] + EPS);
 }
 function planeExtent(plane,height) {
-  const n=plane.normal;
-  return plane.distance+16*(Math.abs(n[0])+Math.abs(n[2]))-Math.min(0,n[1])*height;
+  return hullPlaneDistance(plane,height);
 }
 function brushOverlap(p,brush) {
-  const height=p.ducked?54:72;
-  return brush.planes.every(plane=>p.x*plane.normal[0]+p.y*plane.normal[1]+p.z*plane.normal[2]<planeExtent(plane,height)-EPS);
+  return brushHullOverlap(p,brush,p.ducked?54:72);
 }
 function supportHeight(p,box) {
-  if(!box.planes)return box.max[1];
-  return Math.min(...box.planes.filter(plane=>plane.normal[1]>.7).map(plane=>(planeExtent(plane,p.ducked?54:72)-p.x*plane.normal[0]-p.z*plane.normal[2])/plane.normal[1]));
+  return brushSurface(box,p.x,p.z,16,p.ducked?54:72)?.height??-Infinity;
 }
 function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
 function support(p, boxes, distance = 0.08) {
@@ -802,7 +943,7 @@ function support(p, boxes, distance = 0.08) {
   if(boxes.some(b=>b.planes))return boxes.find(b=>{
     if(b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
     const top=supportHeight(p,b);
-    return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance&&(!b.planes||b.planes.every(plane=>plane.normal[1]>.7||p.x*plane.normal[0]+top*plane.normal[1]+p.z*plane.normal[2]<=planeExtent(plane,p.ducked?54:72)+EPS));
+    return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance;
   });
   return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
@@ -819,6 +960,9 @@ function sweep(p, delta, boxes, includeLadders = false) {
       let enter=-Infinity,leave=1,normal=null,valid=true;
       for(const plane of b.planes) {
         const n=plane.normal,start=p.x*n[0]+p.y*n[1]+p.z*n[2]-planeExtent(plane,height),motion=delta[0]*n[0]+delta[1]*n[1]+delta[2]*n[2];
+        // Touching a surface while moving along/away from it is not entry.
+        // Otherwise coplanar brush seams act like invisible vertical walls.
+        if(start>=-EPS&&motion>=-1e-12){valid=false;break;}
         if(Math.abs(motion)<1e-12){if(start>EPS){valid=false;break;}continue;}
         const time=-start/motion;
         if(motion<0){if(time>enter){enter=time;normal=n;}}else leave=Math.min(leave,time);
@@ -986,7 +1130,12 @@ function step(p, input, boxes, mode = PRESETS.classic, dt = DT) {
   if (!p.grounded) p.vy -= RULES.gravity * dt / 2;
   const result = move(p, dt, boxes, wasGrounded);
   if (!wasGrounded) p.vy -= RULES.gravity * dt / 2;
-  const landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
+  let landed = result.groundBox || (p.vy <= 0 && support(p, boxes));
+  // Follow descending ramps and small steps while walking. A jump never snaps.
+  if(!landed&&wasGrounded&&p.vy<=0){
+    const down=sweep(p,[0,-RULES.stepHeight,0],boxes);
+    if(down.box&&down.normal[1]>.7){p.y-=RULES.stepHeight*down.t;landed=down.box;}
+  }
   if (landed) {
     p.grounded = true; p.vy = 0; p.y = supportHeight(p,landed); p.groundBox = landed;
     if (!wasGrounded) {
@@ -1297,14 +1446,16 @@ function projectPlayerShadow(player,boxes,light) {
   const duck=Math.max(0,Math.min(1,player.duckAmount||0)),x=player.x,z=player.z;
   let hit=null,nearest=Infinity;
   for(const box of boxes) {
-    if(box.ladder||box.max[1]>player.y+.1)continue;
-    const gap=Math.max(0,player.y-box.max[1]);
+    if(box.ladder)continue;
+    const surface=box.planes?brushSurface(box,x,z,0,0):{height:box.max[1],normal:[0,1,0]};
+    if(!surface||surface.height>player.y+.1)continue;
+    const gap=Math.max(0,player.y-surface.height);
     if(gap>900||gap>=nearest)continue;
     const radius=19-duck*2+Math.min(24,gap*.065);
     const dx=x-Math.max(box.min[0],Math.min(box.max[0],x)),dz=z-Math.max(box.min[2],Math.min(box.max[2],z));
     if(dx*dx+dz*dz>=radius*radius)continue;
     nearest=gap;
-    hit={x,y:box.max[1],z,radius,opacity:.48*Math.min(1,light.power)*Math.exp(-gap/280)};
+    hit={x,y:surface.height,z,normal:surface.normal,radius,opacity:.48*Math.min(1,light.power)*Math.exp(-gap/280)};
   }
   return hit;
 }
@@ -1353,7 +1504,7 @@ function buildSignMesh(board) {
   return vertices;
 }
 
-// Keep the playable route and use the same simple blocks as the native maps.
+// Keep the curated playable route, preserving the shape of angled brushes.
 // Original teleport-pad footprints identify jumping surfaces, not decorations.
 function makeParkourMap(source) {
   const resetTarget=stage=>stage.resetTarget||stage.target;
@@ -1381,9 +1532,10 @@ function makeParkourMap(source) {
   const originalToBlock=new Map(),blocks=[];
   const addOriginal=original=>{
     if(originalToBlock.has(original))return originalToBlock.get(original);
-    const block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
+    let block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
     const limit=routeLimit(original);
     if(limit){block.min[2]=Math.max(block.min[2],limit.minZ);block.max[2]=Math.min(block.max[2],limit.maxZ);}
+    if(isShapedBrush(original))block=makeConvexBrush([...original.planes,...(limit?boxPlanes({min:[original.min[0],original.min[1],block.min[2]],max:[original.max[0],original.max[1],block.max[2]]}):[])]);
     blocks.push(block);originalToBlock.set(original,block);return block;
   };
   // Keep stairs, beams and ordinary final-stage platforms too. Their tops sit
@@ -1397,7 +1549,7 @@ function makeParkourMap(source) {
     const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
     const width=original.max[0]-original.min[0],depth=original.max[2]-original.min[2];
     const maximum=source.exitTargets?1024:512;
-    if(!((width<=maximum&&depth<=maximum)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.999))continue;
+    if(!((width<=maximum&&depth<=maximum)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.7))continue;
     if(source.exitTargets&&source.stages.some((stage,i)=>{
       const spawn=source.spawns[i],exit=source.destinations.get(source.exitTargets[i]);if(!exit)return false;
       const floors=basins.filter(t=>t.target===resetTarget(stage));
@@ -1410,9 +1562,9 @@ function makeParkourMap(source) {
       return x>=t.min[0]&&x<=t.max[0]&&z>=t.min[2]&&z<=t.max[2]&&original.max[1]>t.max[1]+.01&&original.max[1]<=upper;
     }))addOriginal(original);
   }
-  if(!anchors.length&&!basins.length)for(const b of source.boxes)if(b.max[0]-b.min[0]<=1024&&b.max[2]-b.min[2]<=1024&&b.max[1]-b.min[1]<=512&&b.planes.some(p=>p.normal[1]>.999))addOriginal(b);
+  if(!anchors.length&&!basins.length)for(const b of source.boxes)if(b.max[0]-b.min[0]<=1024&&b.max[2]-b.min[2]<=1024&&b.max[1]-b.min[1]<=512&&b.planes.some(p=>p.normal[1]>.7))addOriginal(b);
   function blockAt(point,fallback=null) {
-    const candidates=source.boxes.filter(b=>(!source.routeSurfacesOnly||b.topVisible)&&point.x>=b.min[0]-.01&&point.x<=b.max[0]+.01&&point.z>=b.min[2]-.01&&point.z<=b.max[2]+.01&&point.y>=b.max[1]-.1&&point.y-b.max[1]<=32)
+    const candidates=source.boxes.filter(b=>{const surface=brushSurface(b,point.x,point.z);return (!source.routeSurfacesOnly||b.topVisible)&&surface&&point.y>=surface.height-.1&&point.y-surface.height<=32;})
       .sort((a,b)=>b.max[1]-a.max[1]||(a.max[0]-a.min[0])*(a.max[2]-a.min[2])-(b.max[0]-b.min[0])*(b.max[2]-b.min[2]));
     const original=candidates[0];
     if(originalToBlock.has(original)&&original)return originalToBlock.get(original);
@@ -1426,6 +1578,7 @@ function makeParkourMap(source) {
   const checkpointPads=source.spawns.map(spawn=>blockAt(spawn));
   const spawns=source.spawns.map((spawn,i)=>{
     const pad=checkpointPads[i],clamp=(n,a,b)=>Math.max(a+17,Math.min(b-17,n));
+    if(isShapedBrush(pad))return safeGeometrySpawn(spawn,[pad]).spawn;
     return {...spawn,x:clamp(spawn.x,pad.min[0],pad.max[0]),y:pad.max[1],z:clamp(spawn.z,pad.min[2],pad.max[2]),pitch:0};
   });
   for(const [i,pad] of checkpointPads.entries()){
@@ -1459,9 +1612,34 @@ function makeParkourMap(source) {
     ...(portals.length?{portals:portals.map(({pad,...portal})=>({...portal,exitPad:blocks.indexOf(pad)}))}:{})});
 }
 
+// Unknown uploads have no hand-authored route metadata. Keep their complete
+// static geometry rather than guessing which ramps, floors or pillars to drop.
+function makeImportedGeometryMap(source) {
+  const boxes=source.boxes.map(b=>isShapedBrush(b)?b:{min:[...b.min],max:[...b.max]});
+  const start=safeGeometrySpawn(source.spawns[0],boxes),spawns=[start.spawn];
+  start.box.label='START';boxes.splice(boxes.indexOf(start.box),1);boxes.unshift(start.box);
+  let finishPad=null,finishArea=null;
+  if(source.finish){
+    try{
+      const finish=safeGeometrySpawn(source.finish,boxes),{x,y,z}=finish.spawn;
+      const area={min:[x-48,finish.box.min[1],z-48],max:[x+48,Math.max(y,finish.box.max[1]),z+48]};
+      finishArea=isShapedBrush(finish.box)?makeConvexBrush([...finish.box.planes,...boxPlanes(area)]):{min:[Math.max(area.min[0],finish.box.min[0]),y-120,Math.max(area.min[2],finish.box.min[2])],max:[Math.min(area.max[0],finish.box.max[0]),y,Math.min(area.max[2],finish.box.max[2])]};
+      finishArea.finish=true;finishPad=boxes.indexOf(finish.box);
+    }catch{/* A decorative or inaccessible destination is not a finish pad. */}
+  }
+  return hydrateParkourMap({id:source.id,title:source.title,revision:source.revision||2,importedGeometry:true,boxes,spawns,
+    stages:[{title:source.title,tip:'Original brush shapes. Space to hop; E returns to the start. Q restarts.'}],checkpointPads:[0],finishPad,finishArea,
+    sectionFalls:[Math.min(...boxes.map(b=>b.min[1]))-256],
+    boosts:(source.triggers||[]).filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&!t.filtername&&Number.isFinite(Number(t.speed))).map(t=>({min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed})),
+    teleports:(source.triggers||[]).filter(t=>t.classname==='trigger_teleport'&&t.StartDisabled!=='1'&&!t.filtername&&source.destinations?.has(t.target)&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(source.destinations.get(t.target)[k]))).map(t=>({min:t.min,max:t.max,target:t.target,destination:source.destinations.get(t.target)}))});
+}
+
 function hydrateParkourMap(data) {
   if(!data||!Array.isArray(data.boxes)||!data.boxes.length||!Array.isArray(data.spawns)||data.spawns.length!==data.stages?.length||data.boxes.length>20000)throw Error('Invalid parkour map.');
-  for(const box of data.boxes)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
+  const solids=data.finishArea?[...data.boxes,data.finishArea]:data.boxes;
+  for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
+  // Reconstruct cached geometry after JSON/session restore and validate planes.
+  for(const box of solids)if(box.planes){const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');
@@ -1536,7 +1714,7 @@ async function unpackSourceArchive(input) {
 async function loadSourceMap(input,options={}) {
   const bytes=await unpackSourceArchive(input);
   const map=parseSourceBsp(bytes,{...options,geometryOnly:true});
-  return makeParkourMap(map);
+  return options.stageTargets?makeParkourMap(map):makeImportedGeometryMap(map);
 }
 
 function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',routeSurfacesOnly=false,routeBands=null,geometryOnly=false}={}) {
@@ -1583,33 +1761,44 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
     }
     return found;
   }
-  function collisionBrush(index,offset=[0,0,0]) {
+  function collisionBrush(index,modelIndex=0) {
     const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
+    if(brush.first<0||brush.count<4||brush.count>512||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
     const brushSides=sides.slice(brush.first,brush.first+brush.count);
-    const boundary=brushSides.map(s=>planes[s.plane]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
-    if(boundary.some(p=>!p||!Number.isFinite(p.distance)))throw Error('Invalid collision planes.');
-    const min=[-Infinity,-Infinity,-Infinity],max=[Infinity,Infinity,Infinity];
-    for(const p of boundary)for(let a=0;a<3;a++)if(Math.abs(Math.abs(p.normal[a])-1)<1e-5&&p.normal.every((n,i)=>i===a||Math.abs(n)<1e-5)) {
-      if(p.normal[a]>0)max[a]=Math.min(max[a],p.distance);else min[a]=Math.max(min[a],-p.distance);
-    }
-    if([...min,...max].some(n=>!Number.isFinite(n))||min.some((n,i)=>n>=max[i]))return null;
+    const offset=modelOffset(modelIndex),boundary=brushSides.map(s=>{
+      const p=planes[s.plane];if(!p)throw Error('Invalid collision planes.');
+      const normal=modelVector(modelIndex,p.normal);
+      return {normal,distance:p.distance+normal.reduce((sum,n,i)=>sum+n*offset[i],0)};
+    });
+    let shape;
+    try{shape=makeConvexBrush(boundary);}catch(error){if(/empty collision shape/.test(error.message))return null;throw error;}
     // Room walls and ceilings have hidden upper faces. Do not turn those
     // invisible caps into walkable platforms in a route-only import.
     const topVisible=brushSides.some(s=>{
       const texture=texinfo[s.texture],material=materials[texture?.material];
-      return planes[s.plane]?.normal[1]>.999&&texture&&!(texture.flags&(0x80|0x4|0x2))&&material&&!/^tools\//i.test(material.name);
+      return modelVector(modelIndex,planes[s.plane].normal)[1]>.7&&texture&&!(texture.flags&(0x80|0x4|0x2))&&material&&!/^tools\//i.test(material.name);
     });
-    return {min,max,planes:boundary,...(routeSurfacesOnly?{topVisible}:{})};
+    return {...shape,...(routeSurfacesOnly?{topVisible}:{})};
   }
   const modelEntities=new Map(entities.filter(e=>/^\*\d+$/.test(e.model||'')).map(e=>[Number(e.model.slice(1)),e]));
   const modelOffset=index=>index?sourcePoint(sourceVector(modelEntities.get(index)?.origin)):[0,0,0];
+  const modelVector=(index,vector)=>{
+    if(!index)return vector;
+    const [pitch,yaw,roll]=sourceVector(modelEntities.get(index)?.angles).map(a=>a*Math.PI/180);
+    const [x,z,negativeY]=vector,y=-negativeY;
+    const cr=Math.cos(roll),sr=Math.sin(roll),cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);
+    const ry=y*cr-z*sr,rz=y*sr+z*cr,rx=x*cp+rz*sp;
+    return sourcePoint([rx*cy-ry*sy,rx*sy+ry*cy,-x*sp+rz*cp]);
+  };
   const entityBounds=e=>{
     const index=Number(e.model.slice(1)),model=models[index];if(!model)return null;
-    const offset=modelOffset(index);return {min:model.min.map((n,i)=>n+offset[i]),max:model.max.map((n,i)=>n+offset[i])};
+    const offset=modelOffset(index),corners=[];
+    for(const x of [model.min[0],model.max[0]])for(const y of [model.min[1],model.max[1]])for(const z of [model.min[2],model.max[2]])corners.push(modelVector(index,[x,y,z]).map((v,i)=>v+offset[i]));
+    return {min:[0,1,2].map(i=>Math.min(...corners.map(c=>c[i]))),max:[0,1,2].map(i=>Math.max(...corners.map(c=>c[i])))};
   };
   const solidModels=new Set([0]);
   for(const [index,e] of modelEntities)if(['func_brush','func_wall','func_button','func_door','func_breakable','func_detail'].includes(e.classname)&&e.StartDisabled!=='1'&&e.Solidity!=='1')solidModels.add(index);
-  const boxes=[];for(const index of solidModels)for(const b of modelBrushes(index)){const brush=collisionBrush(b,modelOffset(index));if(brush)boxes.push(brush);}
+  const boxes=[];for(const index of solidModels)for(const b of modelBrushes(index)){const brush=collisionBrush(b,index);if(brush)boxes.push(brush);}
   if(!boxes.length)throw Error('No supported solid geometry was found in this map.');
   const batches=new Map();
   // Trigger volumes are invisible. Their model geometry must not become walls.
@@ -1620,21 +1809,21 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
     for(let f=model.first;f<model.first+model.count;f++) {
       const face=faces[f],tex=texinfo[face?.texture];
       if(!tex||face.count<3||(tex.flags&(0x80|0x4|0x2))||!materials[tex.material]||/^tools\//i.test(materials[tex.material].name))continue;
-      const normal=planes[face.plane]?.normal||[0,1,0];
+      const normal=modelVector(index,planes[face.plane]?.normal||[0,1,0]);
       const shade=.7+.3*Math.max(0,normal[1]*(face.side?-1:1));
       let batch=batches.get(tex.material);if(!batch)batches.set(tex.material,batch=[]);
       const polygon=[];
       for(let j=0;j<face.count;j++) {
         const edge=surfedges[face.first+j],v=vertices[edges[Math.abs(edge)]?.[edge>=0?0:1]];
         if(!v)throw Error('Invalid map face.');
-        polygon.push([...sourcePoint(v).map((n,i)=>n+offset[i]),(v[0]*tex.u[0]+v[1]*tex.u[1]+v[2]*tex.u[2]+tex.u[3])/materials[tex.material].width,(v[0]*tex.v[0]+v[1]*tex.v[1]+v[2]*tex.v[2]+tex.v[3])/materials[tex.material].height,shade]);
+        polygon.push([...modelVector(index,sourcePoint(v)).map((n,i)=>n+offset[i]),(v[0]*tex.u[0]+v[1]*tex.u[1]+v[2]*tex.u[2]+tex.u[3])/materials[tex.material].width,(v[0]*tex.v[0]+v[1]*tex.v[1]+v[2]*tex.v[2]+tex.v[3])/materials[tex.material].height,shade]);
       }
       for(let j=1;j<polygon.length-1;j++)batch.push(...polygon[0],...polygon[j],...polygon[j+1]);
     }
   }
   const mesh=[...batches].map(([material,data])=>({material,data:new Float32Array(data)}));
   const destinations=new Map(entities.filter(e=>e.classname==='info_teleport_destination').map(e=>[e.targetname,sourceSpawn(e)]));
-  const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>e.classname==='info_player_terrorist'||e.classname==='info_player_start')||{origin:'0 0 0'});
+  const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>['info_player_terrorist','info_player_counterterrorist','info_player_start','info_player_deathmatch'].includes(e.classname)&&e.StartDisabled!=='1')||{origin:'0 0 0'});
   const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
   const spawns=targets.map(name=>({...destinations.get(name)||initial}));
   const stages=targets.map((name,i)=>({title:stageTitles?.[i]||(stageTargets?'Section '+name.toUpperCase():title),tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name,...(resetTargets?{resetTarget:resetTargets[i]}:{})}));
@@ -1663,6 +1852,16 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
 // Interpret movement entities only; map strings are never executable code.
 function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
   let enter=0,exit=1;
+  if(box.planes){
+    for(const plane of box.planes){
+      const n=plane.normal,start=from.x*n[0]+from.y*n[1]+from.z*n[2]-hullPlaneDistance(plane,height,radius);
+      const delta=(to.x-from.x)*n[0]+(to.y-from.y)*n[1]+(to.z-from.z)*n[2];
+      if(Math.abs(delta)<1e-9){if(start>0)return null;}
+      else if(delta<0)enter=Math.max(enter,-start/delta);else exit=Math.min(exit,-start/delta);
+      if(enter>exit)return null;
+    }
+    return {enter,exit};
+  }
   for(const [axis,key] of ['x','y','z'].entries()) {
     const low=box.min[axis]-(axis===1?height:radius),high=box.max[axis]+(axis===1?0:radius),delta=to[key]-from[key];
     if(Math.abs(delta)<1e-9){if(from[key]<=low||from[key]>=high)return null;}
@@ -1745,14 +1944,20 @@ function createSourceRuntime(map) {
 }
 
 function createParkourRuntime(map) {
-  let current=0,finished=false;
-  const activation=(from,to,pad)=>sourceTriggerCrossing(from,to,{min:[pad.min[0],pad.max[1]-.01,pad.min[2]],max:[pad.max[0],pad.max[1]+96,pad.max[2]]},0);
+  let current=0,finished=false,teleportCooldown=0;
+  const activation=(from,to,pad)=>brushCheckpointVolumes(pad).map(volume=>sourceTriggerCrossing(from,to,volume,0,0)).filter(Boolean).sort((a,b)=>a.enter-b.enter)[0];
   return {
     get stage(){return current;},
-    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;},
+    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;teleportCooldown=0;},
     interact(){return false;},
     step(player,previous,dt) {
       const events=[];let lastTime=-1;
+      teleportCooldown=Math.max(0,teleportCooldown-dt);
+      const teleport=!teleportCooldown&&map.teleports?.find(t=>sourceTriggerCrossing(previous,player,t,player.ducked?54:72));
+      if(teleport){
+        Object.assign(player,teleport.destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ladderNormal:null,ducked:false,duckAmount:0});
+        teleportCooldown=.08;return [{type:'teleport',target:teleport.target,destination:teleport.destination}];
+      }
       const portal=map.portals?.find(p=>p.from===current&&sourceTriggerCrossing(previous,player,p,player.ducked?54:72));
       if(portal){
         current=portal.to;const spawn=map.spawns[current];
@@ -1764,7 +1969,7 @@ function createParkourRuntime(map) {
         if(!crossing||crossing.enter<lastTime)break;
         lastTime=crossing.enter;events.push({type:'checkpoint',stage:++current});
       }
-      if(map.finishPad!==null&&current===map.spawns.length-1&&!finished&&activation(previous,player,map.boxes[map.finishPad])){
+      if(map.finishPad!==null&&current===map.spawns.length-1&&!finished&&activation(previous,player,map.finishArea||map.boxes[map.finishPad])){
         finished=true;events.push({type:'finish'});return events;
       }
       if(player.y<map.sectionFalls[current]){events.push({type:'respawn',stage:current});return events;}
@@ -1947,7 +2152,7 @@ const WORLD_FRAGMENT_GLSL = `
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     uniform vec3 uAtmosphereSun; uniform vec3 uAtmosphereColour; uniform vec3 uAtmosphereState;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
-    uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
+    uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform vec3 uPlayerShadowNormal; uniform float uShadowOpacity;
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
     ${SKY_ATMOSPHERE_GLSL}
@@ -1969,7 +2174,7 @@ const WORLD_FRAGMENT_GLSL = `
         visibility=galleryVisibility(normal,uLightDirection);
         #endif
         color=vColor*(ambient+uLightColour*diffuse*uLightPower*visibility)+uLightColour*gloss*visibility;
-        if(vTop>0.5&&uShadowOpacity>0.0&&abs(vWorld.y-uPlayerShadow.y)<0.5){
+        if(vTop>0.5&&uShadowOpacity>0.0&&abs(dot(vWorld-uPlayerShadow.xyz,uPlayerShadowNormal))<0.5){
           float distance=length(vWorld.xz-uPlayerShadow.xz)/max(uPlayerShadow.w,1.0);
           float shadow=1.0-smoothstep(0.15,1.0,distance);
           color*=1.0-shadow*uShadowOpacity;
@@ -2011,7 +2216,7 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24],['aNormal',3,28],['aShade',1,40]]
       .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
     const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
-      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
+      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uPlayerShadowNormal','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
       ...(gallery?['uGalleryShadowMatrix','uGalleryShadowMap','uGalleryShadowTexel','uGalleryShadowNormalMatrix']:[])].map(name=>[name,gl.getUniformLocation(program,name)]));
     return {program,attributes,uniforms};
   }
@@ -2035,10 +2240,21 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   let vertices = [], count = 0, currentBoxes = boxes;
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
-    const key=target?[...target.min,...target.max].join(','):'';
+    const key=target?(isShapedBrush(target)?target:[...target.min,...target.max].join(',')):'';
     if(key===glowKey) return;
     glowKey=key;glowCount=0;
     if(!target) return;
+    if(isShapedBrush(target)) {
+      const data=[];
+      for(const face of convexFaces(target).filter(f=>f.normal[1]>.7))for(let i=0;i<face.points.length;i++){
+        const a=face.points[i],b=face.points[(i+1)%face.points.length],dx=b[0]-a[0],dz=b[2]-a[2],length=Math.hypot(dx,dz);
+        if(length<.001)continue;
+        // A narrow luminous strip follows the original surface edge.
+        const n=[-dz/length,dx/length],points=[a,b,b.map((v,j)=>v+(j===0?n[0]*2:j===2?n[1]*2:0)),a.map((v,j)=>v+(j===0?n[0]*2:j===2?n[1]*2:0))];
+        for(const index of [0,1,2,0,2,3]){const p=points[index],y=(face.distance-face.normal[0]*p[0]-face.normal[2]*p[2])/face.normal[1]+.8;data.push(p[0],y,p[2],.045,.42,1,0,...face.normal,1);}
+      }
+      glowCount=data.length/11;bindGeometry(glowBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return;
+    }
     const [x,,z]=target.min,[X,Y,Z]=target.max, y=Y+0.8;
     const data=[],bands=[[-14,0],[-5,0.16],[-1,0.65],[0,1],[1,0.65],[5,0.16],[14,0]];
     for(const [a,b,n] of [[[x,z],[X,z],[0,1]],[[X,z],[X,Z],[1,0]],[[X,Z],[x,Z],[0,1]],[[x,Z],[x,z],[1,0]]]) {
@@ -2090,8 +2306,9 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
         }
         continue;
       }
-      addBox(b,b.roof?0.35:0.46);
-      if(b.label) {
+      if(isShapedBrush(b)){const mesh=buildBrushMesh(b);for(const v of mesh)vertices.push(v);}
+      else addBox(b,b.roof?0.35:0.46);
+      if(b.label&&!isShapedBrush(b)) {
         const cx=(b.min[0]+b.max[0])/2, top=b.max[1]+0.12;
         const start=b.min[2]+20, end=b.max[2]-20;
         // White threshold strips and lane markings remain ordinary untextured boxes.
@@ -2136,6 +2353,7 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const light=captureState?.light||sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
     gl.uniform3f(u.uLightDirection,...light.direction);gl.uniform3f(u.uLightColour,...light.colour);gl.uniform3f(u.uAmbientColour,...light.ambient);gl.uniform1f(u.uLightPower,light.power);
     gl.uniform4f(u.uPlayerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(u.uShadowOpacity,shadow?.opacity||0);
+    gl.uniform3f(u.uPlayerShadowNormal,...(shadow?.normal||[0,1,0]));
     if(captureState){
       gl.uniformMatrix4fv(u.uGalleryShadowMatrix,false,captureState.matrix);
       gl.uniformMatrix3fv(u.uGalleryShadowNormalMatrix,false,captureState.normalMatrix);
@@ -3225,7 +3443,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
   $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
-  $('map-credit').textContent=selected.community?`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`:'';
+  $('map-credit').textContent=selected.community?(boxes.sourceMap?.importedGeometry?'Local import · original brush shapes · untextured geometry.':`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
   if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=!hasLeaderboard(selected.id,selected.revision||1);
@@ -3264,10 +3482,10 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
     const imported=metadata.geometry&&!file?hydrateParkourMap(input):await loadSourceMap(input,metadata);
     if(generation!==sourceLoadGeneration)return;
     MAPS[metadata.id]={id:metadata.id,title:metadata.title,revision:imported.revision||metadata.revision||1,timed:imported.greybox?imported.finishPad!==null:!!imported.finish,community:true,author:metadata.author,source:metadata.source,
-      description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'A locally imported parkour map.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+      description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'An imported map with its original solid brush shapes.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
     chooseMap(metadata.id,true,restore);
     if(restore)restoreSavedRun(pendingRunRestore);pendingRunRestore=null;
-    status.textContent=`${metadata.title} ready. Choose Bhop practice for uncapped movement.`;
+    status.textContent=`${metadata.title} ready.${imported.importedGeometry?' Original brush shapes preserved.':''} Choose Bhop practice for uncapped movement.`;
   } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
@@ -3332,8 +3550,8 @@ function tick() {
       if(event.type==='respawn'){respawns++;reset(false);saveRunCheckpoint();toast('BACK AT CHECKPOINT — TIMER CONTINUES');return;}
       if(event.type==='teleport'){
         previousDraw={...player};
-        const destination=boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>s.x===destination.x&&s.z===destination.z&&s.y===destination.y);
-        if(runActive&&index<=checkpoint)respawns++;
+        const destination=event.destination||boxes.sourceMap.destinations.get(event.target),index=MAPS[map].spawns.findIndex(s=>Math.hypot(s.x-destination.x,s.z-destination.z)<1&&Math.abs(s.y-destination.y)<=18);
+        if(runActive&&index>=0&&index<=checkpoint)respawns++;
       }
       if(event.type==='checkpoint'){checkpoint=event.stage;saveRunCheckpoint();gameAudio?.checkpoint();toast(`${MAPS[map].stages[checkpoint].title.toUpperCase()} SAVED — E TO RETURN`,true);}
       if(event.type==='finish'){finishRun();return;}
@@ -3402,7 +3620,7 @@ function frame(now) {
   }
   const sourcePortal=boxes.sourceMap?.portals?.find(p=>p.from===checkpoint);
   const target=completed?null:endless?endless.platform((checkpoint+1)*8):
-    MAPS[map].timed?(sourcePortal?boxes[sourcePortal.exitPad]:boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.find(b=>b.finish)):null;
+    MAPS[map].timed?(sourcePortal?boxes[sourcePortal.exitPad]:boxes.find(b=>b.checkpoint===checkpoint+1)||boxes.sourceMap?.finishArea||boxes.find(b=>b.finish)):null;
   const galleryVisible=menuMode==='main'&&!overlay.classList.contains('hidden')&&!document.hidden;
   if(rendererReady&&galleryVisible&&capturedMaps<galleryMaps.length&&screenshotCanvas) {
     const i=capturedMaps++, image=slides[i];

@@ -1,4 +1,5 @@
-// Keep the playable route and use the same simple blocks as the native maps.
+import { isShapedBrush, makeConvexBrush, boxPlanes, brushSurface, safeGeometrySpawn } from './geometry.js';
+// Keep the curated playable route, preserving the shape of angled brushes.
 // Original teleport-pad footprints identify jumping surfaces, not decorations.
 export function makeParkourMap(source) {
   const resetTarget=stage=>stage.resetTarget||stage.target;
@@ -26,9 +27,10 @@ export function makeParkourMap(source) {
   const originalToBlock=new Map(),blocks=[];
   const addOriginal=original=>{
     if(originalToBlock.has(original))return originalToBlock.get(original);
-    const block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
+    let block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
     const limit=routeLimit(original);
     if(limit){block.min[2]=Math.max(block.min[2],limit.minZ);block.max[2]=Math.min(block.max[2],limit.maxZ);}
+    if(isShapedBrush(original))block=makeConvexBrush([...original.planes,...(limit?boxPlanes({min:[original.min[0],original.min[1],block.min[2]],max:[original.max[0],original.max[1],block.max[2]]}):[])]);
     blocks.push(block);originalToBlock.set(original,block);return block;
   };
   // Keep stairs, beams and ordinary final-stage platforms too. Their tops sit
@@ -42,7 +44,7 @@ export function makeParkourMap(source) {
     const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
     const width=original.max[0]-original.min[0],depth=original.max[2]-original.min[2];
     const maximum=source.exitTargets?1024:512;
-    if(!((width<=maximum&&depth<=maximum)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.999))continue;
+    if(!((width<=maximum&&depth<=maximum)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.7))continue;
     if(source.exitTargets&&source.stages.some((stage,i)=>{
       const spawn=source.spawns[i],exit=source.destinations.get(source.exitTargets[i]);if(!exit)return false;
       const floors=basins.filter(t=>t.target===resetTarget(stage));
@@ -55,9 +57,9 @@ export function makeParkourMap(source) {
       return x>=t.min[0]&&x<=t.max[0]&&z>=t.min[2]&&z<=t.max[2]&&original.max[1]>t.max[1]+.01&&original.max[1]<=upper;
     }))addOriginal(original);
   }
-  if(!anchors.length&&!basins.length)for(const b of source.boxes)if(b.max[0]-b.min[0]<=1024&&b.max[2]-b.min[2]<=1024&&b.max[1]-b.min[1]<=512&&b.planes.some(p=>p.normal[1]>.999))addOriginal(b);
+  if(!anchors.length&&!basins.length)for(const b of source.boxes)if(b.max[0]-b.min[0]<=1024&&b.max[2]-b.min[2]<=1024&&b.max[1]-b.min[1]<=512&&b.planes.some(p=>p.normal[1]>.7))addOriginal(b);
   function blockAt(point,fallback=null) {
-    const candidates=source.boxes.filter(b=>(!source.routeSurfacesOnly||b.topVisible)&&point.x>=b.min[0]-.01&&point.x<=b.max[0]+.01&&point.z>=b.min[2]-.01&&point.z<=b.max[2]+.01&&point.y>=b.max[1]-.1&&point.y-b.max[1]<=32)
+    const candidates=source.boxes.filter(b=>{const surface=brushSurface(b,point.x,point.z);return (!source.routeSurfacesOnly||b.topVisible)&&surface&&point.y>=surface.height-.1&&point.y-surface.height<=32;})
       .sort((a,b)=>b.max[1]-a.max[1]||(a.max[0]-a.min[0])*(a.max[2]-a.min[2])-(b.max[0]-b.min[0])*(b.max[2]-b.min[2]));
     const original=candidates[0];
     if(originalToBlock.has(original)&&original)return originalToBlock.get(original);
@@ -71,6 +73,7 @@ export function makeParkourMap(source) {
   const checkpointPads=source.spawns.map(spawn=>blockAt(spawn));
   const spawns=source.spawns.map((spawn,i)=>{
     const pad=checkpointPads[i],clamp=(n,a,b)=>Math.max(a+17,Math.min(b-17,n));
+    if(isShapedBrush(pad))return safeGeometrySpawn(spawn,[pad]).spawn;
     return {...spawn,x:clamp(spawn.x,pad.min[0],pad.max[0]),y:pad.max[1],z:clamp(spawn.z,pad.min[2],pad.max[2]),pitch:0};
   });
   for(const [i,pad] of checkpointPads.entries()){
@@ -104,9 +107,34 @@ export function makeParkourMap(source) {
     ...(portals.length?{portals:portals.map(({pad,...portal})=>({...portal,exitPad:blocks.indexOf(pad)}))}:{})});
 }
 
+// Unknown uploads have no hand-authored route metadata. Keep their complete
+// static geometry rather than guessing which ramps, floors or pillars to drop.
+export function makeImportedGeometryMap(source) {
+  const boxes=source.boxes.map(b=>isShapedBrush(b)?b:{min:[...b.min],max:[...b.max]});
+  const start=safeGeometrySpawn(source.spawns[0],boxes),spawns=[start.spawn];
+  start.box.label='START';boxes.splice(boxes.indexOf(start.box),1);boxes.unshift(start.box);
+  let finishPad=null,finishArea=null;
+  if(source.finish){
+    try{
+      const finish=safeGeometrySpawn(source.finish,boxes),{x,y,z}=finish.spawn;
+      const area={min:[x-48,finish.box.min[1],z-48],max:[x+48,Math.max(y,finish.box.max[1]),z+48]};
+      finishArea=isShapedBrush(finish.box)?makeConvexBrush([...finish.box.planes,...boxPlanes(area)]):{min:[Math.max(area.min[0],finish.box.min[0]),y-120,Math.max(area.min[2],finish.box.min[2])],max:[Math.min(area.max[0],finish.box.max[0]),y,Math.min(area.max[2],finish.box.max[2])]};
+      finishArea.finish=true;finishPad=boxes.indexOf(finish.box);
+    }catch{/* A decorative or inaccessible destination is not a finish pad. */}
+  }
+  return hydrateParkourMap({id:source.id,title:source.title,revision:source.revision||2,importedGeometry:true,boxes,spawns,
+    stages:[{title:source.title,tip:'Original brush shapes. Space to hop; E returns to the start. Q restarts.'}],checkpointPads:[0],finishPad,finishArea,
+    sectionFalls:[Math.min(...boxes.map(b=>b.min[1]))-256],
+    boosts:(source.triggers||[]).filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&!t.filtername&&Number.isFinite(Number(t.speed))).map(t=>({min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed})),
+    teleports:(source.triggers||[]).filter(t=>t.classname==='trigger_teleport'&&t.StartDisabled!=='1'&&!t.filtername&&source.destinations?.has(t.target)&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(source.destinations.get(t.target)[k]))).map(t=>({min:t.min,max:t.max,target:t.target,destination:source.destinations.get(t.target)}))});
+}
+
 export function hydrateParkourMap(data) {
   if(!data||!Array.isArray(data.boxes)||!data.boxes.length||!Array.isArray(data.spawns)||data.spawns.length!==data.stages?.length||data.boxes.length>20000)throw Error('Invalid parkour map.');
-  for(const box of data.boxes)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
+  const solids=data.finishArea?[...data.boxes,data.finishArea]:data.boxes;
+  for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
+  // Reconstruct cached geometry after JSON/session restore and validate planes.
+  for(const box of solids)if(box.planes){const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');

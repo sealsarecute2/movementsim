@@ -234,3 +234,14 @@ test('ladders render as cyan rails and rungs on all four climbable faces',t=>{
   }
  }
 });
+
+test('world geometry and checkpoint glow follow the actual convex surface',async t=>{
+ const {makeConvexBrush,boxPlanes}=await import('../dist/geometry.js');
+ const ramp=makeConvexBrush([...boxPlanes({min:[-200,-100,-100],max:[200,100,100]}),{normal:[-.25,1,0],distance:0}]);
+ const f=fixture(t);f.renderer.setBoxes([ramp]);
+ const mesh=f.uploads.at(-1);let slope=0;
+ for(let i=0;i<mesh.length;i+=11)if(mesh[i+7]<-.2&&mesh[i+8]>.9){assert.ok(Math.abs(mesh[i+1]-.25*mesh[i])<.001);slope++;}
+ assert.ok(slope>=6);f.renderer.setShaders(true);f.renderer.draw(f.camera,100,ramp,{x:0,y:4,z:0});
+ const glow=f.uploads.at(-1);for(let i=0;i<glow.length;i+=11)assert.ok(Math.abs(glow[i+1]-.25*glow[i]-.8)<.001);
+ const world=f.draws[0];assert.ok(world.uniforms.uPlayerShadowNormal[0]<-.2);assert.ok(Math.abs(world.uniforms.uPlayerShadow[1])<.001);
+});

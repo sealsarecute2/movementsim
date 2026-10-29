@@ -1,6 +1,7 @@
 // Read original Source 1 maps without rewriting or executing their contents.
 // Binary structures: ValveSoftware/source-sdk-2013/src/public/bspfile.h.
-import { makeParkourMap } from './parkour-map.js';
+import { makeParkourMap, makeImportedGeometryMap } from './parkour-map.js';
+import { makeConvexBrush } from './geometry.js';
 const sourceText = new TextDecoder('windows-1252');
 const sourcePoint = v => [v[0], v[2], -v[1]];
 const sourceVector = s => (s || '0 0 0').trim().split(/\s+/).map(Number);
@@ -46,7 +47,7 @@ export async function unpackSourceArchive(input) {
 export async function loadSourceMap(input,options={}) {
   const bytes=await unpackSourceArchive(input);
   const map=parseSourceBsp(bytes,{...options,geometryOnly:true});
-  return makeParkourMap(map);
+  return options.stageTargets?makeParkourMap(map):makeImportedGeometryMap(map);
 }
 
 export function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',routeSurfacesOnly=false,routeBands=null,geometryOnly=false}={}) {
@@ -93,33 +94,44 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',revisi
     }
     return found;
   }
-  function collisionBrush(index,offset=[0,0,0]) {
+  function collisionBrush(index,modelIndex=0) {
     const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
+    if(brush.first<0||brush.count<4||brush.count>512||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
     const brushSides=sides.slice(brush.first,brush.first+brush.count);
-    const boundary=brushSides.map(s=>planes[s.plane]).map(p=>p&&({normal:p.normal,distance:p.distance+p.normal.reduce((sum,n,i)=>sum+n*offset[i],0)}));
-    if(boundary.some(p=>!p||!Number.isFinite(p.distance)))throw Error('Invalid collision planes.');
-    const min=[-Infinity,-Infinity,-Infinity],max=[Infinity,Infinity,Infinity];
-    for(const p of boundary)for(let a=0;a<3;a++)if(Math.abs(Math.abs(p.normal[a])-1)<1e-5&&p.normal.every((n,i)=>i===a||Math.abs(n)<1e-5)) {
-      if(p.normal[a]>0)max[a]=Math.min(max[a],p.distance);else min[a]=Math.max(min[a],-p.distance);
-    }
-    if([...min,...max].some(n=>!Number.isFinite(n))||min.some((n,i)=>n>=max[i]))return null;
+    const offset=modelOffset(modelIndex),boundary=brushSides.map(s=>{
+      const p=planes[s.plane];if(!p)throw Error('Invalid collision planes.');
+      const normal=modelVector(modelIndex,p.normal);
+      return {normal,distance:p.distance+normal.reduce((sum,n,i)=>sum+n*offset[i],0)};
+    });
+    let shape;
+    try{shape=makeConvexBrush(boundary);}catch(error){if(/empty collision shape/.test(error.message))return null;throw error;}
     // Room walls and ceilings have hidden upper faces. Do not turn those
     // invisible caps into walkable platforms in a route-only import.
     const topVisible=brushSides.some(s=>{
       const texture=texinfo[s.texture],material=materials[texture?.material];
-      return planes[s.plane]?.normal[1]>.999&&texture&&!(texture.flags&(0x80|0x4|0x2))&&material&&!/^tools\//i.test(material.name);
+      return modelVector(modelIndex,planes[s.plane].normal)[1]>.7&&texture&&!(texture.flags&(0x80|0x4|0x2))&&material&&!/^tools\//i.test(material.name);
     });
-    return {min,max,planes:boundary,...(routeSurfacesOnly?{topVisible}:{})};
+    return {...shape,...(routeSurfacesOnly?{topVisible}:{})};
   }
   const modelEntities=new Map(entities.filter(e=>/^\*\d+$/.test(e.model||'')).map(e=>[Number(e.model.slice(1)),e]));
   const modelOffset=index=>index?sourcePoint(sourceVector(modelEntities.get(index)?.origin)):[0,0,0];
+  const modelVector=(index,vector)=>{
+    if(!index)return vector;
+    const [pitch,yaw,roll]=sourceVector(modelEntities.get(index)?.angles).map(a=>a*Math.PI/180);
+    const [x,z,negativeY]=vector,y=-negativeY;
+    const cr=Math.cos(roll),sr=Math.sin(roll),cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);
+    const ry=y*cr-z*sr,rz=y*sr+z*cr,rx=x*cp+rz*sp;
+    return sourcePoint([rx*cy-ry*sy,rx*sy+ry*cy,-x*sp+rz*cp]);
+  };
   const entityBounds=e=>{
     const index=Number(e.model.slice(1)),model=models[index];if(!model)return null;
-    const offset=modelOffset(index);return {min:model.min.map((n,i)=>n+offset[i]),max:model.max.map((n,i)=>n+offset[i])};
+    const offset=modelOffset(index),corners=[];
+    for(const x of [model.min[0],model.max[0]])for(const y of [model.min[1],model.max[1]])for(const z of [model.min[2],model.max[2]])corners.push(modelVector(index,[x,y,z]).map((v,i)=>v+offset[i]));
+    return {min:[0,1,2].map(i=>Math.min(...corners.map(c=>c[i]))),max:[0,1,2].map(i=>Math.max(...corners.map(c=>c[i])))};
   };
   const solidModels=new Set([0]);
   for(const [index,e] of modelEntities)if(['func_brush','func_wall','func_button','func_door','func_breakable','func_detail'].includes(e.classname)&&e.StartDisabled!=='1'&&e.Solidity!=='1')solidModels.add(index);
-  const boxes=[];for(const index of solidModels)for(const b of modelBrushes(index)){const brush=collisionBrush(b,modelOffset(index));if(brush)boxes.push(brush);}
+  const boxes=[];for(const index of solidModels)for(const b of modelBrushes(index)){const brush=collisionBrush(b,index);if(brush)boxes.push(brush);}
   if(!boxes.length)throw Error('No supported solid geometry was found in this map.');
   const batches=new Map();
   // Trigger volumes are invisible. Their model geometry must not become walls.
@@ -130,21 +142,21 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',revisi
     for(let f=model.first;f<model.first+model.count;f++) {
       const face=faces[f],tex=texinfo[face?.texture];
       if(!tex||face.count<3||(tex.flags&(0x80|0x4|0x2))||!materials[tex.material]||/^tools\//i.test(materials[tex.material].name))continue;
-      const normal=planes[face.plane]?.normal||[0,1,0];
+      const normal=modelVector(index,planes[face.plane]?.normal||[0,1,0]);
       const shade=.7+.3*Math.max(0,normal[1]*(face.side?-1:1));
       let batch=batches.get(tex.material);if(!batch)batches.set(tex.material,batch=[]);
       const polygon=[];
       for(let j=0;j<face.count;j++) {
         const edge=surfedges[face.first+j],v=vertices[edges[Math.abs(edge)]?.[edge>=0?0:1]];
         if(!v)throw Error('Invalid map face.');
-        polygon.push([...sourcePoint(v).map((n,i)=>n+offset[i]),(v[0]*tex.u[0]+v[1]*tex.u[1]+v[2]*tex.u[2]+tex.u[3])/materials[tex.material].width,(v[0]*tex.v[0]+v[1]*tex.v[1]+v[2]*tex.v[2]+tex.v[3])/materials[tex.material].height,shade]);
+        polygon.push([...modelVector(index,sourcePoint(v)).map((n,i)=>n+offset[i]),(v[0]*tex.u[0]+v[1]*tex.u[1]+v[2]*tex.u[2]+tex.u[3])/materials[tex.material].width,(v[0]*tex.v[0]+v[1]*tex.v[1]+v[2]*tex.v[2]+tex.v[3])/materials[tex.material].height,shade]);
       }
       for(let j=1;j<polygon.length-1;j++)batch.push(...polygon[0],...polygon[j],...polygon[j+1]);
     }
   }
   const mesh=[...batches].map(([material,data])=>({material,data:new Float32Array(data)}));
   const destinations=new Map(entities.filter(e=>e.classname==='info_teleport_destination').map(e=>[e.targetname,sourceSpawn(e)]));
-  const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>e.classname==='info_player_terrorist'||e.classname==='info_player_start')||{origin:'0 0 0'});
+  const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>['info_player_terrorist','info_player_counterterrorist','info_player_start','info_player_deathmatch'].includes(e.classname)&&e.StartDisabled!=='1')||{origin:'0 0 0'});
   const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
   const spawns=targets.map(name=>({...destinations.get(name)||initial}));
   const stages=targets.map((name,i)=>({title:stageTitles?.[i]||(stageTargets?'Section '+name.toUpperCase():title),tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name,...(resetTargets?{resetTarget:resetTargets[i]}:{})}));

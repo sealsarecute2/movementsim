@@ -2,6 +2,7 @@ import { sampleSkybox, normaliseSkybox, SKY_GRADIENT_GLSL, SKY_ATMOSPHERE_GLSL, 
 import { sampleSceneLight, projectPlayerShadow } from './lighting.js';
 import { buildSignMesh } from './signs.js';
 import { buildRemotePlayerMesh } from './players.js';
+import { isShapedBrush, convexFaces, buildBrushMesh } from './geometry.js';
 import { GALLERY_SHADOW_VERTEX, GALLERY_SHADOW_FRAGMENT, GALLERY_SHADOW_GLSL, galleryShadowMatrix, galleryShadowNormalMatrix, galleryCaptureSize, createGalleryTarget } from './gallery-renderer.js';
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
@@ -46,7 +47,7 @@ export const WORLD_FRAGMENT_GLSL = `
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     uniform vec3 uAtmosphereSun; uniform vec3 uAtmosphereColour; uniform vec3 uAtmosphereState;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
-    uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
+    uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform vec3 uPlayerShadowNormal; uniform float uShadowOpacity;
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
     ${SKY_ATMOSPHERE_GLSL}
@@ -68,7 +69,7 @@ export const WORLD_FRAGMENT_GLSL = `
         visibility=galleryVisibility(normal,uLightDirection);
         #endif
         color=vColor*(ambient+uLightColour*diffuse*uLightPower*visibility)+uLightColour*gloss*visibility;
-        if(vTop>0.5&&uShadowOpacity>0.0&&abs(vWorld.y-uPlayerShadow.y)<0.5){
+        if(vTop>0.5&&uShadowOpacity>0.0&&abs(dot(vWorld-uPlayerShadow.xyz,uPlayerShadowNormal))<0.5){
           float distance=length(vWorld.xz-uPlayerShadow.xz)/max(uPlayerShadow.w,1.0);
           float shadow=1.0-smoothstep(0.15,1.0,distance);
           color*=1.0-shadow*uShadowOpacity;
@@ -110,7 +111,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24],['aNormal',3,28],['aShade',1,40]]
       .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
     const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
-      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
+      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uPlayerShadowNormal','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
       ...(gallery?['uGalleryShadowMatrix','uGalleryShadowMap','uGalleryShadowTexel','uGalleryShadowNormalMatrix']:[])].map(name=>[name,gl.getUniformLocation(program,name)]));
     return {program,attributes,uniforms};
   }
@@ -134,10 +135,21 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   let vertices = [], count = 0, currentBoxes = boxes;
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
-    const key=target?[...target.min,...target.max].join(','):'';
+    const key=target?(isShapedBrush(target)?target:[...target.min,...target.max].join(',')):'';
     if(key===glowKey) return;
     glowKey=key;glowCount=0;
     if(!target) return;
+    if(isShapedBrush(target)) {
+      const data=[];
+      for(const face of convexFaces(target).filter(f=>f.normal[1]>.7))for(let i=0;i<face.points.length;i++){
+        const a=face.points[i],b=face.points[(i+1)%face.points.length],dx=b[0]-a[0],dz=b[2]-a[2],length=Math.hypot(dx,dz);
+        if(length<.001)continue;
+        // A narrow luminous strip follows the original surface edge.
+        const n=[-dz/length,dx/length],points=[a,b,b.map((v,j)=>v+(j===0?n[0]*2:j===2?n[1]*2:0)),a.map((v,j)=>v+(j===0?n[0]*2:j===2?n[1]*2:0))];
+        for(const index of [0,1,2,0,2,3]){const p=points[index],y=(face.distance-face.normal[0]*p[0]-face.normal[2]*p[2])/face.normal[1]+.8;data.push(p[0],y,p[2],.045,.42,1,0,...face.normal,1);}
+      }
+      glowCount=data.length/11;bindGeometry(glowBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return;
+    }
     const [x,,z]=target.min,[X,Y,Z]=target.max, y=Y+0.8;
     const data=[],bands=[[-14,0],[-5,0.16],[-1,0.65],[0,1],[1,0.65],[5,0.16],[14,0]];
     for(const [a,b,n] of [[[x,z],[X,z],[0,1]],[[X,z],[X,Z],[1,0]],[[X,Z],[x,Z],[0,1]],[[x,Z],[x,z],[1,0]]]) {
@@ -189,8 +201,9 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
         }
         continue;
       }
-      addBox(b,b.roof?0.35:0.46);
-      if(b.label) {
+      if(isShapedBrush(b)){const mesh=buildBrushMesh(b);for(const v of mesh)vertices.push(v);}
+      else addBox(b,b.roof?0.35:0.46);
+      if(b.label&&!isShapedBrush(b)) {
         const cx=(b.min[0]+b.max[0])/2, top=b.max[1]+0.12;
         const start=b.min[2]+20, end=b.max[2]-20;
         // White threshold strips and lane markings remain ordinary untextured boxes.
@@ -235,6 +248,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     const light=captureState?.light||sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
     gl.uniform3f(u.uLightDirection,...light.direction);gl.uniform3f(u.uLightColour,...light.colour);gl.uniform3f(u.uAmbientColour,...light.ambient);gl.uniform1f(u.uLightPower,light.power);
     gl.uniform4f(u.uPlayerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(u.uShadowOpacity,shadow?.opacity||0);
+    gl.uniform3f(u.uPlayerShadowNormal,...(shadow?.normal||[0,1,0]));
     if(captureState){
       gl.uniformMatrix4fv(u.uGalleryShadowMatrix,false,captureState.matrix);
       gl.uniformMatrix3fv(u.uGalleryShadowNormalMatrix,false,captureState.normalMatrix);
