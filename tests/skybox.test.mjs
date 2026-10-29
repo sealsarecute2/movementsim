@@ -7,9 +7,20 @@ import { createRenderer } from '../dist/renderer.js';
 function fixture(t) {
   const previousWindow=globalThis.window;globalThis.window={devicePixelRatio:1};
   t.after(()=>{if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;});
-  const uploads=[],draws=[],programs=[],pointers=new Map(),enabled=new Set();let current,depth=true,writeDepth=true,blend=false;
+  const uploads=[],draws=[],programs=[],pointers=new Map(),enabled=new Set(),deleted=[];
+  const state={framebuffer:null,viewport:[0,0,1280,720],textureUnit:100,textures:new Map(),renderbuffer:null};let current,depth=true,writeDepth=true,blend=false;
   const gl={VERTEX_SHADER:1,FRAGMENT_SHADER:2,COMPILE_STATUS:3,LINK_STATUS:4,ARRAY_BUFFER:5,STATIC_DRAW:6,
     FLOAT:7,DEPTH_TEST:8,BLEND:9,COLOR_BUFFER_BIT:16,DEPTH_BUFFER_BIT:32,TRIANGLES:10,ONE:11,
+    FRAMEBUFFER:40,FRAMEBUFFER_BINDING:41,VIEWPORT:42,ACTIVE_TEXTURE:43,TEXTURE_BINDING_2D:44,RENDERBUFFER_BINDING:45,MAX_TEXTURE_SIZE:46,MAX_RENDERBUFFER_SIZE:47,
+    FRAMEBUFFER_COMPLETE:48,TEXTURE0:100,TEXTURE_2D:101,RGBA:102,UNSIGNED_BYTE:103,RENDERBUFFER:104,
+    getParameter:key=>({41:state.framebuffer,42:state.viewport,43:state.textureUnit,44:state.textures.get(state.textureUnit)||null,45:state.renderbuffer,46:4096,47:4096})[key],
+    createFramebuffer:()=>({kind:'framebuffer'}),createTexture:()=>({kind:'texture'}),createRenderbuffer:()=>({kind:'depth'}),
+    bindFramebuffer:(_,value)=>{state.framebuffer=value;},bindRenderbuffer:(_,value)=>{state.renderbuffer=value;},
+    activeTexture:unit=>{state.textureUnit=unit;},bindTexture:(_,value)=>state.textures.set(state.textureUnit,value),
+    texParameteri(){},texImage2D(){},framebufferTexture2D(){},renderbufferStorage(){},framebufferRenderbuffer(){},
+    checkFramebufferStatus:()=>gl.incomplete?0:48,deleteFramebuffer:value=>deleted.push(value),deleteTexture:value=>deleted.push(value),deleteRenderbuffer:value=>deleted.push(value),deleteProgram:value=>deleted.push(value),
+    bindAttribLocation(){},uniformMatrix4fv:(u,transpose,value)=>{u.program.uniforms[u.name]=[...value];},uniformMatrix3fv:(u,transpose,value)=>{u.program.uniforms[u.name]=[...value];},uniform1i:(u,value)=>{u.program.uniforms[u.name]=value;},
+    readPixels(...args){if(gl.readError)throw Error('capture failed');args.at(-1).fill(127);},
     createShader:type=>({type}),shaderSource:(shader,source)=>{shader.source=source;},compileShader(){},getShaderParameter:()=>true,
     createProgram(){const p={shaders:[],uniforms:{}};programs.push(p);return p;},attachShader:(p,s)=>p.shaders.push(s),linkProgram(){},getProgramParameter:()=>true,
     useProgram:p=>{current=p;},createBuffer:()=>({}),bindBuffer(){},bufferData(target,data){uploads.push(data);},
@@ -19,16 +30,40 @@ function fixture(t) {
     uniform1f:(u,x)=>{u.program.uniforms[u.name]=x;},uniform2f:(u,...v)=>{u.program.uniforms[u.name]=v;},uniform3f:(u,...v)=>{u.program.uniforms[u.name]=v;},
     uniform4f:(u,...v)=>{u.program.uniforms[u.name]=v;},
     enable:cap=>{if(cap===8)depth=true;if(cap===9)blend=true;},disable:cap=>{if(cap===8)depth=false;if(cap===9)blend=false;},
-    depthMask:value=>{writeDepth=value;},clearColor(...value){this.background=value;},clear(){},viewport(){},blendFunc(){},
+    depthMask:value=>{writeDepth=value;},clearColor(...value){this.background=value;},clear(){},viewport(...value){state.viewport=value;},blendFunc(){},
     drawArrays(mode,first,count){draws.push({sky:current.shaders.some(s=>s.source.includes('attribute vec2 aClip')),count,
-      uniforms:structuredClone(current.uniforms),depth,writeDepth,blend,pointers:new Map(pointers),enabled:new Set(enabled)});},
+      uniforms:structuredClone(current.uniforms),depth,writeDepth,blend,pointers:new Map(pointers),enabled:new Set(enabled),framebuffer:state.framebuffer,viewport:[...state.viewport]});},
   };
   const canvas={clientWidth:1280,clientHeight:720,width:0,height:0,getContext:()=>gl};
   let clock=0;
   const box={min:[-100,-20,-100],max:[100,0,100]},renderer=createRenderer(canvas,[box],{now:()=>clock});
   const camera={x:0,y:0,z:80,yaw:.6,pitch:.2,duckAmount:0};
-  return {renderer,camera,box,gl,draws,programs,uploads,setTime:seconds=>{clock=seconds*1000;}};
+  return {renderer,camera,box,gl,draws,programs,uploads,state,deleted,setTime:seconds=>{clock=seconds*1000;}};
 }
+
+test('gallery capture renders real shadow and colour passes offscreen, reuses buffers, and restores gameplay',t=>{
+ const f=fixture(t);f.renderer.draw(f.camera);f.draws.length=0;
+ const texture={original:true},framebuffer={original:true},renderbuffer={original:true};
+ f.state.textureUnit=101;f.state.textures.set(101,texture);f.state.framebuffer=framebuffer;f.state.renderbuffer=renderbuffer;
+ const before=structuredClone(f.state.viewport),frame=f.renderer.capture(f.camera,72,null,.8);
+ assert.ok(frame);assert.equal(frame.outputHeight,1920);assert.ok(frame.height>frame.outputHeight);assert.equal(frame.pixels[0],127);
+ assert.equal(f.draws.length,2);assert.ok(f.draws.every(d=>d.framebuffer!==framebuffer));
+ assert.equal(f.draws[0].viewport[2],2048);assert.equal(f.draws[1].uniforms.uShadersGain,1);
+ assert.ok(f.draws[1].uniforms.uGalleryShadowMatrix);assert.equal(f.renderer.shaders,false);
+ assert.deepEqual(f.state.viewport,before);assert.equal(f.state.framebuffer,framebuffer);assert.equal(f.state.textureUnit,101);assert.equal(f.state.textures.get(101),texture);assert.equal(f.state.renderbuffer,renderbuffer);
+ const pixels=frame.pixels;assert.equal(f.renderer.capture(f.camera,72,null,.8).pixels,pixels,'reuse the readback buffer');
+ f.renderer.releaseCaptures();assert.equal(f.deleted.filter(d=>d.kind==='framebuffer').length,2);
+ f.draws.length=0;f.renderer.draw(f.camera);assert.equal(f.draws.length,1);assert.equal(f.draws[0].uniforms.uShadersGain,0);
+ assert.ok(!f.programs[0].shaders[0].source.startsWith('#define GALLERY_SHADOWS'),'gameplay does not compile shadow sampling');
+});
+test('failed gallery allocations and readback restore the renderer and allow ordinary rendering',t=>{
+ for(const failure of ['incomplete','readError']){
+  const f=fixture(t);f.gl[failure]=true;assert.equal(f.renderer.capture(f.camera,72,null,1),null);
+  assert.equal(f.state.framebuffer,null);assert.deepEqual(f.state.viewport,[0,0,1280,720]);
+  const programs=f.programs.length;assert.equal(f.renderer.capture(f.camera,72,null,1),null);assert.equal(f.programs.length,programs,'do not retry an unsupported capture');
+  assert.ok(f.deleted.some(d=>d.kind==='framebuffer'));f.draws.length=0;f.renderer.draw(f.camera);assert.equal(f.draws.length,1);assert.equal(f.draws[0].uniforms.uShadersGain,0);
+ }
+});
 
 test('black, the day/night cycle and the black hole are selectable; old settings fall back to black',()=>{
   assert.deepEqual(Object.keys(SKYBOXES),['black','cycle','blackhole']);

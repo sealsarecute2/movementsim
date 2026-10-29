@@ -142,8 +142,8 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .menu-footnote { color: #555e66; font-size: max(9px, .5rem); letter-spacing: .13em; margin: 2rem 0 0; }
 .menu-gallery { position: fixed; inset: 0 0 0 46%; overflow: hidden; background: #111820; z-index: -1; }
 .gallery-slides, .gallery-shade, .gallery-slide { position: absolute; inset: 0; width: 100%; height: 100%; }
-.gallery-slide { object-fit: cover; opacity: 0; transform: scale(1.05) translateX(-.7%); transition: opacity 1.4s ease, transform 8s ease-out; }
-.gallery-slide.is-active.is-ready { opacity: 1; transform: scale(1.13) translateX(.7%); }
+.gallery-slide { object-fit: cover; opacity: 0; transform: scale(1.02) translateX(-.4%); transition: opacity 1.4s ease, transform 8s ease-out; }
+.gallery-slide.is-active.is-ready { opacity: 1; transform: scale(1.07) translateX(.4%); }
 .gallery-shade { background: linear-gradient(90deg, #090a0b 0%, #090a0b30 18%, transparent 45%), linear-gradient(0deg, #05080ded, transparent 40%, #080d1422); pointer-events: none; }
 .gallery-caption { position: absolute; bottom: 3.5rem; left: 12%; right: 7%; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
 .gallery-caption .eyebrow { color: #a0b1c0; letter-spacing: .16em; }

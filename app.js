@@ -478,9 +478,10 @@ function frame(now) {
     try {
       const entry=galleryMaps[i];
       const shot=entry.thumbnail||captureMapScreenshot({renderer,canvas,map:entry.map,view:entry.view,restoreBoxes:boxes,restoreSkybox:skybox,
-        skybox,snapshot:screenshotCanvas});
+        aspect:$('gallery-slides').clientWidth/$('gallery-slides').clientHeight||1,skybox,snapshot:screenshotCanvas});
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
+    if(capturedMaps===galleryMaps.length)renderer.releaseCaptures?.();
   }
   const remotePlayers=room?.active?room.remotePlayers(endless?.originZ||0):[];
   renderer.draw(camera,fov,target,started?camera:null,remotePlayers);knife?.draw(elapsed,fov);updateHud();

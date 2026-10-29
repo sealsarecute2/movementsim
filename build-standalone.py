@@ -6,7 +6,7 @@ import shutil
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-modules = ('endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'source-map.js', 'source-runtime.js', 'players.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'app.js')
+modules = ('endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'source-map.js', 'source-runtime.js', 'players.js', 'gallery-renderer.js', 'renderer.js', 'game-audio.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'app.js')
 for filename in ('index.html', 'style.css', *modules):
     (root / filename).write_text((dist / filename).read_text())
 for filename in ('favicon.ico', 'favicon.svg'):

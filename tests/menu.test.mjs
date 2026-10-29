@@ -47,10 +47,11 @@ test('gallery captures a real renderer frame once, bounds its image size, and re
   assert.equal(calls[0][1],MAP_LIST[0].boxes);
   assert.deepEqual(calls[1],['sky','black']);
   assert.equal(calls[2][3],MAP_LIST[0].boxes.find(b=>b.checkpoint));
-  assert.equal(args.snapshot.width,1200);assert.equal(args.snapshot.height,675);
+  assert.equal(args.snapshot.width,1920);assert.equal(args.snapshot.height,1080);
+  assert.deepEqual(calls.find(c=>c[0]==='encode'),['encode','image/webp',.95]);
   assert.equal(calls.at(-2)[1],originalBoxes);assert.deepEqual(calls.at(-1),['sky','black']);
   args.canvas={width:1080,height:3840};captureMapScreenshot(args);
-  assert.equal(args.snapshot.height,1200);assert.ok(args.snapshot.width<1200);
+  assert.equal(args.snapshot.height,1920);assert.ok(args.snapshot.width<1920);
 });
 test('gallery uses the selected cycling sky without toggling it off or selecting removed presets',()=>{
   const {args,calls}=shotFixture();
@@ -59,7 +60,31 @@ test('gallery uses the selected cycling sky without toggling it off or selecting
 });
 test('later-section slides use a different camera and highlight the next checkpoint for that section',()=>{
  const {args,calls}=shotFixture(),view={section:1,side:-1};captureMapScreenshot({...args,view});
- const draw=calls.find(c=>c[0]==='draw');assert.deepEqual(draw[1],mapScreenshotCamera(args.map,view));assert.equal(draw[3].checkpoint,2);
+ const draw=calls.find(c=>c[0]==='draw');assert.deepEqual(draw[1],mapScreenshotCamera(args.map,{...view,aspect:3840/2160}));assert.equal(draw[3].checkpoint,2);
+});
+test('captures use the menu panel shape and flip offscreen pixels upright before downsampling',()=>{
+ const {args,calls}=shotFixture(),frames=[];let created=0;
+ const raster={createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:image=>frames.push([...image.data])};
+ args.snapshot.ownerDocument={createElement:()=>{created++;return {getContext:()=>raster};}};
+ args.renderer.capture=(camera,fov,target,aspect)=>{calls.push(['capture',camera,fov,target,aspect]);return {width:1,height:2,outputWidth:1,outputHeight:1,pixels:new Uint8Array([1,2,3,255,5,6,7,255])};};
+ captureMapScreenshot({...args,aspect:.8});captureMapScreenshot({...args,aspect:.8});
+ assert.equal(created,1,'reuse the staging canvas');assert.deepEqual(frames[0],[5,6,7,255,1,2,3,255]);
+ assert.equal(calls.filter(c=>c[0]==='draw').length,0);assert.equal(calls.find(c=>c[0]==='capture')[4],.8);
+ assert.equal(args.snapshot.width,1);assert.equal(args.snapshot.height,1);
+ assert.deepEqual(calls.at(-1),['sky','black']);
+});
+test('camera framing keeps each featured section inside portrait and landscape panels with room for the slide motion',()=>{
+ for(const entry of createGalleryEntries(MAP_LIST).filter(e=>e.map))for(const aspect of [.55,1,2.2]){
+  const camera=mapScreenshotCamera(entry.map,{...entry.view,aspect}),platforms=entry.map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle);
+  const first=entry.view.start??(entry.view.section?Math.max(0,platforms.findIndex(b=>b.checkpoint===entry.view.section)):0);
+  for(const box of platforms.slice(first,first+(entry.view.count||5)))for(const x of [box.min[0],box.max[0]])for(const y of [box.min[1],box.max[1]])for(const z of [box.min[2],box.max[2]]){
+   const dx=x-camera.x,dy=y-camera.y-64,dz=z-camera.z,forward=dx*Math.sin(camera.yaw)-dz*Math.cos(camera.yaw);
+   const depth=forward*Math.cos(camera.pitch)+dy*Math.sin(camera.pitch),tanV=Math.tan(72*Math.PI/360)*.75;
+   const horizontal=(dx*Math.cos(camera.yaw)+dz*Math.sin(camera.yaw))/(depth*tanV*aspect);
+   const vertical=(dy*Math.cos(camera.pitch)-forward*Math.sin(camera.pitch))/(depth*tanV);
+   assert.ok(depth>0&&Math.abs(horizontal)<.9&&Math.abs(vertical)<.9,entry.title+' fits '+aspect);
+  }
+ }
 });
 test('snapshot encoding failure and unavailable 2D canvas always restore the game renderer',()=>{
   const {args,calls,originalBoxes}=shotFixture();

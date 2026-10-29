@@ -152,8 +152,8 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .menu-footnote { color: #555e66; font-size: max(9px, .5rem); letter-spacing: .13em; margin: 2rem 0 0; }
 .menu-gallery { position: fixed; inset: 0 0 0 46%; overflow: hidden; background: #111820; z-index: -1; }
 .gallery-slides, .gallery-shade, .gallery-slide { position: absolute; inset: 0; width: 100%; height: 100%; }
-.gallery-slide { object-fit: cover; opacity: 0; transform: scale(1.05) translateX(-.7%); transition: opacity 1.4s ease, transform 8s ease-out; }
-.gallery-slide.is-active.is-ready { opacity: 1; transform: scale(1.13) translateX(.7%); }
+.gallery-slide { object-fit: cover; opacity: 0; transform: scale(1.02) translateX(-.4%); transition: opacity 1.4s ease, transform 8s ease-out; }
+.gallery-slide.is-active.is-ready { opacity: 1; transform: scale(1.07) translateX(.4%); }
 .gallery-shade { background: linear-gradient(90deg, #090a0b 0%, #090a0b30 18%, transparent 45%), linear-gradient(0deg, #05080ded, transparent 40%, #080d1422); pointer-events: none; }
 .gallery-caption { position: absolute; bottom: 3.5rem; left: 12%; right: 7%; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
 .gallery-caption .eyebrow { color: #a0b1c0; letter-spacing: .16em; }
@@ -1720,6 +1720,96 @@ function buildRemotePlayerMesh(players) {
   return new Float32Array(result);
 }
 
+// Offscreen buffers are reused while the slideshow is captured, then released.
+// Gameplay uses a separate shader without the gallery's shadow sampling.
+const GALLERY_SHADOW_VERTEX = `attribute vec3 aPosition;
+uniform mat4 uGalleryShadowMatrix;
+varying highp float vGalleryDepth;
+void main(){
+  vec4 position=uGalleryShadowMatrix*vec4(aPosition,1.0);
+  vGalleryDepth=position.z*0.5+0.5;gl_Position=position;
+}`;
+const GALLERY_SHADOW_FRAGMENT = `
+precision highp float;
+varying highp float vGalleryDepth;
+void main(){
+  vec2 depth=fract(min(vGalleryDepth,0.99998)*vec2(1.0,255.0));
+  depth.x-=depth.y/255.0;gl_FragColor=vec4(depth,0.0,1.0);
+}`;
+const GALLERY_SHADOW_GLSL = `
+uniform highp sampler2D uGalleryShadowMap;
+uniform float uGalleryShadowTexel;
+uniform mat3 uGalleryShadowNormalMatrix;
+varying highp vec3 vGalleryShadow;
+float galleryVisibility(vec3 normal,vec3 light){
+  vec3 p=vGalleryShadow;
+  if(any(lessThan(p,vec3(0.0)))||any(greaterThan(p,vec3(1.0))))return 1.0;
+  if(dot(normal,light)<=0.001)return 1.0;
+  vec3 plane=uGalleryShadowNormalMatrix*normal;
+  vec2 slope=-plane.xy/plane.z;
+  float visible=0.0;
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+    vec2 uv=p.xy+vec2(float(x),float(y))*uGalleryShadowTexel*1.5;
+    vec2 centre=(floor(uv/uGalleryShadowTexel)+0.5)*uGalleryShadowTexel;
+    vec2 sampleDepth=texture2D(uGalleryShadowMap,uv).rg;
+    float receiver=p.z+dot(slope,centre-p.xy);
+    visible+=step(receiver-0.00035,dot(sampleDepth,vec2(1.0,1.0/255.0)));
+  }
+  return visible/9.0;
+}`;
+
+function galleryShadowMatrix(boxes,direction) {
+  const length=Math.hypot(...direction),light=direction.map(n=>n/length),side=Math.hypot(light[0],light[2]);
+  const right=side>.001?[light[2]/side,0,-light[0]/side]:[1,0,0];
+  const up=[light[1]*right[2]-light[2]*right[1],light[2]*right[0]-light[0]*right[2],light[0]*right[1]-light[1]*right[0]];
+  const axes=[right,up,light.map(n=>-n)],bounds=axes.map(()=>[Infinity,-Infinity]);
+  for(const box of boxes)for(const x of [box.min[0],box.max[0]])for(const y of [box.min[1],box.max[1]])for(const z of [box.min[2],box.max[2]]){
+    axes.forEach((axis,i)=>{const v=x*axis[0]+y*axis[1]+z*axis[2];bounds[i][0]=Math.min(bounds[i][0],v);bounds[i][1]=Math.max(bounds[i][1],v);});
+  }
+  const matrix=new Float32Array(16);matrix[15]=1;
+  axes.forEach((axis,row)=>{
+    const min=bounds[row][0]-32,max=bounds[row][1]+32,scale=2/Math.max(1,max-min);
+    for(let col=0;col<3;col++)matrix[col*4+row]=axis[col]*scale;
+    matrix[12+row]=-(max+min)/Math.max(1,max-min);
+  });
+  return matrix;
+}
+
+function galleryCaptureSize(aspect=1,maxEdge=3072) {
+  aspect=Number.isFinite(aspect)?Math.max(.35,Math.min(3,aspect)):1;
+  const outputWidth=Math.round(aspect>=1?1920:1920*aspect),outputHeight=Math.round(aspect>=1?1920/aspect:1920);
+  const scale=Math.min(1.5,maxEdge/Math.max(outputWidth,outputHeight),Math.sqrt(5*1024*1024/(outputWidth*outputHeight)));
+  return {width:Math.max(1,Math.floor(outputWidth*scale)),height:Math.max(1,Math.floor(outputHeight*scale)),
+    outputWidth:Math.min(outputWidth,Math.max(1,Math.floor(outputWidth*scale))),outputHeight:Math.min(outputHeight,Math.max(1,Math.floor(outputHeight*scale)))};
+}
+
+// Transform a receiver plane into light space so each soft-shadow tap compares
+// against the same surface, including on sloping sides and long platforms.
+function galleryShadowNormalMatrix(matrix){
+  const normal=new Float32Array(9);
+  for(let row=0;row<3;row++){
+    const scale=matrix[row]**2+matrix[row+4]**2+matrix[row+8]**2;
+    for(let col=0;col<3;col++)normal[col*3+row]=matrix[col*4+row]/scale;
+  }
+  return normal;
+}
+
+function createGalleryTarget(gl,width,height) {
+  const framebuffer=gl.createFramebuffer(),texture=gl.createTexture(),depth=gl.createRenderbuffer();
+  const dispose=()=>{gl.deleteFramebuffer(framebuffer);gl.deleteTexture(texture);gl.deleteRenderbuffer(depth);};
+  try {
+    gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);gl.bindTexture(gl.TEXTURE_2D,texture);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,width,height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,texture,0);
+    gl.bindRenderbuffer(gl.RENDERBUFFER,depth);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,width,height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,depth);
+    if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('Gallery capture buffer unavailable.');
+    return {framebuffer,texture,width,height,dispose};
+  }catch(error){dispose();throw error;}
+}
+
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
 function verticalFov(fov = 100) {
@@ -1738,6 +1828,9 @@ function projectWorldPoint(camera,point,width,height,fov=100) {
 const WORLD_VERTEX_GLSL = `attribute vec3 aPosition; attribute vec3 aColor; attribute float aTop;
     attribute vec3 aNormal; attribute float aShade;
     uniform vec3 uEye; uniform vec2 uAngles; uniform vec2 uScale;
+    #ifdef GALLERY_SHADOWS
+    uniform mat4 uGalleryShadowMatrix; varying highp vec3 vGalleryShadow;
+    #endif
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     void main(){
       vec3 p=aPosition-uEye;
@@ -1746,6 +1839,9 @@ const WORLD_VERTEX_GLSL = `attribute vec3 aPosition; attribute vec3 aColor; attr
       float up=p.y*cp-forward*sp,depth=forward*cp+p.y*sp;
       gl_Position=vec4(right*uScale.x,up*uScale.y,1.0001*depth-2.0001,depth);
       vWorld=aPosition;vColor=aColor;vNormal=aNormal;vShade=aShade;vTop=aTop;vDistance=length(p);
+      #ifdef GALLERY_SHADOWS
+      vGalleryShadow=(uGalleryShadowMatrix*vec4(aPosition,1.0)).xyz*0.5+0.5;
+      #endif
     }`;
 const WORLD_FRAGMENT_GLSL = `
     #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -1759,6 +1855,9 @@ const WORLD_FRAGMENT_GLSL = `
     uniform float uLightPower; uniform float uShadersGain; uniform vec4 uPlayerShadow; uniform float uShadowOpacity;
     varying vec3 vWorld; varying vec3 vColor; varying vec3 vNormal; varying float vShade; varying float vTop; varying float vDistance;
     ${SKY_GRADIENT_GLSL}
+    #ifdef GALLERY_SHADOWS
+    ${GALLERY_SHADOW_GLSL}
+    #endif
     void main(){
       vec2 grid=mod(vWorld.xz+0.6,64.0);
       float line=(1.0-step(1.2,min(grid.x,grid.y)))*vTop;
@@ -1769,7 +1868,11 @@ const WORLD_FRAGMENT_GLSL = `
         vec3 ambient=uAmbientColour*mix(0.65,1.2,normal.y*0.5+0.5);
         vec3 halfLight=normalize(uLightDirection+normalize(uFogEye-vWorld)+vec3(0.0001));
         float gloss=pow(max(dot(normal,halfLight),0.0),28.0)*0.12*uLightPower;
-        color=vColor*(ambient+uLightColour*diffuse*uLightPower)+uLightColour*gloss;
+        float visibility=1.0;
+        #ifdef GALLERY_SHADOWS
+        visibility=galleryVisibility(normal,uLightDirection);
+        #endif
+        color=vColor*(ambient+uLightColour*diffuse*uLightPower*visibility)+uLightColour*gloss*visibility;
         if(vTop>0.5&&uShadowOpacity>0.0&&abs(vWorld.y-uPlayerShadow.y)<0.5){
           float distance=length(vWorld.xz-uPlayerShadow.xz)/max(uPlayerShadow.w,1.0);
           float shadow=1.0-smoothstep(0.15,1.0,distance);
@@ -1799,32 +1902,27 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(s));
     return s;
   }
-  const program = gl.createProgram();
-  gl.attachShader(program, shader(gl.VERTEX_SHADER, WORLD_VERTEX_GLSL));
-  gl.attachShader(program, shader(gl.FRAGMENT_SHADER, WORLD_FRAGMENT_GLSL));
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
-  gl.useProgram(program);
-  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer();
-  const attributes = [];
-  for (const [name, count, offset] of [['aPosition', 3, 0], ['aColor', 3, 12], ['aTop', 1, 24], ['aNormal',3,28], ['aShade',1,40]]) {
-    const loc = gl.getAttribLocation(program, name); gl.enableVertexAttribArray(loc);
-    attributes.push({loc,count,offset});
+  function worldPipeline(gallery=false){
+    const program=gl.createProgram(),prefix=gallery?'#define GALLERY_SHADOWS\n':'';
+    const shaders=[shader(gl.VERTEX_SHADER,prefix+WORLD_VERTEX_GLSL),shader(gl.FRAGMENT_SHADER,prefix+WORLD_FRAGMENT_GLSL)];
+    for(const s of shaders){gl.attachShader(program,s);gl.deleteShader?.(s);}
+    gl.linkProgram(program);
+    if(!gl.getProgramParameter(program,gl.LINK_STATUS)){gl.deleteProgram?.(program);throw Error(gl.getProgramInfoLog(program));}
+    const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24],['aNormal',3,28],['aShade',1,40]]
+      .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
+    const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
+      'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uShadowOpacity',
+      ...(gallery?['uGalleryShadowMatrix','uGalleryShadowMap','uGalleryShadowTexel','uGalleryShadowNormalMatrix']:[])].map(name=>[name,gl.getUniformLocation(program,name)]));
+    return {program,attributes,uniforms};
   }
+  const standardPipeline=worldPipeline();let pipeline=standardPipeline,captureState=null,galleryResources=null,galleryUnavailable=false;
+  gl.useProgram(pipeline.program);
+  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer();
+  for(const {loc} of pipeline.attributes)gl.enableVertexAttribArray(loc);
   function bindGeometry(targetBuffer) {
     gl.bindBuffer(gl.ARRAY_BUFFER, targetBuffer);
-    for(const {loc,count,offset} of attributes) gl.vertexAttribPointer(loc,count,gl.FLOAT,false,44,offset);
+    for(const {loc,count,offset} of pipeline.attributes) gl.vertexAttribPointer(loc,count,gl.FLOAT,false,44,offset);
   }
-  const eye = gl.getUniformLocation(program, 'uEye'), angles = gl.getUniformLocation(program, 'uAngles');
-  const scale = gl.getUniformLocation(program, 'uScale');
-  const targetMin = gl.getUniformLocation(program, 'uTargetMin'), targetMax = gl.getUniformLocation(program, 'uTargetMax');
-  const targetActive = gl.getUniformLocation(program, 'uTargetActive');
-  const skyHorizon=gl.getUniformLocation(program,'uSkyHorizon'),skyZenith=gl.getUniformLocation(program,'uSkyZenith');
-  const skyGround=gl.getUniformLocation(program,'uSkyGround'),fogGain=gl.getUniformLocation(program,'uFogGain');
-  const fogEye=gl.getUniformLocation(program,'uFogEye');
-  const lightDirection=gl.getUniformLocation(program,'uLightDirection'),lightColour=gl.getUniformLocation(program,'uLightColour');
-  const ambientColour=gl.getUniformLocation(program,'uAmbientColour'),lightPower=gl.getUniformLocation(program,'uLightPower');
-  const shadersGain=gl.getUniformLocation(program,'uShadersGain'),playerShadow=gl.getUniformLocation(program,'uPlayerShadow'),shadowOpacity=gl.getUniformLocation(program,'uShadowOpacity');
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
   let skybox='black',skyRenderer=null,skyStarted=0,shadersEnabled=false;
   function setShaders(value) { shadersEnabled=value===true; }
@@ -1915,8 +2013,9 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if(canvas.width!==w||canvas.height!==h) {canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   }
   function draw(p,fov=100,target=null,shadowCaster=null,remotePlayers=[]) {
-    resize(); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-    const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/(canvas.width/canvas.height),preset=sampleSkybox(skybox,(now()-skyStarted)/1000);
+    if(!captureState)resize();gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    const {program,attributes,uniforms:u}=pipeline;
+    const f=1/Math.tan(verticalFov(fov)*Math.PI/360),scaleX=f/((captureState||canvas).width/(captureState||canvas).height),preset=captureState?.preset||sampleSkybox(skybox,(now()-skyStarted)/1000);
     if(skybox!=='black') {
       for(const {loc} of attributes)gl.disableVertexAttribArray(loc);
       skyRenderer.draw(p,scaleX,f,preset);
@@ -1925,39 +2024,90 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     gl.useProgram(program);
     for(const {loc} of attributes)gl.enableVertexAttribArray(loc);
     const height=64-p.duckAmount*18;
-    gl.uniform3f(eye,p.x,p.y+height,p.z);gl.uniform2f(angles,p.yaw,p.pitch);
-    gl.uniform3f(fogEye,p.x,p.y+height,p.z);
+    gl.uniform3f(u.uEye,p.x,p.y+height,p.z);gl.uniform2f(u.uAngles,p.yaw,p.pitch);
+    gl.uniform3f(u.uFogEye,p.x,p.y+height,p.z);
     // CS-style FOV setting is horizontal at 4:3; widescreen adds horizontal view.
-    gl.uniform2f(scale,scaleX,f);
-    gl.uniform3f(skyHorizon,...preset.horizon);gl.uniform3f(skyZenith,...preset.zenith);gl.uniform3f(skyGround,...preset.ground);
-    gl.uniform1f(fogGain,skybox==='black'?0:1);
-    gl.uniform1f(shadersGain,shadersEnabled?1:0);
-    const light=sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
-    gl.uniform3f(lightDirection,...light.direction);gl.uniform3f(lightColour,...light.colour);gl.uniform3f(ambientColour,...light.ambient);gl.uniform1f(lightPower,light.power);
-    gl.uniform4f(playerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(shadowOpacity,shadow?.opacity||0);
-    gl.uniform1f(targetActive,target?1:0);
+    gl.uniform2f(u.uScale,scaleX,f);
+    gl.uniform3f(u.uSkyHorizon,...preset.horizon);gl.uniform3f(u.uSkyZenith,...preset.zenith);gl.uniform3f(u.uSkyGround,...preset.ground);
+    gl.uniform1f(u.uFogGain,skybox==='black'?0:1);
+    gl.uniform1f(u.uShadersGain,captureState||shadersEnabled?1:0);
+    const light=captureState?.light||sampleSceneLight(skybox,preset),shadow=shadersEnabled?projectPlayerShadow(shadowCaster,currentBoxes,light):null;
+    gl.uniform3f(u.uLightDirection,...light.direction);gl.uniform3f(u.uLightColour,...light.colour);gl.uniform3f(u.uAmbientColour,...light.ambient);gl.uniform1f(u.uLightPower,light.power);
+    gl.uniform4f(u.uPlayerShadow,shadow?.x||0,shadow?.y||0,shadow?.z||0,shadow?.radius||1);gl.uniform1f(u.uShadowOpacity,shadow?.opacity||0);
+    if(captureState){
+      gl.uniformMatrix4fv(u.uGalleryShadowMatrix,false,captureState.matrix);
+      gl.uniformMatrix3fv(u.uGalleryShadowNormalMatrix,false,captureState.normalMatrix);
+      gl.uniform1i(u.uGalleryShadowMap,0);gl.uniform1f(u.uGalleryShadowTexel,1/galleryResources.shadow.width);
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,galleryResources.shadow.texture);
+    }
+    gl.uniform1f(u.uTargetActive,target?1:0);
     if(target) {
-      gl.uniform3f(targetMin,...target.min);gl.uniform3f(targetMax,...target.max);
+      gl.uniform3f(u.uTargetMin,...target.min);gl.uniform3f(u.uTargetMax,...target.max);
     }
     bindGeometry(buffer);
     gl.drawArrays(gl.TRIANGLES,0,count);
     if(remotePlayers.length){
       const mesh=buildRemotePlayerMesh(remotePlayers);
-      gl.uniform1f(targetActive,0);gl.uniform1f(shadowOpacity,0);
+      gl.uniform1f(u.uTargetActive,0);gl.uniform1f(u.uShadowOpacity,0);
       bindGeometry(playerBuffer);gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.DYNAMIC_DRAW||gl.STATIC_DRAW);
       gl.drawArrays(gl.TRIANGLES,0,mesh.length/11);
     }
     setGlow(target);
     if(glowCount) {
-      gl.uniform1f(targetActive,0);
-      gl.uniform1f(fogGain,0);
-      gl.uniform1f(shadersGain,0);
+      gl.uniform1f(u.uTargetActive,0);
+      gl.uniform1f(u.uFogGain,0);
+      gl.uniform1f(u.uShadersGain,0);
       bindGeometry(glowBuffer);gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
       gl.drawArrays(gl.TRIANGLES,0,glowCount);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
   }
-  return {draw,setBoxes,setSkybox,setShaders,get boxes(){return currentBoxes;},get skybox(){return skybox;},get shaders(){return shadersEnabled;}};
+  function releaseCaptures(){
+    if(!galleryResources)return;
+    galleryResources.shadow?.dispose();galleryResources.image?.dispose();
+    if(galleryResources.pipeline)gl.deleteProgram(galleryResources.pipeline.program);
+    if(galleryResources.shadowProgram)gl.deleteProgram(galleryResources.shadowProgram);
+    galleryResources=null;
+  }
+  function capture(p,fov,target,aspect=1){
+    if(galleryUnavailable)return null;
+    const previousFramebuffer=gl.getParameter(gl.FRAMEBUFFER_BINDING),previousViewport=gl.getParameter(gl.VIEWPORT);
+    const previousTextureUnit=gl.getParameter(gl.ACTIVE_TEXTURE),previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D),previousRenderbuffer=gl.getParameter(gl.RENDERBUFFER_BINDING);
+    gl.activeTexture(gl.TEXTURE0);const previousTexture0=gl.getParameter(gl.TEXTURE_BINDING_2D);
+    try {
+      const maxEdge=Math.min(3072,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)),size=galleryCaptureSize(aspect,maxEdge);
+      if(!galleryResources){
+        galleryResources={pipeline:worldPipeline(true)};
+        galleryResources.shadow=createGalleryTarget(gl,Math.min(2048,maxEdge),Math.min(2048,maxEdge));
+        const program=gl.createProgram();galleryResources.shadowProgram=program;
+        for(const s of [shader(gl.VERTEX_SHADER,GALLERY_SHADOW_VERTEX),shader(gl.FRAGMENT_SHADER,GALLERY_SHADOW_FRAGMENT)]){gl.attachShader(program,s);gl.deleteShader?.(s);}
+        gl.bindAttribLocation(program,standardPipeline.attributes[0].loc,'aPosition');gl.linkProgram(program);
+        if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
+      }
+      const resources=galleryResources;
+      if(resources.image?.width!==size.width||resources.image?.height!==size.height){
+        resources.image?.dispose();resources.image=null;resources.image=createGalleryTarget(gl,size.width,size.height);resources.pixels=new Uint8Array(size.width*size.height*4);
+      }
+      const preset=sampleSkybox(skybox,(now()-skyStarted)/1000),light=sampleSceneLight(skybox,preset),matrix=galleryShadowMatrix(currentBoxes,light.direction);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,resources.shadow.framebuffer);gl.viewport(0,0,resources.shadow.width,resources.shadow.height);
+      gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(resources.shadowProgram);gl.uniformMatrix4fv(gl.getUniformLocation(resources.shadowProgram,'uGalleryShadowMatrix'),false,matrix);
+      bindGeometry(buffer);gl.drawArrays(gl.TRIANGLES,0,count);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,resources.image.framebuffer);gl.viewport(0,0,size.width,size.height);gl.clearColor(0,0,0,1);
+      pipeline=resources.pipeline;captureState={...size,matrix,normalMatrix:galleryShadowNormalMatrix(matrix),preset,light};draw(p,fov,target);
+      gl.readPixels(0,0,size.width,size.height,gl.RGBA,gl.UNSIGNED_BYTE,resources.pixels);
+      return {...size,pixels:resources.pixels};
+    }catch {
+      galleryUnavailable=true;releaseCaptures();return null;
+    }finally {
+      captureState=null;pipeline=standardPipeline;
+      gl.bindFramebuffer(gl.FRAMEBUFFER,previousFramebuffer);gl.viewport(...previousViewport);gl.clearColor(0,0,0,1);
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,previousTexture0);
+      gl.activeTexture(previousTextureUnit);gl.bindTexture(gl.TEXTURE_2D,previousTexture);gl.bindRenderbuffer(gl.RENDERBUFFER,previousRenderbuffer);
+      gl.useProgram(pipeline.program);for(const {loc} of pipeline.attributes)gl.enableVertexAttribArray(loc);bindGeometry(buffer);
+    }
+  }
+  return {draw,capture,releaseCaptures,setBoxes,setSkybox,setShaders,get boxes(){return currentBoxes;},get skybox(){return skybox;},get shaders(){return shadersEnabled;}};
 }
 
 
@@ -2221,42 +2371,62 @@ function mapPreviewSVG(map) {
 
 function createGalleryEntries(maps,community=[]) {
   return [...maps.flatMap(map=>[
-    {title:map.title,map,view:{}},
+    {title:map.title,map,view:map.id==='free'?{start:1,count:4}:{count:5}},
     ...(map.timed?[
-      {title:map.title+' / Section 2',map,view:{section:1,side:-1}},
-      {title:map.title+' / Final section',map,view:{section:map.spawns.length-1}},
+      {title:map.title+' / Section 2',map,view:{section:1,count:4,side:-1}},
+      {title:map.title+' / Final section',map,view:{section:map.spawns.length-1,count:4}},
     ]:[{title:map.title+(map.endless?' / Checkpoint run':' / Ladder tower'),map,view:map.endless?{section:1,side:-1}:{start:6,count:2,side:-1}}]),
   ]),...community.map(map=>({title:map.title+' / Route preview',thumbnail:map.thumbnail}))];
 }
 
-function mapScreenshotCamera(map,{section=0,start=null,count=9,side=1}={}) {
+function mapScreenshotCamera(map,{section=0,start=null,count=5,side=1,aspect=1,fov=72}={}) {
   const platforms=map.boxes.filter(b=>!b.roof&&!b.ladder&&!b.obstacle);
   const first=start??(section?Math.max(0,platforms.findIndex(b=>b.checkpoint===section)):0);
   const visible=platforms.slice(first,first+count);
   const left=Math.min(...visible.map(b=>b.min[0])),right=Math.max(...visible.map(b=>b.max[0]));
   const near=Math.max(...visible.map(b=>b.max[2])),far=Math.min(...visible.map(b=>b.min[2]));
-  const top=Math.max(...visible.map(b=>b.max[1]));
-  const x=(left+right)/2,z=(near+far)/2,extent=Math.max(650,(near-far)*.65,(right-left)*1.1);
-  const eye={x:x-extent*.85*side,y:top+extent*.8,z:z+extent*.7};
-  return {...eye,y:eye.y-64,yaw:Math.atan2(x-eye.x,eye.z-z),
-    pitch:Math.atan2(top-eye.y,Math.hypot(x-eye.x,z-eye.z)),duckAmount:0};
+  const top=Math.max(...visible.map(b=>b.max[1])),bottom=Math.min(...visible.map(b=>b.min[1]));
+  const centre=[(left+right)/2,(top+bottom)/2,(near+far)/2],length=Math.hypot(.9,.85,1),out=[-.9*side/length,.85/length,1/length];
+  const yaw=Math.atan2(-out[0],out[2]),pitch=Math.atan2(-out[1],Math.hypot(out[0],out[2]));
+  const r=[Math.cos(yaw),0,Math.sin(yaw)],u=[-Math.sin(yaw)*Math.sin(pitch),Math.cos(pitch),Math.cos(yaw)*Math.sin(pitch)];
+  const tanV=Math.tan(fov*Math.PI/360)*.75,tanH=tanV*Math.max(.35,Math.min(3,Number.isFinite(aspect)?aspect:1));
+  let distance=280;
+  for(const box of visible)for(const x of [box.min[0],box.max[0]])for(const y of [box.min[1],box.max[1]])for(const z of [box.min[2],box.max[2]]){
+    const p=[x-centre[0],y-centre[1],z-centre[2]],depth=-p.reduce((sum,n,i)=>sum+n*out[i],0);
+    const horizontal=Math.abs(p.reduce((sum,n,i)=>sum+n*r[i],0)),vertical=Math.abs(p.reduce((sum,n,i)=>sum+n*u[i],0));
+    distance=Math.max(distance,horizontal/(tanH*.78)-depth,vertical/(tanV*.68)-depth);
+  }
+  distance*=1.03;
+  return {x:centre[0]+out[0]*distance,y:centre[1]+out[1]*distance-64,z:centre[2]+out[2]*distance,
+    yaw,pitch:pitch-.035,duckAmount:0};
 }
 
-// Capture one real WebGL frame, then restore the player's geometry and sky.
-// Images are generated once per visit, without extra WebGL contexts or downloads.
-function captureMapScreenshot({renderer,canvas,map,view={},restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
+const galleryCaptureSurfaces=new WeakMap();
+// Capture once at the menu panel's aspect ratio, then restore the game renderer.
+function captureMapScreenshot({renderer,canvas,map,view={},aspect=1,restoreBoxes,restoreSkybox,skybox='black',snapshot}) {
   try {
     renderer.setBoxes(map.boxes);renderer.setSkybox(skybox);
-    renderer.draw(mapScreenshotCamera(map,view),85,map.boxes.find(b=>b.checkpoint===(view.section||0)+1)||map.boxes.find(b=>b.finish));
-    const context=snapshot.getContext('2d');
-    if(!context)return null;
-    const ratio=Math.min(1,1200/Math.max(canvas.width,canvas.height));
-    snapshot.width=Math.max(1,Math.round(canvas.width*ratio));snapshot.height=Math.max(1,Math.round(canvas.height*ratio));
-    context.drawImage(canvas,0,0,snapshot.width,snapshot.height);
-    return snapshot.toDataURL('image/jpeg',.88);
-  } finally {
-    renderer.setBoxes(restoreBoxes);renderer.setSkybox(restoreSkybox);
-  }
+    const context=snapshot.getContext('2d');if(!context)return null;
+    const target=map.boxes.find(b=>b.checkpoint===(view.section||0)+1)||map.boxes.find(b=>b.finish);
+    let frame=null;
+    try{if(snapshot.ownerDocument)frame=renderer.capture?.(mapScreenshotCamera(map,{...view,aspect}),72,target,aspect);}catch{}
+    if(frame){
+      let surface=galleryCaptureSurfaces.get(snapshot);
+      if(!surface){surface=snapshot.ownerDocument.createElement('canvas');galleryCaptureSurfaces.set(snapshot,surface);}
+      surface.width=frame.width;surface.height=frame.height;
+      const raster=surface.getContext('2d'),image=raster.createImageData(frame.width,frame.height),row=frame.width*4;
+      for(let y=0;y<frame.height;y++)image.data.set(frame.pixels.subarray((frame.height-1-y)*row,(frame.height-y)*row),y*row);
+      raster.putImageData(image,0,0);snapshot.width=frame.outputWidth;snapshot.height=frame.outputHeight;
+      context.imageSmoothingEnabled=true;context.imageSmoothingQuality='high';context.drawImage(surface,0,0,snapshot.width,snapshot.height);
+    }else{
+      const fallbackAspect=canvas.clientWidth/canvas.clientHeight||canvas.width/canvas.height||1;
+      renderer.draw(mapScreenshotCamera(map,{...view,aspect:fallbackAspect}),72,target);
+      const ratio=Math.min(1,1920/Math.max(canvas.width,canvas.height));
+      snapshot.width=Math.max(1,Math.round(canvas.width*ratio));snapshot.height=Math.max(1,Math.round(canvas.height*ratio));
+      context.drawImage(canvas,0,0,snapshot.width,snapshot.height);
+    }
+    return snapshot.toDataURL('image/webp',.95);
+  }finally{renderer.setBoxes(restoreBoxes);renderer.setSkybox(restoreSkybox);}
 }
 
 // A single animation clock keeps the gallery asleep while a run is active.
@@ -3137,9 +3307,10 @@ function frame(now) {
     try {
       const entry=galleryMaps[i];
       const shot=entry.thumbnail||captureMapScreenshot({renderer,canvas,map:entry.map,view:entry.view,restoreBoxes:boxes,restoreSkybox:skybox,
-        skybox,snapshot:screenshotCanvas});
+        aspect:$('gallery-slides').clientWidth/$('gallery-slides').clientHeight||1,skybox,snapshot:screenshotCanvas});
       if(shot){image.src=shot;image.classList.add('is-ready');}
     } catch { /* Gameplay and settings remain usable if screenshots are blocked. */ }
+    if(capturedMaps===galleryMaps.length)renderer.releaseCaptures?.();
   }
   const remotePlayers=room?.active?room.remotePlayers(endless?.originZ||0):[];
   renderer.draw(camera,fov,target,started?camera:null,remotePlayers);knife?.draw(elapsed,fov);updateHud();
