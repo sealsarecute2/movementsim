@@ -166,6 +166,26 @@ class Socket {
  message(value){this.onmessage({data:JSON.stringify(value)});}
  close(){this.readyState=3;this.onclose?.();}
 }
+test('default room and signaling timers keep the browser Window receiver when started and cleared',async t=>{
+ const timers=new Map(),cleared=[];let serial=0;
+ t.mock.method(globalThis,'setInterval',function(callback,delay){
+  assert.equal(this,globalThis,'setInterval requires its Window receiver');
+  const id=++serial;timers.set(id,{callback,delay});return id;
+ });
+ t.mock.method(globalThis,'clearInterval',function(id){
+  assert.equal(this,globalThis,'clearInterval requires its Window receiver');
+  cleared.push(id);timers.delete(id);
+ });
+ const room=new MultiplayerRoom({courses,signalingFactory:options=>createRoomSignaling({...options,WebSocketClass:Socket})});
+ t.after(()=>room.leave());
+ const starting=room.start({host:true,name:'Host',course});starting.catch(()=>{});
+ const socket=Socket.all.at(-1);assert.ok(socket,'the default room timer allows signaling to start');
+ socket.message({type:'OPEN'});await starting;
+ assert.ok(room.active);assert.deepEqual([...timers.values()].map(timer=>timer.delay),[50,20000]);
+ for(const {callback} of timers.values())callback();
+ assert.deepEqual(socket.sent.at(-1),{type:'HEARTBEAT'});
+ room.leave();assert.deepEqual(cleared,[1,2]);assert.equal(timers.size,0);assert.equal(socket.readyState,3);
+});
 test('public signaling forwards only handshake packets and removes the heartbeat on close',async()=>{
  let interval,cleared=false;const received=[];
  const signaling=createRoomSignaling({host:true,code:'ABCDEFGHJKLM',WebSocketClass:Socket,onSignal:(...args)=>received.push(args),setIntervalFn:fn=>{interval=fn;return 1;},clearIntervalFn:()=>{cleared=true;}});

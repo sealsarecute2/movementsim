@@ -2391,7 +2391,7 @@ function interpolateRoomPlayer(samples,now) {
 
 // Both services stamp the sender's ID server-side. Peers cannot choose the
 // `from` field on an incoming signal. Private codes are never listed publicly.
-function createRoomSignaling({host,code,config={},WebSocketClass=globalThis.WebSocket,onSignal,onClose,onError,setIntervalFn=globalThis.setInterval,clearIntervalFn=globalThis.clearInterval}) {
+function createRoomSignaling({host,code,config={},WebSocketClass=globalThis.WebSocket,onSignal,onClose,onError,setIntervalFn=globalThis.setInterval.bind(globalThis),clearIntervalFn=globalThis.clearInterval.bind(globalThis)}) {
   const metered=!!config.meteredPublishableKey;
   if(metered&&!/^pk_live_[A-Za-z0-9_-]+$/.test(config.meteredPublishableKey))throw Error('The room service needs a publishable browser key.');
   const ownId=host?'movement-lab-rooms1-'+code:'movement-lab-guest-'+makeRoomCode();
@@ -2447,7 +2447,7 @@ function createRoomSignaling({host,code,config={},WebSocketClass=globalThis.WebS
 class MultiplayerRoom {
   constructor({config={},courses=[],getState=()=>null,onChange=()=>{},onCourse=async()=>{},now=()=>performance.now(),
     signalingFactory=createRoomSignaling,peerFactory=options=>new RTCPeerConnection(options),
-    setIntervalFn=globalThis.setInterval,clearIntervalFn=globalThis.clearInterval}={}) {
+    setIntervalFn=globalThis.setInterval.bind(globalThis),clearIntervalFn=globalThis.clearInterval.bind(globalThis)}={}) {
     Object.assign(this,{config,courses,getState,onChange,onCourse,now,signalingFactory,peerFactory,setIntervalFn,clearIntervalFn});
     this.phase='idle';this.status='Host a private room or join a friend.';this.links=new Map();this.members=new Map();this.sequence=0;this.generation=0;
   }
