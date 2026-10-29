@@ -302,6 +302,28 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .remote-player-label[data-slot="1"] { border-color:#ffad66; }.remote-player-label[data-slot="2"] { border-color:#75e5b3; }.remote-player-label[data-slot="3"] { border-color:#c7a6ff; }
 @media(max-width:760px) { .room-options { grid-template-columns:1fr; gap:0; }.room-field { margin:.75rem 0; }.room-invite strong { font-size:1.1rem; }.network-hud { top:2rem; } }
 
+/* Live room standings remain compact beside the course view. */
+.room-leaderboard { position:fixed; top:7.75rem; left:var(--edge); z-index:4; width:clamp(240px,21rem,310px); max-width:calc(100vw - 2 * var(--edge)); padding:.75rem; border:1px solid #34404b; background:#080e14d9; pointer-events:none; }
+.room-leaderboard h2 { margin:0 0 .625rem; font:500 max(10px,.625rem) 'IBM Plex Mono',monospace; letter-spacing:.08em; color:#b3c5d3; }
+.room-leaderboard table { width:100%; table-layout:fixed; border-collapse:collapse; text-align:left; font-size:max(10px,.625rem); font-variant-numeric:tabular-nums; }
+.room-leaderboard th { font-size:max(9px,.5rem); font-weight:400; letter-spacing:.04em; color:#8193a1; }
+.room-leaderboard th,.room-leaderboard td { padding:.5rem .25rem; border-bottom:1px solid #ffffff0d; }
+.room-leaderboard th:nth-child(2),.room-leaderboard td:nth-child(2) { width:3.5rem; text-align:center; white-space:nowrap; color:#b6c9d8; }
+.room-leaderboard th:last-child,.room-leaderboard td:last-child { width:6rem; text-align:right; white-space:nowrap; }
+.room-leaderboard tr:last-child td { border-bottom:0; }
+.room-leaderboard tr[data-self="true"] { background:#94caff12; }
+.room-leaderboard tr[data-self="true"] td:first-child { box-shadow:inset 2px 0 #a6d9ff; }
+.room-leaderboard abbr { text-decoration:none; }
+.room-player-cell { display:flex; align-items:center; min-width:0; gap:.375rem; }
+.room-player-cell .room-swatch { flex-shrink:0; margin:0; }
+.room-player-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.room-rank { width:.75rem; flex-shrink:0; color:#738593; font-size:max(9px,.5rem); text-align:center; }
+.room-finished { color:#75e5b3; }
+body:not(.playing) .room-leaderboard { visibility:hidden; }
+@media(max-width:760px), (max-height:560px) { .room-leaderboard { top:5.75rem; padding:.5rem; width:250px; }.room-leaderboard th,.room-leaderboard td { padding:.375rem .25rem; }.room-leaderboard th:nth-child(2),.room-leaderboard td:nth-child(2) { width:2.75rem; }.room-leaderboard th:last-child,.room-leaderboard td:last-child { width:6rem; } }
+
+@media(max-width:500px) { .room-leaderboard { top:12rem; } }
+
 </style>
   <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 </head>
@@ -310,6 +332,10 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
   <div id="network-hud" class="network-hud hidden" aria-label="Multiplayer connection"><span id="network-room"></span><span id="network-ping">— ms</span></div>
   <canvas id="world" aria-label="First-person greybox movement course"></canvas>
   <div id="player-labels" class="player-labels" aria-hidden="true"></div>
+  <aside id="room-leaderboard" class="room-leaderboard hidden" aria-label="Live multiplayer leaderboard">
+    <h2>ROOM LEADERBOARD</h2>
+    <table><thead><tr><th scope="col">PLAYER</th><th scope="col"><abbr title="Checkpoints">CP</abbr></th><th scope="col">TIME</th></tr></thead><tbody id="room-leaderboard-players"></tbody></table>
+  </aside>
   <div class="vignette" aria-hidden="true"></div>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">M<span>↗</span></span><div>MOVEMENT LAB</div></div>
@@ -3496,8 +3522,9 @@ function updateRoomUi(){
   $('room-status').textContent=room?.status||'Host a private room or join a friend.';
   $('room-host').disabled=busy||!rendererReady;$('room-join').disabled=busy||!rendererReady;
   $('network-hud').classList.toggle('hidden',!active);
+  $('room-leaderboard').classList.toggle('hidden',!active);
   $('import-source-map').disabled=busy;
-  if(!active){$('room-players').innerHTML='';$('player-labels').innerHTML='';return;}
+  if(!active){$('room-players').innerHTML='';$('room-leaderboard-players').innerHTML='';$('player-labels').innerHTML='';return;}
   const roster=room.roster(),code=displayRoomCode(room.code);
   $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
   $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
@@ -3508,6 +3535,17 @@ function updateRoomUi(){
     const progress=!state?'Joining…':state.completed?'Finished · '+format(state.time):room.course.id==='endless'?`${Math.floor(state.distance)} u`:format(state.time)+(state.paused?' · paused':'');
     const ping=member.host?'HOST':member.ping===null?'—':Math.round(member.ping)+' ms';
     return `<tr><td><i class="room-swatch" data-slot="${member.slot}"></i>${escapeRoomText(member.name)}${member.self?' · you':''}</td><td>${progress}</td><td>${ping}</td></tr>`;
+  }).join('');
+  const selected=MAPS[room.course.id],total=selected?.endless?null:Math.max(0,(selected?.spawns.length||1)-1);
+  const standings=roster.map(member=>({...member,state:member.self?roomLocalState():member.state}));
+  standings.sort((a,b)=>Number(b.state?.completed===true)-Number(a.state?.completed===true)||
+    Number(!!b.state)-Number(!!a.state)||(b.state?.checkpoint||0)-(a.state?.checkpoint||0)||
+    (a.state?.time??Infinity)-(b.state?.time??Infinity)||a.slot-b.slot);
+  $('room-leaderboard-players').innerHTML=standings.map((member,index)=>{
+    const state=member.state,checkpoint=Number.isInteger(state?.checkpoint)?Math.max(0,state.checkpoint):null;
+    const progress=checkpoint===null||total===0?'—':total===null?String(checkpoint):`${Math.min(checkpoint,total)}/${total}`;
+    const name=escapeRoomText(member.name)+(member.self?' · you':'');
+    return `<tr data-self="${member.self===true}"><td><span class="room-player-cell"><span class="room-rank">${index+1}</span><i class="room-swatch" data-slot="${member.slot}"></i><span class="room-player-name">${name}</span></span></td><td>${progress}${state?.completed?' <span class="room-finished" aria-label="Finished">✓</span>':''}</td><td>${state?format(state.time):'—'}</td></tr>`;
   }).join('');
 }
 function drawRoomLabels(camera,players){

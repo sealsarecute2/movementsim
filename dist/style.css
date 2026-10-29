@@ -291,3 +291,25 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .remote-player-label { position:absolute; transform:translate(-50%,-100%); padding:.3rem .45rem; background:#071018aa; border-bottom:2px solid #7bc4ff; color:#e3edf5; font-size:max(10px,.625rem); white-space:nowrap; }
 .remote-player-label[data-slot="1"] { border-color:#ffad66; }.remote-player-label[data-slot="2"] { border-color:#75e5b3; }.remote-player-label[data-slot="3"] { border-color:#c7a6ff; }
 @media(max-width:760px) { .room-options { grid-template-columns:1fr; gap:0; }.room-field { margin:.75rem 0; }.room-invite strong { font-size:1.1rem; }.network-hud { top:2rem; } }
+
+/* Live room standings remain compact beside the course view. */
+.room-leaderboard { position:fixed; top:7.75rem; left:var(--edge); z-index:4; width:clamp(240px,21rem,310px); max-width:calc(100vw - 2 * var(--edge)); padding:.75rem; border:1px solid #34404b; background:#080e14d9; pointer-events:none; }
+.room-leaderboard h2 { margin:0 0 .625rem; font:500 max(10px,.625rem) 'IBM Plex Mono',monospace; letter-spacing:.08em; color:#b3c5d3; }
+.room-leaderboard table { width:100%; table-layout:fixed; border-collapse:collapse; text-align:left; font-size:max(10px,.625rem); font-variant-numeric:tabular-nums; }
+.room-leaderboard th { font-size:max(9px,.5rem); font-weight:400; letter-spacing:.04em; color:#8193a1; }
+.room-leaderboard th,.room-leaderboard td { padding:.5rem .25rem; border-bottom:1px solid #ffffff0d; }
+.room-leaderboard th:nth-child(2),.room-leaderboard td:nth-child(2) { width:3.5rem; text-align:center; white-space:nowrap; color:#b6c9d8; }
+.room-leaderboard th:last-child,.room-leaderboard td:last-child { width:6rem; text-align:right; white-space:nowrap; }
+.room-leaderboard tr:last-child td { border-bottom:0; }
+.room-leaderboard tr[data-self="true"] { background:#94caff12; }
+.room-leaderboard tr[data-self="true"] td:first-child { box-shadow:inset 2px 0 #a6d9ff; }
+.room-leaderboard abbr { text-decoration:none; }
+.room-player-cell { display:flex; align-items:center; min-width:0; gap:.375rem; }
+.room-player-cell .room-swatch { flex-shrink:0; margin:0; }
+.room-player-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.room-rank { width:.75rem; flex-shrink:0; color:#738593; font-size:max(9px,.5rem); text-align:center; }
+.room-finished { color:#75e5b3; }
+body:not(.playing) .room-leaderboard { visibility:hidden; }
+@media(max-width:760px), (max-height:560px) { .room-leaderboard { top:5.75rem; padding:.5rem; width:250px; }.room-leaderboard th,.room-leaderboard td { padding:.375rem .25rem; }.room-leaderboard th:nth-child(2),.room-leaderboard td:nth-child(2) { width:2.75rem; }.room-leaderboard th:last-child,.room-leaderboard td:last-child { width:6rem; } }
+
+@media(max-width:500px) { .room-leaderboard { top:12rem; } }

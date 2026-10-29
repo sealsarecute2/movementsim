@@ -771,3 +771,29 @@ test('locally imported block geometry survives refresh within the same tab',asyn
   const refreshed=boot(saved,'',null,{session});assert.equal(refreshed.read('map'),'local-map');assert.equal(refreshed.read('checkpoint'),1);assert.equal(refreshed.read('menuMode'),'pause');
  } finally {delete course.MAPS['local-map'];}
 });
+
+
+test('the in-game room leaderboard ranks progress and times, escapes names, and clears on leaving',async()=>{
+ const app=boot({},'',null,roomAppOptions);app.element('room-name').value='Host';await app.context.startRoom(true);
+ assert.equal(app.element('room-leaderboard').classList.contains('hidden'),false);
+ app.read("checkpoint=1;runTime=20.25;room.rows=[{id:'self',name:'Host',slot:0,self:true,host:true},{id:'ahead',name:'Ahead',slot:1,state:{checkpoint:2,time:35.5}},{id:'finished',name:'Finished',slot:2,state:{checkpoint:2,time:40.125,completed:true}},{id:'quick',name:'<Seal>',slot:3,state:{checkpoint:1,time:18.5}}];room.roster=()=>room.rows;updateRoomUi()");
+ let rows=app.element('room-leaderboard-players').innerHTML;
+ assert.deepEqual([...rows.matchAll(/class="room-player-name">([^<]*)</g)].map(m=>m[1]),['Finished','Ahead','&lt;Seal&gt;','Host · you']);
+ assert.match(rows,/aria-label="Finished"/);assert.match(rows,/2\/2/);assert.match(rows,/00:40\.125/);assert.match(rows,/00:20\.250/);assert.match(rows,/data-self="true"/);assert.doesNotMatch(rows,/<Seal>/);
+ app.read("checkpoint=2;runTime=10;updateRoomUi()");
+ rows=app.element('room-leaderboard-players').innerHTML;
+ assert.ok(rows.indexOf('Host · you')<rows.indexOf('Ahead'));assert.match(rows,/00:10\.000/);assert.doesNotMatch(rows,/00:20\.250/);
+ app.read("room.rows=room.rows.filter(p=>p.id!=='ahead');updateRoomUi()");
+ assert.doesNotMatch(app.element('room-leaderboard-players').innerHTML,/Ahead/);
+ app.element('room-leave').fire('click');
+ assert.equal(app.element('room-leaderboard').classList.contains('hidden'),true);assert.equal(app.element('room-leaderboard-players').innerHTML,'');
+});
+test('the room leaderboard supports Endless checkpoints and players still joining without invented times',async()=>{
+ const app=boot({},'',null,roomAppOptions);assert.equal(app.element('room-leaderboard-players').innerHTML,'');
+ app.element('room-map').value='endless';await app.context.startRoom(true);
+ app.read("checkpoint=8;runTime=65.5;room.rows=[{id:'self',name:'Host',slot:0,self:true,host:true},{id:'joining',name:'Joining',slot:1}];room.roster=()=>room.rows;updateRoomUi()");
+ const rows=app.element('room-leaderboard-players').innerHTML;
+ assert.match(rows,/<td>8<\/td>/);assert.match(rows,/01:05\.500/);assert.match(rows,/<td>—<\/td><td>—<\/td>/);assert.doesNotMatch(rows,/NaN|8\//);
+ app.read("reset();updateRoomUi()");
+ assert.match(app.element('room-leaderboard-players').innerHTML,/<td>0<\/td>/);assert.match(app.element('room-leaderboard-players').innerHTML,/00:00\.000/);
+});

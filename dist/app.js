@@ -667,8 +667,9 @@ function updateRoomUi(){
   $('room-status').textContent=room?.status||'Host a private room or join a friend.';
   $('room-host').disabled=busy||!rendererReady;$('room-join').disabled=busy||!rendererReady;
   $('network-hud').classList.toggle('hidden',!active);
+  $('room-leaderboard').classList.toggle('hidden',!active);
   $('import-source-map').disabled=busy;
-  if(!active){$('room-players').innerHTML='';$('player-labels').innerHTML='';return;}
+  if(!active){$('room-players').innerHTML='';$('room-leaderboard-players').innerHTML='';$('player-labels').innerHTML='';return;}
   const roster=room.roster(),code=displayRoomCode(room.code);
   $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
   $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
@@ -679,6 +680,17 @@ function updateRoomUi(){
     const progress=!state?'Joining…':state.completed?'Finished · '+format(state.time):room.course.id==='endless'?`${Math.floor(state.distance)} u`:format(state.time)+(state.paused?' · paused':'');
     const ping=member.host?'HOST':member.ping===null?'—':Math.round(member.ping)+' ms';
     return `<tr><td><i class="room-swatch" data-slot="${member.slot}"></i>${escapeRoomText(member.name)}${member.self?' · you':''}</td><td>${progress}</td><td>${ping}</td></tr>`;
+  }).join('');
+  const selected=MAPS[room.course.id],total=selected?.endless?null:Math.max(0,(selected?.spawns.length||1)-1);
+  const standings=roster.map(member=>({...member,state:member.self?roomLocalState():member.state}));
+  standings.sort((a,b)=>Number(b.state?.completed===true)-Number(a.state?.completed===true)||
+    Number(!!b.state)-Number(!!a.state)||(b.state?.checkpoint||0)-(a.state?.checkpoint||0)||
+    (a.state?.time??Infinity)-(b.state?.time??Infinity)||a.slot-b.slot);
+  $('room-leaderboard-players').innerHTML=standings.map((member,index)=>{
+    const state=member.state,checkpoint=Number.isInteger(state?.checkpoint)?Math.max(0,state.checkpoint):null;
+    const progress=checkpoint===null||total===0?'—':total===null?String(checkpoint):`${Math.min(checkpoint,total)}/${total}`;
+    const name=escapeRoomText(member.name)+(member.self?' · you':'');
+    return `<tr data-self="${member.self===true}"><td><span class="room-player-cell"><span class="room-rank">${index+1}</span><i class="room-swatch" data-slot="${member.slot}"></i><span class="room-player-name">${name}</span></span></td><td>${progress}${state?.completed?' <span class="room-finished" aria-label="Finished">✓</span>':''}</td><td>${state?format(state.time):'—'}</td></tr>`;
   }).join('');
 }
 function drawRoomLabels(camera,players){
