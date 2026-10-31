@@ -105,9 +105,15 @@
           <section id="player-account" class="player-account hidden" aria-labelledby="account-title">
             <h3 id="account-title" class="settings-heading">PLAYER ACCOUNT</h3>
             <p id="account-status" role="status" aria-live="polite">Sign in to your Movement Lab account.</p>
-            <p>Public verified runs publish your time and a generated player label. Sign-in expires after 15 minutes.</p>
+            <p>Your username appears on verified leaderboards. You stay signed in on this browser until you sign out.</p>
             <div id="account-google-button" class="hidden"></div>
             <button id="account-prepare" class="text-button" type="button">SIGN IN</button>
+            <form id="account-profile" class="account-profile hidden">
+              <label for="account-username">USERNAME</label>
+              <div class="account-username-row"><input id="account-username" name="username" type="text" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="account-username-help account-profile-status" required><button id="account-username-save" class="text-button" type="submit">SAVE USERNAME</button></div>
+              <p id="account-username-help">3–20 letters, numbers or underscores. Each username belongs to one account.</p>
+              <p id="account-profile-status" role="status" aria-live="polite"></p>
+            </form>
             <button id="account-signout" class="text-button hidden" type="button">SIGN OUT</button>
           </section>
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>

@@ -47,7 +47,7 @@ async function loginBody(fixture){
   const challenge=await response.json(),at=Math.floor(Date.now()/1000);
   const credential=await new SignJWT({iss:'https://accounts.google.com',aud:clientId,sub:'100000000000000000001',iat:at,exp:at+3600,nonce:challenge.nonce})
     .setProtectedHeader({alg:'RS256',kid:'runtime-google-key'}).sign(keyPair.privateKey);
-  return {credential,proof,challenge:challenge.challenge};
+  return {credential,proof,challenge:challenge.challenge,persistent:true};
 }
 
 test('workerd verifies a signed credential, creates a real SQLite session and enforces replay protection and logout',{timeout:30000},async()=>{

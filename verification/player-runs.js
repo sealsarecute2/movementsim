@@ -118,7 +118,7 @@ export async function handlePlayerRuns(request,env){
     try{
       const allocated=await runObject(env,lease.id).fetch(internal('init',{lease,selection,seed,kind:'player',origin,scoreEligible,botVerified:true,privateTest:privateMode}));
       if(!allocated.ok)throw Error('allocation-failed');
-      const expiresAt=Math.min(Date.now()+30000,lease.expiresAt,player.expiresAt);
+      const expiresAt=Math.min(Date.now()+30000,lease.expiresAt,player.expiresAt??Infinity);
       const ticket=await signTicket({v:1,runId:lease.id,accountId:player.accountId,exp:expiresAt,kind:'player',origin,
         playerSessionId:player.sessionId,playerExpiresAt:player.expiresAt,privateTest:privateMode},env.PLAYER_AUTH_KEY);
       return reply({runId:lease.id,ticket,expiresAt,selection,seed,ranked:scoreEligible,privateTest:privateMode,socketPath:`/v1/player/runs/${lease.id}/socket`},201);

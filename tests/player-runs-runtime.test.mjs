@@ -51,11 +51,13 @@ function runtime({persist,vars={},botSuccess=true,botHostname='localhost'}={}){
     method:method||(body===undefined?'GET':'POST'),headers:{origin,...(body===undefined?{}:{'content-type':'application/json'}),...(token?{authorization:'Bearer '+token}:{}),...headers},
     ...(body===undefined?{}:{body:JSON.stringify(body)}),
   });
-  async function session(sessionOrigin=origin){
-    const accountId=randomBytes(32).toString('base64url'),sessionId=randomUUID(),at=Math.floor(Date.now()/1000),expiresAt=(at+900)*1000;
-    assert.equal((await call('/__test/session',{body:{accountId,sessionId,expiresAt,nonce:randomUUID(),nonceExpiresAt:(at+300)*1000}})).status,200);
-    const token=await new SignJWT({sub:accountId,sid:sessionId,origin:sessionOrigin}).setProtectedHeader({alg:'HS256',typ:'ml-session+jwt'})
-      .setIssuer('movement-lab').setAudience('movement-lab-player').setIssuedAt(at).setExpirationTime(at+900).sign(new TextEncoder().encode(secret));
+  async function session(sessionOrigin=origin,{persistent=false}={}){
+    const accountId=randomBytes(32).toString('base64url'),sessionId=randomUUID(),at=Math.floor(Date.now()/1000),expiresAt=persistent?null:(at+900)*1000;
+    assert.equal((await call('/__test/session',{body:{accountId,sessionId,expiresAt,persistent,nonce:randomUUID(),nonceExpiresAt:(at+300)*1000}})).status,200);
+    const jwt=new SignJWT({sub:accountId,sid:sessionId,origin:sessionOrigin,...(persistent?{persistent:true}:{})}).setProtectedHeader({alg:'HS256',typ:'ml-session+jwt'})
+      .setIssuer('movement-lab').setAudience('movement-lab-player').setIssuedAt(at);
+    if(!persistent)jwt.setExpirationTime(at+900);
+    const token=await jwt.sign(new TextEncoder().encode(secret));
     return {accountId,token};
   }
   return {mf,call,session};
@@ -269,4 +271,50 @@ test('public beta accepts a signed Pages session for only Bhop School classic an
     assert.equal((await f.call('/v1/player/runs/'+run.runId+'/cancel',{method:'POST',token:player.token,headers})).status,200);
     assert.equal((await (await f.call('/v1/status',{token:ownerKey})).json()).active,0);
   }finally{await f.mf.dispose();}
+});
+
+test('unique usernames are authenticated, case-insensitive and update existing scores without changing their times',{timeout:30000},async()=>{
+  const f=runtime();
+  try{
+    const a=await f.session(),b=await f.session(),profile='/v1/auth/profile';
+    assert.equal((await f.call(profile,{body:{username:'seals_are_cute'}})).status,401);
+    assert.equal((await f.call(profile,{token:a.token,headers:{origin:'https://evil.example'}})).status,403);
+    for(const username of ['ab','x'.repeat(21),'a b','<script>','séals',null,42])assert.equal((await f.call(profile,{body:{username},token:a.token})).status,400);
+    assert.equal((await f.call(profile,{body:{username:'seals_are_cute',accountId:b.accountId},token:a.token})).status,400);
+    const best=record(a.accountId);assert.equal((await f.call('/__test/score/record',{body:best})).status,200);
+    const attempts=await Promise.all([
+      f.call(profile,{body:{username:'seals_are_cute'},token:a.token}),
+      f.call(profile,{body:{username:'SEALS_ARE_CUTE'},token:b.token}),
+    ]);
+    assert.deepEqual(attempts.map(r=>r.status).sort(),[200,409]);
+    const winner=attempts[0].status===200?a:b,loser=winner===a?b:a;
+    if(winner!==a)assert.equal((await f.call('/__test/score/record',{body:record(b.accountId)})).status,200);
+    const before=(await (await f.call(boardPath)).json()).records.find(r=>r.playerId===winner.accountId);
+    assert.match(before.name,/^seals_are_cute$/i);
+    assert.equal((await f.call(profile,{body:{username:'new_seal_name'},token:winner.token})).status,200);
+    const after=(await (await f.call(boardPath)).json()).records.find(r=>r.playerId===winner.accountId);
+    assert.equal(after.name,'new_seal_name');assert.equal(after.timeNs,before.timeNs);assert.equal(after.runId,before.runId);
+    assert.equal((await (await f.call('/v1/auth/session',{token:winner.token})).json()).player.username,'new_seal_name');
+    assert.equal((await f.call(profile,{body:{username:'new_SEAL_name'},token:loser.token})).status,409);
+    assert.equal((await f.call(profile,{body:{username:'seals_are_cute'},token:loser.token})).status,200,'Renaming frees the previous username.');
+    assert.equal((await (await f.call(profile,{token:winner.token})).json()).player.id,winner.accountId);
+  }finally{await f.mf.dispose();}
+});
+
+test('persistent logins and usernames survive runtime restart, keep 30-second run tickets and remain revocable',{timeout:30000},async()=>{
+  const persist=await mkdtemp(join(tmpdir(),'movementsim-login-profile-'));let f=runtime({persist});
+  try{
+    const a=await f.session(origin,{persistent:true});
+    assert.equal((await f.call('/v1/auth/profile',{body:{username:'forever_seal'},token:a.token})).status,200);
+    await f.mf.dispose();f=runtime({persist});
+    const account=await (await f.call('/v1/auth/session',{token:a.token})).json();
+    assert.equal(account.persistent,true);assert.equal(account.expiresAt,null);assert.equal(account.player.username,'forever_seal');
+    const response=await f.call('/v1/player/runs',{body:selection,token:a.token});assert.equal(response.status,201);
+    const run=await response.json();assert.ok(run.expiresAt>Date.now()&&run.expiresAt<=Date.now()+30000);
+    assert.equal((await f.call('/v1/auth/logout',{body:{},token:a.token})).status,200);
+    assert.equal((await f.call('/v1/auth/session',{token:a.token})).status,401);
+    assert.equal((await f.call(run.socketPath,{headers:{upgrade:'websocket','sec-websocket-protocol':'movementlab-v1,ticket.'+run.ticket}})).status,401);
+    assert.equal((await f.call('/v1/auth/profile',{body:{username:'stolen_name'},token:a.token})).status,401);
+    assert.equal((await f.call('/__test/score/profile',{body:{accountId:a.accountId}})).status,200,'Logout preserves the account profile.');
+  }finally{await f.mf.dispose();await rm(persist,{recursive:true,force:true});}
 });

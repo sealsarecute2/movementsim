@@ -29,18 +29,18 @@ test('the Google button uses a fresh nonce and the server receives only credenti
   assert.equal(await f.client.acceptCredential({credential:'google-signed-token'}),true);
   assert.equal(f.client.state().signedIn,true);assert.equal(f.client.authorization(),'Bearer application-session');
   const sent=JSON.parse(f.calls.find(c=>c.url.endsWith('/google')).init.body);
-  assert.deepEqual(Object.keys(sent).sort(),['challenge','credential','proof']);assert.match(sent.proof,/^[A-Za-z0-9_-]{43}$/);
+  assert.deepEqual(Object.keys(sent).sort(),['challenge','credential','persistent','proof']);assert.equal(sent.persistent,true);assert.match(sent.proof,/^[A-Za-z0-9_-]{43}$/);
   assert.ok(f.calls.every(c=>c.init.credentials==='omit'&&c.init.redirect==='error'&&c.init.cache==='no-store'));
   assert.ok(f.calls.every(c=>!c.url.includes('token')&&!c.url.includes(sent.proof)));
   assert.ok(f.states.every(s=>!JSON.stringify(s).includes('application-session')&&!JSON.stringify(s).includes(sent.proof)));
   f.client.dispose();
 });
-test('logout revokes the bearer session and expiry removes credentials without using browser storage',async()=>{
+test('logout revokes the bearer session and legacy expiry removes credentials',async()=>{
   const f=fixture();await f.client.prepare(f.container);await f.client.acceptCredential({credential:'google-token'});
   await f.client.signOut();assert.equal(f.client.authorization(),null);assert.equal(f.client.state().signedIn,false);assert.equal(f.google.disabled,true);
   assert.equal(f.calls.at(-1).init.headers.authorization,'Bearer application-session');
   const second=fixture();await second.client.prepare(second.container);await second.client.acceptCredential({credential:'google-token'});
-  second.expire();assert.equal(second.client.authorization(),null);assert.equal(second.client.state().signedIn,false);assert.match(second.client.state().status,/expired/);
+  second.expire();assert.equal(second.client.authorization(),null);assert.equal(second.client.state().signedIn,false);assert.match(second.client.state().status,/Sign in again/);
 });
 test('default expiry timers preserve the browser Window receiver through login, logout and disposal',async()=>{
   const originalSet=globalThis.setTimeout,originalClear=globalThis.clearTimeout,liveTimers=new Set();let calls=0;
@@ -111,4 +111,68 @@ test('Settings wires optional sign-in, status and sign-out without touching game
   assert.equal(app.element('account-prepare').classList.contains('hidden'),true);
   await app.element('account-signout').fire('click');assert.equal(app.element('account-status').textContent,'Sign in.');
   app.element('play').fire('click');assert.equal(app.requests(),1);app.window.fire('pagehide');assert.equal(app.read('playerLogin.disposed'),true);
+});
+
+function memoryStorage(){
+  const values=new Map();return {values,getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};
+}
+function persistentFixture(storage=memoryStorage(),overrides={}){
+  const f=fixture({storage,schedule(){throw Error('Persistent logins must not schedule expiry');},...overrides});
+  const original=f.client.fetcher;
+  const player={id:'p'.repeat(43),username:null};
+  f.client.fetcher=async(url,init)=>{
+    if(url.endsWith('/google'))return Response.json({token:'saved-device-session',player,expiresAt:null,persistent:true,ranked:false});
+    if(url.endsWith('/session'))return Response.json({player,expiresAt:null,persistent:true,ranked:false});
+    if(url.endsWith('/profile'))return Response.json({player:{...player,username:JSON.parse(init.body).username},ranked:false});
+    return original(url,init);
+  };
+  return {...f,storage};
+}
+async function persistentSignIn(f){await f.client.prepare(f.container);assert.equal(await f.client.acceptCredential({credential:'private-google-id-token'}),true);}
+test('persistent login survives years, page disposal and a new browser instance without storing the Google credential',async()=>{
+  const f=persistentFixture();await persistentSignIn(f);f.advance(10*365*86400000);
+  assert.equal(f.client.state().signedIn,true);assert.equal(f.client.state().expiresAt,null);
+  assert.equal(f.storage.values.size,1);assert.ok(!JSON.stringify([...f.storage.values.values()]).includes('private-google-id-token'));
+  f.client.dispose();assert.equal(f.storage.values.size,1);
+  const reopened=persistentFixture(f.storage);assert.equal(reopened.client.state().signedIn,false);
+  assert.equal(await reopened.client.restore(),true);assert.equal(reopened.client.authorization(),'Bearer saved-device-session');
+  await reopened.client.signOut();assert.equal(f.storage.values.size,0);
+  assert.equal(reopened.calls.at(-1).init.headers.authorization,'Bearer saved-device-session');
+  assert.equal(await f.client.restore(),false);
+});
+test('saved sessions are revalidated and revoked sessions are removed; temporary network failures preserve the login',async()=>{
+  const f=persistentFixture();await persistentSignIn(f);f.client.dispose();
+  const reopened=persistentFixture(f.storage);reopened.client.fetcher=async()=>{throw Error('offline');};
+  assert.equal(await reopened.client.restore(),false);assert.equal(f.storage.values.size,1);assert.match(reopened.client.state().status,/login is saved/);
+  reopened.client.fetcher=async()=>Response.json({error:'player-auth-required'},{status:401});
+  assert.equal(await reopened.client.restore(),false);assert.equal(f.storage.values.size,0);assert.equal(reopened.client.authorization(),null);
+});
+test('late restoration after sign-out cannot resurrect the saved login',async()=>{
+  const f=persistentFixture();await persistentSignIn(f);f.client.dispose();const reopened=persistentFixture(f.storage);
+  let finish;const original=reopened.client.fetcher;
+  reopened.client.fetcher=(url,init)=>url.endsWith('/session')?new Promise(resolve=>{finish=resolve;}):original(url,init);
+  const pending=reopened.client.restore();await new Promise(resolve=>setImmediate(resolve));assert.equal(typeof finish,'function');
+  await reopened.client.signOut();finish(Response.json({player:{id:'p'.repeat(43)},expiresAt:null,persistent:true,ranked:false}));
+  assert.equal(await pending,false);assert.equal(reopened.client.authorization(),null);assert.equal(f.storage.values.size,0);
+  assert.equal(reopened.calls.at(-1).init.headers.authorization,'Bearer saved-device-session');
+});
+test('offline logout clears the remembered login immediately and retries server revocation on reconnect',async()=>{
+  const f=persistentFixture();await persistentSignIn(f);const original=f.client.fetcher;
+  f.client.fetcher=async()=>{throw Error('offline');};await f.client.signOut();
+  assert.equal(f.client.authorization(),null);assert.equal(f.client.savedToken(),null);assert.ok(f.storage.getItem(f.client.logoutKey));
+  f.client.fetcher=original;await f.client.restore();assert.equal(f.storage.values.size,0);
+  assert.equal(f.calls.at(-1).init.headers.authorization,'Bearer saved-device-session');
+});
+test('username saving uses only the authenticated session and keeps the current name on conflicts',async()=>{
+  const f=persistentFixture();await persistentSignIn(f);
+  assert.equal(await f.client.saveUsername('  seals_are_cute  '),true);assert.equal(f.client.state().player.username,'seals_are_cute');
+  assert.match(f.client.state().status,/seals_are_cute/);assert.equal(f.client.authorization(),'Bearer saved-device-session');
+  assert.equal(await f.client.saveUsername('<img src=x>'),false);assert.match(f.client.state().profileStatus,/3–20/);
+  f.client.fetcher=async()=>Response.json({error:'username-taken'},{status:409});
+  assert.equal(await f.client.saveUsername('someone_else'),false);assert.equal(f.client.state().player.username,'seals_are_cute');assert.match(f.client.state().profileStatus,/taken/);
+});
+test('blocked browser storage leaves a persistent server login usable in this tab',async()=>{
+  const storage={getItem(){throw Error('blocked');},setItem(){throw Error('blocked');},removeItem(){throw Error('blocked');}};
+  const f=persistentFixture(storage);await persistentSignIn(f);assert.match(f.client.state().status,/storage is unavailable/);
+  await f.client.restore();assert.equal(f.client.state().signedIn,true);await f.client.signOut();assert.equal(f.client.authorization(),null);
 });

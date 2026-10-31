@@ -1,5 +1,6 @@
 import {SignJWT,jwtVerify,createRemoteJWKSet,decodeProtectedHeader,customFetch} from 'jose';
 import {configuredSecret,networkKey} from './auth.js';
+import {validUsername} from './score-store.js';
 
 export const PLAYER_SESSION_MS=15*60000;
 export const LOGIN_CHALLENGE_MS=5*60000;
@@ -64,8 +65,10 @@ export function createGoogleVerifier(keySet=googleKeys){
 }
 const verifyGoogle=createGoogleVerifier();
 async function signedPlayerToken(payload,secret,{type,audience,now,expiresAt}){
-  return new SignJWT(payload).setProtectedHeader({alg:'HS256',typ:type}).setIssuer('movement-lab')
-    .setAudience(audience).setIssuedAt(Math.floor(now/1000)).setExpirationTime(Math.floor(expiresAt/1000)).sign(bytesKey(secret));
+  const token=new SignJWT(payload).setProtectedHeader({alg:'HS256',typ:type}).setIssuer('movement-lab')
+    .setAudience(audience).setIssuedAt(Math.floor(now/1000));
+  if(expiresAt!==null)token.setExpirationTime(Math.floor(expiresAt/1000));
+  return token.sign(bytesKey(secret));
 }
 async function checkedPlayerToken(token,secret,{type,audience,now,maxAge}){
   if(!configuredSecret(secret)||typeof token!=='string'||token.length>2048)refuse();
@@ -97,22 +100,42 @@ async function boundedLoginJson(request){
 }
 function onlyKeys(value,keys){if(Object.keys(value).length!==keys.length||keys.some(key=>!Object.hasOwn(value,key)))refuse('invalid-body',400);}
 const playerSessions=(env,id)=>env.PLAYER_SESSIONS.get(env.PLAYER_SESSIONS.idFromName(id));
+async function playerProfile(env,accountId,username){
+  if(!env.SCORES)return {id:accountId,username:null};
+  const response=await env.SCORES.get(env.SCORES.idFromName('global-v1')).fetch(internalAuthRequest(
+    username===undefined?'profile':'profile-set',{accountId,...(username===undefined?{}:{username})}));
+  if(!response.ok){
+    if(response.status===409)refuse('username-taken',409);
+    refuse('profile-unavailable',503);
+  }
+  return (await response.json()).player;
+}
 
 // Also used by the future verified-run route: an ID token or submitted account
 // name is never an application session. Check revocation before admission.
 export async function authenticatePlayer(request,env,{now=Date.now()}={}){
   const header=request.headers.get('authorization');
   if(!header?.startsWith('Bearer '))refuse('player-auth-required');
-  const claims=await checkedPlayerToken(header.slice(7),env.PLAYER_AUTH_KEY,{
-    type:'ml-session+jwt',audience:'movement-lab-player',now,maxAge:PLAYER_SESSION_MS,
-  });
+  if(!configuredSecret(env.PLAYER_AUTH_KEY)||header.length>2055)refuse();
+  let claims;
+  try{
+    ({payload:claims}=await jwtVerify(header.slice(7),bytesKey(env.PLAYER_AUTH_KEY),{
+      algorithms:['HS256'],typ:'ml-session+jwt',issuer:'movement-lab',audience:'movement-lab-player',
+      currentDate:new Date(now),requiredClaims:['iat','sub','sid','origin'],
+    }));
+    if(!Number.isSafeInteger(claims.iat)||claims.iat>now/1000)refuse();
+    if(claims.persistent===true){if(claims.exp!==undefined)refuse();}
+    else claims=await checkedPlayerToken(header.slice(7),env.PLAYER_AUTH_KEY,{
+      type:'ml-session+jwt',audience:'movement-lab-player',now,maxAge:PLAYER_SESSION_MS,
+    });
+  }catch{refuse();}
   if(!opaquePattern.test(claims.sub)||!uuidPattern.test(claims.sid)||claims.origin!==request.headers.get('origin'))refuse('player-auth-required');
   const response=await playerSessions(env,claims.sub).fetch(internalAuthRequest('check',{
-    accountId:claims.sub,sessionId:claims.sid,expiresAt:claims.exp*1000,
+    accountId:claims.sub,sessionId:claims.sid,expiresAt:claims.persistent===true?null:claims.exp*1000,
   }));
   if(response.status===401)refuse('player-auth-required');
   if(!response.ok)refuse('login-unavailable',503);
-  return {accountId:claims.sub,sessionId:claims.sid,expiresAt:claims.exp*1000};
+  return {accountId:claims.sub,sessionId:claims.sid,expiresAt:claims.persistent===true?null:claims.exp*1000};
 }
 
 export function createPlayerAuthHandler({googleVerifier=verifyGoogle,now=Date.now}={}){
@@ -127,20 +150,21 @@ export function createPlayerAuthHandler({googleVerifier=verifyGoogle,now=Date.no
     if(!permitted)return reply({error:'origin-not-allowed'},403);
     if(env.GOOGLE_LOGIN_ENABLED!=='true'||!clientIdPattern.test(env.GOOGLE_CLIENT_ID)||!configuredSecret(env.PLAYER_AUTH_KEY)||
       !env.PLAYER_SESSIONS||!env.AUTH_RATE)return reply({error:'login-disabled'},503);
-    const paths={'/v1/auth/config':'GET','/v1/auth/challenge':'POST','/v1/auth/google':'POST','/v1/auth/session':'GET','/v1/auth/logout':'POST'};
+    const paths={'/v1/auth/config':'GET','/v1/auth/challenge':'POST','/v1/auth/google':'POST','/v1/auth/session':'GET','/v1/auth/logout':'POST','/v1/auth/profile':['GET','POST']};
     if(!Object.hasOwn(paths,path))return reply({error:'not-found'},404);
     try{
       if(request.method==='OPTIONS'){
         const headers=(request.headers.get('access-control-request-headers')||'').toLowerCase().split(',').map(x=>x.trim()).filter(Boolean);
-        if(request.headers.get('access-control-request-method')!==paths[path]||headers.some(x=>!['authorization','content-type'].includes(x)))return reply({error:'invalid-preflight'},403);
+        const methods=[paths[path]].flat();
+        if(!methods.includes(request.headers.get('access-control-request-method'))||headers.some(x=>!['authorization','content-type'].includes(x)))return reply({error:'invalid-preflight'},403);
         return new Response(null,{status:204,headers:{'access-control-allow-origin':origin,'vary':'Origin',
-          'access-control-allow-methods':paths[path],'access-control-allow-headers':'Authorization, Content-Type','access-control-max-age':'600','cache-control':'no-store'}});
+          'access-control-allow-methods':methods.join(', '),'access-control-allow-headers':'Authorization, Content-Type','access-control-max-age':'600','cache-control':'no-store'}});
       }
-      if(request.method!==paths[path])return reply({error:'method-not-allowed'},405);
+      if(![paths[path]].flat().includes(request.method))return reply({error:'method-not-allowed'},405);
       const address=request.headers.get('cf-connecting-ip');if(!address)return reply({error:'missing-network'},400);
       const net=await networkKey(address,env.PLAYER_AUTH_KEY,now());
       if(!(await env.AUTH_RATE.limit({key:'auth:'+net})).success)return reply({error:'login-rate'},429);
-      if(path==='/v1/auth/config')return reply({enabled:true,clientId:env.GOOGLE_CLIENT_ID,sessionSeconds:PLAYER_SESSION_MS/1000,ranked:false});
+      if(path==='/v1/auth/config')return reply({enabled:true,clientId:env.GOOGLE_CLIENT_ID,sessionSeconds:null,persistent:true,ranked:false});
       if(path==='/v1/auth/challenge'){
         const body=await boundedLoginJson(request);onlyKeys(body,['proofHash']);
         if(!opaquePattern.test(body.proofHash))refuse('invalid-body',400);
@@ -151,7 +175,8 @@ export function createPlayerAuthHandler({googleVerifier=verifyGoogle,now=Date.no
         return reply({challenge,nonce,expiresAt,clientId:env.GOOGLE_CLIENT_ID});
       }
       if(path==='/v1/auth/google'){
-        const body=await boundedLoginJson(request);onlyKeys(body,['credential','challenge','proof']);
+        const body=await boundedLoginJson(request),persistent=body.persistent===true;
+        onlyKeys(body,['credential','challenge','proof',...(persistent?['persistent']:[])]);
         if(!opaquePattern.test(body.proof))refuse();
         const at=now(),claims=await checkedPlayerToken(body.challenge,env.PLAYER_AUTH_KEY,{
           type:'ml-challenge+jwt',audience:'movement-lab-google-login',now:at,maxAge:LOGIN_CHALLENGE_MS,
@@ -160,18 +185,30 @@ export function createPlayerAuthHandler({googleVerifier=verifyGoogle,now=Date.no
           !opaquePattern.test(claims.nonce)||claims.proofHash!==await loginProofHash(body.proof))refuse();
         const {accountId}=await googleVerifier(body.credential,{clientId:env.GOOGLE_CLIENT_ID,nonce:claims.nonce,now:at});
         if(!opaquePattern.test(accountId))refuse();
-        const sessionId=crypto.randomUUID(),expiresAt=Math.floor((at+PLAYER_SESSION_MS)/1000)*1000;
+        const player=await playerProfile(env,accountId);
+        // Cached clients keep their existing contract until they reload.
+        const sessionId=crypto.randomUUID(),expiresAt=persistent?null:Math.floor((at+PLAYER_SESSION_MS)/1000)*1000;
         const opened=await playerSessions(env,accountId).fetch(internalAuthRequest('open',{
-          accountId,sessionId,expiresAt,nonce:claims.jti,nonceExpiresAt:claims.exp*1000,
+          accountId,sessionId,expiresAt,persistent,nonce:claims.jti,nonceExpiresAt:claims.exp*1000,
         }));
         if(!opened.ok){if(opened.status===409)return reply({error:'login-already-used'},409);refuse('login-unavailable',503);}
-        const token=await signedPlayerToken({sub:accountId,sid:sessionId,origin},env.PLAYER_AUTH_KEY,{
+        const token=await signedPlayerToken({sub:accountId,sid:sessionId,origin,...(persistent?{persistent:true}:{})},env.PLAYER_AUTH_KEY,{
           type:'ml-session+jwt',audience:'movement-lab-player',now:at,expiresAt,
         });
-        return reply({token,expiresAt,player:{id:accountId},ranked:false});
+        return reply({token,expiresAt,persistent,player,ranked:false});
       }
       const session=await authenticatePlayer(request,env,{now:now()});
-      if(path==='/v1/auth/session')return reply({player:{id:session.accountId},expiresAt:session.expiresAt,ranked:false});
+      if(path==='/v1/auth/profile'){
+        let username;
+        if(request.method==='POST'){
+          const body=await boundedLoginJson(request);onlyKeys(body,['username']);
+          if(!validUsername(body.username))refuse('invalid-username',400);
+          if(!env.SCORES)refuse('profile-unavailable',503);
+          username=body.username;
+        }
+        return reply({player:await playerProfile(env,session.accountId,username),ranked:false});
+      }
+      if(path==='/v1/auth/session')return reply({player:await playerProfile(env,session.accountId),expiresAt:session.expiresAt,persistent:session.expiresAt===null,ranked:false});
       const closed=await playerSessions(env,session.accountId).fetch(internalAuthRequest('logout',session));
       if(!closed.ok)refuse('login-unavailable',503);
       return reply({signedOut:true});
@@ -188,15 +225,15 @@ export class PlayerSessions {
       if(!opaquePattern.test(body.accountId)||!uuidPattern.test(body.sessionId))return Response.json({error:'invalid-session'},{status:400});
       const state=await this.ctx.storage.get('sessions')||{accountId:body.accountId,sessions:[],nonces:[]};
       if(state.accountId!==body.accountId)return Response.json({error:'invalid-account'},{status:401});
-      state.sessions=state.sessions.filter(s=>s.expiresAt>at);state.nonces=state.nonces.filter(n=>n.expiresAt>at);
+      state.sessions=state.sessions.filter(s=>s.persistent===true||s.expiresAt>at);state.nonces=state.nonces.filter(n=>n.expiresAt>at);
       let status=200;
       if(path==='/open'){
-        if(!Number.isSafeInteger(body.expiresAt)||body.expiresAt<=at||body.expiresAt>at+PLAYER_SESSION_MS+5000||
+        if((body.persistent===true?body.expiresAt!==null:!Number.isSafeInteger(body.expiresAt)||body.expiresAt<=at||body.expiresAt>at+PLAYER_SESSION_MS+5000)||
           !uuidPattern.test(body.nonce)||!Number.isSafeInteger(body.nonceExpiresAt)||body.nonceExpiresAt<=at||body.nonceExpiresAt>at+LOGIN_CHALLENGE_MS+5000)return Response.json({error:'invalid-session'},{status:400});
         if(state.nonces.some(n=>n.id===body.nonce))return Response.json({error:'login-already-used'},{status:409});
         if(state.nonces.length>=64)return Response.json({error:'account-login-rate'},{status:429});
         state.nonces.push({id:body.nonce,expiresAt:body.nonceExpiresAt});
-        state.sessions.push({id:body.sessionId,expiresAt:body.expiresAt});
+        state.sessions.push({id:body.sessionId,expiresAt:body.expiresAt,...(body.persistent===true?{persistent:true}:{})});
         // Bound retained sessions; signing in on a fourth tab revokes the oldest.
         state.sessions=state.sessions.slice(-3);
       }else if(path==='/check'){
@@ -204,19 +241,21 @@ export class PlayerSessions {
       }else if(path==='/logout')state.sessions=state.sessions.filter(s=>s.id!==body.sessionId);
       else return Response.json({error:'not-found'},{status:404});
       await this.ctx.storage.put('sessions',state);
-      const expiries=[...state.sessions,...state.nonces].map(s=>s.expiresAt);
+      const expiries=[...state.sessions,...state.nonces].map(s=>s.expiresAt).filter(Number.isSafeInteger);
       if(expiries.length)await this.ctx.storage.setAlarm(Math.min(...expiries));
-      else await this.ctx.storage.deleteAll();
+      else if(!state.sessions.length)await this.ctx.storage.deleteAll();
+      else await this.ctx.storage.deleteAlarm?.();
       return Response.json(status===200?{ok:true}:{error:'player-auth-required'},{status});
     });
   }
   async alarm(){
     await this.ctx.blockConcurrencyWhile(async()=>{
       const state=await this.ctx.storage.get('sessions');if(!state)return;
-      const at=Date.now();state.sessions=state.sessions.filter(s=>s.expiresAt>at);state.nonces=state.nonces.filter(s=>s.expiresAt>at);
-      const expiries=[...state.sessions,...state.nonces].map(s=>s.expiresAt);
-      if(!expiries.length){await this.ctx.storage.deleteAll();return;}
-      await this.ctx.storage.put('sessions',state);await this.ctx.storage.setAlarm(Math.min(...expiries));
+      const at=Date.now();state.sessions=state.sessions.filter(s=>s.persistent===true||s.expiresAt>at);state.nonces=state.nonces.filter(s=>s.expiresAt>at);
+      const expiries=[...state.sessions,...state.nonces].map(s=>s.expiresAt).filter(Number.isSafeInteger);
+      if(!state.sessions.length&&!state.nonces.length){await this.ctx.storage.deleteAll();return;}
+      await this.ctx.storage.put('sessions',state);
+      if(expiries.length)await this.ctx.storage.setAlarm(Math.min(...expiries));else await this.ctx.storage.deleteAlarm?.();
     });
   }
 }

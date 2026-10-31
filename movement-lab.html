@@ -332,6 +332,13 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .leaderboard-sources button[aria-pressed="true"] { background:#25343d; border-color:#7cacae; color:#e2f0f1; }
 .leaderboard-sources button:disabled { opacity:.4; cursor:default; }
 #account-google-button { margin:.75rem 0; min-height:40px; }
+.account-profile { margin:1rem 0; }
+.account-profile > label { font-size:10px; letter-spacing:.12em; color:#a6b7c5; }
+.account-username-row { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem; margin-top:.5rem; }
+.account-username-row input { flex:1 1 180px; min-width:0; max-width:300px; padding:.7rem .8rem; border:1px solid #54676c; border-radius:5px; background:#10181e; color:#e2f0f1; font:inherit; font-size:14px; }
+.account-username-row input:focus-visible { outline:2px solid #a8d7cd; outline-offset:2px; }
+.account-username-row .text-button { margin:0; padding:.75rem .9rem; border:1px solid #54676c; border-radius:5px; font-size:11px; color:#e2f0f1; }
+.account-profile p { font-size:11px; line-height:1.6; color:#a6b7c5; }
 body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visibility:hidden; }
 @media(max-width:760px), (max-height:560px) { .room-leaderboard { top:5.75rem; padding:.5rem; width:250px; }.room-leaderboard th,.room-leaderboard td { padding:.375rem .25rem; }.room-leaderboard th:nth-child(2),.room-leaderboard td:nth-child(2) { width:2.75rem; }.room-leaderboard th:last-child,.room-leaderboard td:last-child { width:6rem; } }
 
@@ -435,9 +442,15 @@ body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visib
           <section id="player-account" class="player-account hidden" aria-labelledby="account-title">
             <h3 id="account-title" class="settings-heading">PLAYER ACCOUNT</h3>
             <p id="account-status" role="status" aria-live="polite">Sign in to your Movement Lab account.</p>
-            <p>Public verified runs publish your time and a generated player label. Sign-in expires after 15 minutes.</p>
+            <p>Your username appears on verified leaderboards. You stay signed in on this browser until you sign out.</p>
             <div id="account-google-button" class="hidden"></div>
             <button id="account-prepare" class="text-button" type="button">SIGN IN</button>
+            <form id="account-profile" class="account-profile hidden">
+              <label for="account-username">USERNAME</label>
+              <div class="account-username-row"><input id="account-username" name="username" type="text" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="account-username-help account-profile-status" required><button id="account-username-save" class="text-button" type="submit">SAVE USERNAME</button></div>
+              <p id="account-username-help">3–20 letters, numbers or underscores. Each username belongs to one account.</p>
+              <p id="account-profile-status" role="status" aria-live="polite"></p>
+            </form>
             <button id="account-signout" class="text-button hidden" type="button">SIGN OUT</button>
           </section>
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>
@@ -3288,20 +3301,92 @@ const movementLoginMessage=code=>({
   'google-unavailable':'Google sign-in is temporarily unavailable. Try again.',
   'login-unavailable':'Could not finish signing in. Please try again.',
 }[code]||'Could not finish signing in. Please try again.');
+const movementUsername=value=>typeof value==='string'&&/^[A-Za-z0-9_]{3,20}$/.test(value);
+const movementBrowserStorage=()=>{try{return globalThis.localStorage;}catch{return null;}};
 
 class GooglePlayerLogin {
   #session=null;
   constructor({endpoint,fetcher=(...args)=>fetch(...args),cryptoApi=globalThis.crypto,now=Date.now,
     loadGoogle=loadMovementGoogle,onChange=()=>{},schedule=(...args)=>globalThis.setTimeout(...args),
-    unschedule=(...args)=>globalThis.clearTimeout(...args)}={}){
+    unschedule=(...args)=>globalThis.clearTimeout(...args),storage=movementBrowserStorage()}={}){
     if(!validPlayerAuthEndpoint(endpoint))throw Error('invalid-auth-endpoint');
-    Object.assign(this,{endpoint,fetcher,cryptoApi,now,loadGoogle,onChange,schedule,unschedule});
+    Object.assign(this,{endpoint,fetcher,cryptoApi,now,loadGoogle,onChange,schedule,unschedule,storage});
+    this.storageKey='movement-lab-login-v1:'+endpoint;this.logoutKey='movement-lab-logout-v1:'+endpoint;
+    this.profileBusy=false;this.profileStatus='';this.remembered=false;
     this.generation=0;this.busy=false;this.challenge=null;this.google=null;this.expiryTimer=null;
     this.status='Sign in to your Movement Lab account.';
   }
-  state(){return {signedIn:!!this.#session&&this.#session.expiresAt>this.now(),expiresAt:this.#session?.expiresAt||null,
+  state(){return {signedIn:!!this.authorization(),expiresAt:this.#session?.expiresAt??null,
+    player:this.#session?{...this.#session.player}:null,profileBusy:this.profileBusy,profileStatus:this.profileStatus,
     busy:this.busy,prepared:!!this.challenge,status:this.status};}
-  authorization(){return this.#session?.expiresAt>this.now()?'Bearer '+this.#session.token:null;}
+  authorization(){return this.#session&&(this.#session.expiresAt===null||this.#session.expiresAt>this.now())?'Bearer '+this.#session.token:null;}
+  readStorage(key){try{return JSON.parse(this.storage?.getItem(key)||'null');}catch{return null;}}
+  writeStorage(key,value){try{if(!this.storage)return false;if(value===null)this.storage.removeItem(key);else this.storage.setItem(key,JSON.stringify(value));return true;}catch{return false;}}
+  savedToken(){const saved=this.readStorage(this.storageKey);return typeof saved?.token==='string'&&saved.token.length>0&&saved.token.length<=2048?saved.token:null;}
+  acceptSession(session){
+    if(typeof session.token!=='string'||!session.token||session.token.length>2048||session.ranked!==false||
+      !/^[A-Za-z0-9_-]{43}$/.test(session.player?.id)||
+      (session.player.username!==undefined&&session.player.username!==null&&!movementUsername(session.player.username))||
+      !(session.persistent===true&&session.expiresAt===null)&&(!Number.isSafeInteger(session.expiresAt)||session.expiresAt<=this.now()||session.expiresAt>this.now()+900000))throw Error('login-invalid');
+    this.unschedule(this.expiryTimer);this.expiryTimer=null;
+    if(session.expiresAt!==null)this.expiryTimer=this.schedule(()=>{
+      this.#session=null;this.status='Sign in again to keep your account on this browser.';this.onChange(this.state());
+    },session.expiresAt-this.now());
+    this.#session={token:session.token,expiresAt:session.expiresAt,player:{id:session.player.id,username:session.player.username||null}};
+  }
+  async flushLogouts(){
+    const pending=this.readStorage(this.logoutKey);
+    if(!Array.isArray(pending))return;
+    const remaining=[];
+    for(const token of pending.slice(-3)){
+      if(typeof token!=='string'||!token||token.length>2048)continue;
+      try{await this.request('logout',{body:{},authorization:'Bearer '+token});}
+      catch(error){if(!['player-auth-required','login-invalid'].includes(error.message))remaining.push(token);}
+    }
+    this.writeStorage(this.logoutKey,remaining.length?remaining:null);
+  }
+  async restore(){
+    if(this.busy)return false;
+    await this.flushLogouts();
+    if(this.busy)return false;
+    const token=this.savedToken();
+    if(!token){
+      if(this.remembered&&this.#session?.expiresAt===null){this.#session=null;this.remembered=false;this.status='Signed out.';this.onChange(this.state());}
+      return false;
+    }
+    if(token===this.#session?.token&&this.authorization())return true;
+    const generation=++this.generation;this.busy=true;this.status='Restoring your account…';this.onChange(this.state());
+    try{
+      const response=await this.request('session',{authorization:'Bearer '+token});
+      if(generation!==this.generation||this.savedToken()!==token)return false;
+      if(response.persistent!==true||response.expiresAt!==null)throw Error('login-invalid');
+      this.acceptSession({...response,token});this.remembered=true;this.status='Signed in'+(response.player.username?' as '+response.player.username:' with Google')+'.';return true;
+    }catch(error){
+      if(generation===this.generation){
+        this.#session=null;
+        if(['player-auth-required','login-invalid'].includes(error.message)){
+          if(this.savedToken()===token)this.writeStorage(this.storageKey,null);
+          this.status='This login was signed out. Sign in again.';
+        }else this.status='Could not reconnect to your account. Your login is saved; reconnect to try again.';
+      }
+      return false;
+    }finally{if(generation===this.generation){this.busy=false;this.onChange(this.state());}}
+  }
+  async saveUsername(value){
+    if(!this.authorization()||this.profileBusy)return false;
+    const username=typeof value==='string'?value.trim():'';
+    if(!movementUsername(username)){this.profileStatus='Use 3–20 letters, numbers or underscores.';this.onChange(this.state());return false;}
+    const generation=this.generation,authorization=this.authorization();this.profileBusy=true;this.profileStatus='Saving username…';this.onChange(this.state());
+    try{
+      const response=await this.request('profile',{body:{username},authorization});
+      if(generation!==this.generation||!this.#session)return false;
+      if(response.player?.id!==this.#session.player.id||response.player.username!==username||response.ranked!==false)throw Error('invalid-profile');
+      this.#session.player.username=username;this.profileStatus='Username saved. Your leaderboard entries use this name.';this.status='Signed in as '+username+'.';return true;
+    }catch(error){
+      if(generation===this.generation)this.profileStatus=error.message==='username-taken'?'That username is taken. Choose another.':error.message==='invalid-username'?'Use 3–20 letters, numbers or underscores.':'Could not save your username. Try again.';
+      return false;
+    }finally{if(generation===this.generation){this.profileBusy=false;this.onChange(this.state());}}
+  }
   async request(path,{body,authorization}={}){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
     try{
@@ -3352,32 +3437,32 @@ class GooglePlayerLogin {
     try{
       if(challenge.expiresAt<=this.now())throw Error('login-expired');
       if(typeof response?.credential!=='string'||!response.credential||response.credential.length>16384)throw Error('login-invalid');
-      const session=await this.request('google',{body:{credential:response.credential,challenge:challenge.challenge,proof:challenge.proof}});
+      const session=await this.request('google',{body:{credential:response.credential,challenge:challenge.challenge,proof:challenge.proof,persistent:true}});
       if(generation!==this.generation){
         if(typeof session.token==='string')await this.request('logout',{body:{},authorization:'Bearer '+session.token}).catch(()=>{});
         return false;
       }
-      if(typeof session.token!=='string'||!session.token||session.token.length>2048||!Number.isSafeInteger(session.expiresAt)||
-        session.expiresAt<=this.now()||session.expiresAt>this.now()+900000||session.ranked!==false||
-        !/^[A-Za-z0-9_-]{43}$/.test(session.player?.id))throw Error('login-invalid');
-      this.unschedule(this.expiryTimer);
-      // Complete browser timer setup before exposing an authenticated state.
-      const expiryTimer=this.schedule(()=>{
-        this.#session=null;this.status='Your session expired. Sign in again.';this.onChange(this.state());
-      },session.expiresAt-this.now());
-      this.#session={token:session.token,expiresAt:session.expiresAt};this.challenge=null;this.expiryTimer=expiryTimer;
-      this.status='Signed in with Google.';return true;
+      this.acceptSession(session);this.challenge=null;
+      const saved=session.persistent===true&&this.writeStorage(this.storageKey,{token:session.token});
+      this.remembered=!!saved;
+      this.status=saved?'Signed in'+(session.player.username?' as '+session.player.username:' with Google')+'.':
+        session.persistent===true?'Signed in for this tab. Browser storage is unavailable.':'Signed in with Google.';
+      return true;
     }catch(error){if(generation===this.generation){this.challenge=null;this.status=movementLoginMessage(error.message);}return false;}
     finally{if(generation===this.generation){this.busy=false;this.onChange(this.state());}}
   }
   async signOut(){
-    ++this.generation;const authorization=this.authorization();
-    this.#session=null;this.challenge=null;this.busy=false;this.unschedule(this.expiryTimer);this.expiryTimer=null;
+    ++this.generation;const token=this.savedToken(),authorization=this.authorization()||(token?'Bearer '+token:null);
+    this.writeStorage(this.storageKey,null);
+    this.#session=null;this.remembered=false;this.challenge=null;this.busy=false;this.profileBusy=false;this.profileStatus='';this.unschedule(this.expiryTimer);this.expiryTimer=null;
     this.google?.disableAutoSelect?.();this.status='Signed out.';this.onChange(this.state());
     if(authorization)try{await this.request('logout',{body:{},authorization});}
-    catch{this.status='Signed out of this tab. The server session will expire shortly.';this.onChange(this.state());}
+    catch(error){if(!['player-auth-required','login-invalid'].includes(error.message)){
+      const pending=this.readStorage(this.logoutKey);this.writeStorage(this.logoutKey,[...(Array.isArray(pending)?pending:[]),authorization.slice(7)].slice(-3));
+      this.status='Signed out on this browser. Server sign-out will retry when you reconnect.';this.onChange(this.state());
+    }}
   }
-  dispose(){++this.generation;this.#session=null;this.challenge=null;this.busy=false;this.unschedule(this.expiryTimer);this.expiryTimer=null;
+  dispose(){++this.generation;this.#session=null;this.challenge=null;this.busy=false;this.profileBusy=false;this.unschedule(this.expiryTimer);this.expiryTimer=null;
     this.status='Sign in to your Movement Lab account.';this.onChange(this.state());}
 }
 
@@ -3620,6 +3705,12 @@ function updatePlayerLogin(state){
   $('account-prepare').textContent=state.prepared?'RETRY SIGN-IN':'SIGN IN';
   $('account-signout').classList.toggle('hidden',!state.signedIn);
   $('account-google-button').classList.toggle('hidden',state.signedIn||!state.prepared);
+  $('account-profile').classList.toggle('hidden',!state.signedIn);
+  $('account-username-save').disabled=!state.signedIn||!!state.profileBusy;
+  $('account-username-save').textContent=state.profileBusy?'SAVING…':'SAVE USERNAME';
+  const username=state.player?.username||'',usernameInput=$('account-username');
+  if(usernameInput.dataset.savedUsername!==username){usernameInput.value=username;usernameInput.dataset.savedUsername=username;}
+  $('account-profile-status').textContent=state.profileStatus||(!username&&state.signedIn?'Choose a username for your leaderboard entries.':'');
   if(verifiedRuns){
     if(!state.signedIn)cancelVerification('Sign in again to start a verified run.');
     const authorization=playerLogin.authorization();
@@ -3632,6 +3723,7 @@ if(PLAYER_AUTH_CONFIG.enabled===true&&validPlayerAuthEndpoint(PLAYER_AUTH_CONFIG
   $('player-account').classList.remove('hidden');updatePlayerLogin(playerLogin.state());
   $('account-prepare').addEventListener('click',()=>void playerLogin.prepare($('account-google-button')));
   $('account-signout').addEventListener('click',()=>void playerLogin.signOut());
+  $('account-profile').addEventListener('submit',event=>{event.preventDefault();void playerLogin.saveUsername($('account-username').value);});
 }
 let renderer, rendererReady = true;
 try { renderer = createRenderer(canvas, MAPS.course.boxes); }
@@ -4490,6 +4582,10 @@ const requestedCommunity=COMMUNITY_MAPS.find(m=>m.id===initialMap);
 if(requestedCommunity)void selectCommunityMap(requestedCommunity,null,true);
 else{restoreSavedRun(pendingRunRestore);pendingRunRestore=null;}
 if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';
+void playerLogin?.restore?.();
+window.addEventListener('online',()=>void playerLogin?.restore?.());
+window.addEventListener('storage',event=>{if(event.key===playerLogin?.storageKey||event.key===null)void playerLogin?.restore?.();});
+window.addEventListener('pageshow',event=>{if(event.persisted)void playerLogin?.restore?.();});
 
 </script>
 </body>

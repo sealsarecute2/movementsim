@@ -28,6 +28,12 @@ function updatePlayerLogin(state){
   $('account-prepare').textContent=state.prepared?'RETRY SIGN-IN':'SIGN IN';
   $('account-signout').classList.toggle('hidden',!state.signedIn);
   $('account-google-button').classList.toggle('hidden',state.signedIn||!state.prepared);
+  $('account-profile').classList.toggle('hidden',!state.signedIn);
+  $('account-username-save').disabled=!state.signedIn||!!state.profileBusy;
+  $('account-username-save').textContent=state.profileBusy?'SAVING…':'SAVE USERNAME';
+  const username=state.player?.username||'',usernameInput=$('account-username');
+  if(usernameInput.dataset.savedUsername!==username){usernameInput.value=username;usernameInput.dataset.savedUsername=username;}
+  $('account-profile-status').textContent=state.profileStatus||(!username&&state.signedIn?'Choose a username for your leaderboard entries.':'');
   if(verifiedRuns){
     if(!state.signedIn)cancelVerification('Sign in again to start a verified run.');
     const authorization=playerLogin.authorization();
@@ -40,6 +46,7 @@ if(PLAYER_AUTH_CONFIG.enabled===true&&validPlayerAuthEndpoint(PLAYER_AUTH_CONFIG
   $('player-account').classList.remove('hidden');updatePlayerLogin(playerLogin.state());
   $('account-prepare').addEventListener('click',()=>void playerLogin.prepare($('account-google-button')));
   $('account-signout').addEventListener('click',()=>void playerLogin.signOut());
+  $('account-profile').addEventListener('submit',event=>{event.preventDefault();void playerLogin.saveUsername($('account-username').value);});
 }
 let renderer, rendererReady = true;
 try { renderer = createRenderer(canvas, MAPS.course.boxes); }
@@ -898,3 +905,7 @@ const requestedCommunity=COMMUNITY_MAPS.find(m=>m.id===initialMap);
 if(requestedCommunity)void selectCommunityMap(requestedCommunity,null,true);
 else{restoreSavedRun(pendingRunRestore);pendingRunRestore=null;}
 if(knifeEnabled&&rendererReady) void loadKnife();else $('knife-status').textContent=rendererReady?'Knife hidden':'Knife unavailable without WebGL';
+void playerLogin?.restore?.();
+window.addEventListener('online',()=>void playerLogin?.restore?.());
+window.addEventListener('storage',event=>{if(event.key===playerLogin?.storageKey||event.key===null)void playerLogin?.restore?.();});
+window.addEventListener('pageshow',event=>{if(event.persisted)void playerLogin?.restore?.();});

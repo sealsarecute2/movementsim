@@ -43,7 +43,7 @@ async function challenge(fixture){
 }
 async function signIn(fixture,changes={}){
   const c=await challenge(fixture),credential=await idToken(c.nonce,changes);
-  const response=await fixture.handle(request('google',{body:{credential,challenge:c.challenge,proof:c.proof}}),fixture.env);
+  const response=await fixture.handle(request('google',{body:{credential,challenge:c.challenge,proof:c.proof,persistent:true}}),fixture.env);
   assert.equal(response.status,200);return response.json();
 }
 test('Google signatures, issuer, audience, nonce, subject and time claims are checked before accepting an identity',async()=>{
@@ -84,11 +84,11 @@ test('Google key retrieval uses the fixed endpoint, caches keys and does not ref
     assert.ok(calls[0].options.signal instanceof AbortSignal);
   }finally{globalThis.fetch=original;}
 });
-test('a real signed Google credential creates a private, revocable application session without retaining profile data',async()=>{
+test('a real signed Google credential creates a persistent, revocable session without retaining Google profile data',async()=>{
   const fixture=environment(),session=await signIn(fixture);
-  assert.equal(session.ranked,false);assert.ok(session.expiresAt<=Date.now()+PLAYER_SESSION_MS);
+  assert.equal(session.ranked,false);assert.equal(session.expiresAt,null);assert.equal(session.persistent,true);
   assert.equal(JSON.stringify(session).includes('private@example.com'),false);
-  const claims=decodeJwt(session.token);assert.equal(claims.sub,session.player.id);assert.equal(claims.email,undefined);assert.equal(claims.name,undefined);
+  const claims=decodeJwt(session.token);assert.equal(claims.sub,session.player.id);assert.equal(claims.email,undefined);assert.equal(claims.name,undefined);assert.equal(claims.exp,undefined);
   const authenticated=await authenticatePlayer(request('session',{headers:{authorization:'Bearer '+session.token}}),fixture.env);
   assert.equal(authenticated.accountId,session.player.id);
   let response=await fixture.handle(request('session',{headers:{authorization:'Bearer '+session.token}}),fixture.env);assert.equal(response.status,200);
@@ -119,23 +119,40 @@ test('concurrent replay of a login challenge succeeds once and remains consumed 
   assert.equal((await fixture.handle(request('google',{body}),fixture.env)).status,409);
   assert.equal(fixture.accounts.size,1);
 });
-test('session JWTs are origin-bound, expire, reject forged signatures and cannot be replaced by challenge or Google tokens',async()=>{
+test('persistent sessions remain origin-bound and valid years later, reject forgeries and reject other token types',async()=>{
   const fixture=environment(),session=await signIn(fixture),c=await challenge(fixture);
   for(const token of ['bad',c.challenge,await idToken(c.nonce)])assert.equal((await fixture.handle(request('session',{headers:{authorization:'Bearer '+token}}),fixture.env)).status,401);
   await assert.rejects(authenticatePlayer(request('session',{headers:{authorization:'Bearer '+session.token,origin:'http://localhost:5173'}}),fixture.env),/player-auth-required/);
   await assert.rejects(authenticatePlayer(request('session',{headers:{authorization:'Bearer '+session.token}}),{...fixture.env,PLAYER_AUTH_KEY:'another-test-secret-12345678901234567890123456789'}),/login-invalid/);
-  await assert.rejects(authenticatePlayer(request('session',{headers:{authorization:'Bearer '+session.token}}),fixture.env,{now:session.expiresAt+1}),/login-invalid/);
+  assert.equal((await authenticatePlayer(request('session',{headers:{authorization:'Bearer '+session.token}}),fixture.env,{now:Date.now()+10*365*86400000})).accountId,session.player.id);
   assert.equal(fixture.accounts.size,1);
 });
-test('session storage is bounded to three sessions, revokes the oldest and expires all state',async()=>{
+test('persistent session storage is bounded to three devices and nonce cleanup retains active logins',async()=>{
   const fixture=environment(),sessions=[];for(let n=0;n<4;n++)sessions.push(await signIn(fixture));
   assert.equal(new Set(sessions.map(s=>s.player.id)).size,1);
   assert.equal((await fixture.handle(request('session',{headers:{authorization:'Bearer '+sessions[0].token}}),fixture.env)).status,401);
   assert.equal((await fixture.handle(request('session',{headers:{authorization:'Bearer '+sessions[3].token}}),fixture.env)).status,200);
   const {ctx,object}=fixture.accounts.get(sessions[0].player.id),state=await ctx.storage.get('sessions');
   assert.equal(state.sessions.length,3);assert.equal(state.nonces.length,4);
-  state.sessions.forEach(s=>s.expiresAt=Date.now()-1);state.nonces.forEach(s=>s.expiresAt=Date.now()-1);await ctx.storage.put('sessions',state);
-  await object.alarm();assert.equal(ctx.data.size,0);assert.equal(await ctx.storage.getAlarm(),null);
+  state.nonces.forEach(s=>s.expiresAt=Date.now()-1);await ctx.storage.put('sessions',state);
+  await object.alarm();assert.equal((await ctx.storage.get('sessions')).sessions.length,3);assert.equal((await ctx.storage.get('sessions')).nonces.length,0);
+  assert.equal((await fixture.handle(request('session',{headers:{authorization:'Bearer '+sessions[3].token}}),fixture.env)).status,200);
+  for(const session of sessions.slice(1))await fixture.handle(request('logout',{body:{},headers:{authorization:'Bearer '+session.token}}),fixture.env);
+  assert.equal(ctx.data.size,0);
+});
+test('legacy expiring sessions still expire and persistent claims cannot bypass server revocation',async()=>{
+  const f=environment(),accountId='a'.repeat(43),sessionId=crypto.randomUUID(),at=Math.floor(Date.now()/1000),expiresAt=(at+900)*1000;
+  f.env.PLAYER_SESSIONS.get(accountId);
+  const object=f.accounts.get(accountId).object;
+  assert.equal((await object.fetch(new Request('https://internal/open',{method:'POST',body:JSON.stringify({accountId,sessionId,expiresAt,nonce:crypto.randomUUID(),nonceExpiresAt:(at+300)*1000})}))).status,200);
+  const sign=payload=>new SignJWT(payload).setProtectedHeader({alg:'HS256',typ:'ml-session+jwt'}).setIssuer('movement-lab').setAudience('movement-lab-player').setIssuedAt(at).sign(new TextEncoder().encode(secret));
+  const legacy=await sign({sub:accountId,sid:sessionId,origin,exp:expiresAt/1000});
+  assert.equal((await authenticatePlayer(request('session',{headers:{authorization:'Bearer '+legacy}}),f.env)).accountId,accountId);
+  await assert.rejects(authenticatePlayer(request('session',{headers:{authorization:'Bearer '+legacy}}),f.env,{now:expiresAt+1000}),/login-invalid/);
+  const altered=await sign({sub:accountId,sid:sessionId,origin,persistent:true});
+  await assert.rejects(authenticatePlayer(request('session',{headers:{authorization:'Bearer '+altered}}),f.env),/player-auth-required/);
+  const missingExpiry=await sign({sub:accountId,sid:sessionId,origin});
+  await assert.rejects(authenticatePlayer(request('session',{headers:{authorization:'Bearer '+missingExpiry}}),f.env),/login-invalid/);
 });
 test('rate, body and credential bounds reject input before expensive Google checks or account allocation',async()=>{
   const fixture=environment();fixture.env.AUTH_RATE.limit=async()=>({success:false});
@@ -158,4 +175,12 @@ test('the Worker exposes login only through the login flag; player tokens cannot
     const response=await worker.fetch(new Request('https://test.example'+path,{method:'POST',headers:{origin,authorization:'Bearer '+session.token}}),env);
     assert.equal(response.status,401);
   }
+});
+
+test('cached clients can still sign in with the legacy contract during rollout',async()=>{
+  const f=environment(),c=await challenge(f),credential=await idToken(c.nonce);
+  const response=await f.handle(request('google',{body:{credential,challenge:c.challenge,proof:c.proof}}),f.env);
+  assert.equal(response.status,200);const session=await response.json();
+  assert.equal(session.persistent,false);assert.ok(session.expiresAt>Date.now()&&session.expiresAt<=Date.now()+PLAYER_SESSION_MS);
+  assert.equal((await f.handle(request('session',{headers:{authorization:'Bearer '+session.token}}),f.env)).status,200);
 });
