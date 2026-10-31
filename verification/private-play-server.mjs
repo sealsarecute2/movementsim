@@ -3,18 +3,21 @@ import {createReadStream} from 'node:fs';
 import {realpath,stat} from 'node:fs/promises';
 import {resolve,extname,sep} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {loadStagingConfig} from './staging-client.mjs';
 
 const assets=fileURLToPath(new URL('../dist/',import.meta.url));
+const projectDirectory=fileURLToPath(new URL('../',import.meta.url)),runCatalog=promisify(execFile);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json',
-  '.svg':'image/svg+xml','.ico':'image/x-icon','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.glb':'model/gltf-binary'};
+  '.svg':'image/svg+xml','.ico':'image/x-icon','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2','.mp3':'audio/mpeg','.m4a':'audio/mp4','.mp4':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.opus':'audio/ogg','.wav':'audio/wav','.ogg':'audio/ogg','.oga':'audio/ogg','.webm':'audio/webm','.glb':'model/gltf-binary'};
 const reply=(response,status,data)=>{response.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});response.end(JSON.stringify(data));};
 async function emptyBody(request){
   request.setTimeout(3000,()=>request.destroy());let size=0;
   for await(const chunk of request){size+=chunk.length;if(size>128)throw Error('body-size');}
   request.setTimeout(0);if(size)throw Error('body-size');
 }
-export function createPrivatePlayServer({base,secret,fetcher=(...args)=>fetch(...args)}={}){
+export function createPrivatePlayServer({base,secret,fetcher=(...args)=>fetch(...args),projectRoot=projectDirectory}={}){
   if(!/^https:\/\/movement-lab-verifier-staging\.[a-z0-9-]+\.workers\.dev$/.test(base)||typeof secret!=='string'||secret.length<32||secret.length>256)throw Error('invalid-private-setup');
   let rateAt=0,requests=0;
   return createServer(async(request,response)=>{
@@ -43,10 +46,18 @@ export function createPrivatePlayServer({base,secret,fetcher=(...args)=>fetch(..
       }catch(error){return reply(response,error.message==='body-size'?413:503,{error:error.message==='body-size'?'body-size':'private-test-unavailable'});}
     }
     if(!['GET','HEAD'].includes(request.method))return reply(response,405,{error:'method-not-allowed'});
+    if(url.pathname==='/music/playlist.json'){
+      try{
+        const {stdout}=await runCatalog('python3',[resolve(projectDirectory,'tools/music_catalog.py'),'--root',projectRoot,'--json'],{timeout:5000,maxBuffer:1048576});
+        return reply(response,200,JSON.parse(stdout));
+      }catch{return reply(response,503,{error:'playlist-unavailable'});}
+    }
     try{
-      const path=await realpath(resolve(assets,'.'+decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname)));
-      if(!path.startsWith(assets.endsWith(sep)?assets:assets+sep)||!(await stat(path)).isFile())return reply(response,404,{error:'not-found'});
-      response.writeHead(200,{'content-type':types[extname(path)]||'application/octet-stream','cache-control':'no-store'});
+      const directory=await realpath(url.pathname.startsWith('/music/')?resolve(projectRoot,'music'):assets);
+      const relative=url.pathname.startsWith('/music/')?url.pathname.slice('/music/'.length):'.'+(url.pathname==='/'?'/index.html':url.pathname);
+      const path=await realpath(resolve(directory,decodeURIComponent(relative)));
+      if(!path.startsWith(directory.endsWith(sep)?directory:directory+sep)||!(await stat(path)).isFile())return reply(response,404,{error:'not-found'});
+      response.writeHead(200,{'content-type':types[extname(path).toLowerCase()]||'application/octet-stream','cache-control':'no-store'});
       if(request.method==='HEAD')response.end();else createReadStream(path).on('error',()=>response.destroy()).pipe(response);
     }catch{return reply(response,404,{error:'not-found'});}
   });
@@ -54,7 +65,7 @@ export function createPrivatePlayServer({base,secret,fetcher=(...args)=>fetch(..
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   try{
     const server=createPrivatePlayServer(loadStagingConfig());
-    server.listen(5173,'127.0.0.1',()=>console.log('Private test game: http://localhost:5173/?course=bhop-school\nSign in through Settings, then choose Bhop School / CS-style → Private Verified Run.'));
+    server.listen(5173,'127.0.0.1',()=>console.log('Movement Lab: http://localhost:5173/\nThe root music folder updates automatically.'));
     server.on('error',()=>{console.error('The private test server could not start. Port 5173 may already be in use.');process.exitCode=1;});
   }catch{console.error('The existing private staging setup is unavailable. No credentials were printed.');process.exitCode=1;}
 }

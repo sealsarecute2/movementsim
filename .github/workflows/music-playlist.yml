@@ -1,0 +1,49 @@
+name: Update music playlist
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'music/**'
+      - 'tools/music_catalog.py'
+      - '.github/workflows/music-playlist.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: music-playlist
+  cancel-in-progress: false
+
+jobs:
+  playlist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - name: Discover songs
+        run: python3 tools/music_catalog.py
+      - name: Save playlist
+        id: save
+        shell: bash
+        run: |
+          git add music/playlist.json dist/music/playlist.json music-catalog.js dist/music-catalog.js
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Update music playlist'
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+      - name: Publish updated playlist
+        if: steps.save.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --silent

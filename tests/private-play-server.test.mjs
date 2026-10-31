@@ -45,3 +45,14 @@ test('enrollment churn is limited before forwarding and the helper refuses arbit
     assert.equal((await f.call('/__verification/private-tester',{method:'POST',headers:{authorization:'Bearer player'}})).status,429);assert.equal(f.calls.length,6);
   }finally{await f.close();}
 });
+
+test('the private preview discovers newly added root music and serves it without publishing credentials',async()=>{
+ const {mkdtemp,mkdir,writeFile,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');
+ const projectRoot=await mkdtemp(join(tmpdir(),'movement-private-music-'));await mkdir(join(projectRoot,'music'));
+ const server=createPrivatePlayServer({base,secret,projectRoot});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://localhost:'+server.address().port;
+ try{
+  assert.equal((await (await fetch(origin+'/music/playlist.json')).json()).tracks.length,0);
+  await writeFile(join(projectRoot,'music/New #song.m4a'),'new audio');const response=await fetch(origin+'/music/playlist.json'),text=await response.text();assert.ok(!text.includes(secret));const playlist=JSON.parse(text);assert.equal(playlist.tracks.length,1);
+  const audio=await fetch(origin+'/'+playlist.tracks[0].src);assert.equal(audio.headers.get('content-type'),'audio/mp4');assert.equal(await audio.text(),'new audio');
+ }finally{await new Promise(resolve=>server.close(resolve));await rm(projectRoot,{recursive:true,force:true});}
+});

@@ -2,17 +2,25 @@
 from pathlib import Path
 import re
 import shutil
+import sys
 
 root = Path(__file__).resolve().parent
 dist = root / 'dist'
+sys.path.insert(0, str(root / 'tools'))
+from music_catalog import write_catalog
+write_catalog(root)
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-modules = ('map-rules.js', 'geometry.js', 'endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'room-map.js', 'source-map.js', 'source-runtime.js', 'players.js', 'gallery-renderer.js', 'renderer.js', 'game-audio.js', 'ranked-courses.js', 'leaderboard.js', 'menu.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'reference-run.js', 'player-auth-config.js', 'player-auth.js', 'verified-runs.js', 'app.js')
+modules = ('map-rules.js', 'geometry.js', 'endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'room-map.js', 'source-map.js', 'source-runtime.js', 'players.js', 'gallery-renderer.js', 'renderer.js', 'game-audio.js', 'ranked-courses.js', 'leaderboard.js', 'menu.js', 'music-catalog.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'reference-run.js', 'player-auth-config.js', 'player-auth.js', 'verified-runs.js', 'app.js')
 for filename in ('index.html', 'style.css', *modules):
     (root / filename).write_text((dist / filename).read_text())
 for filename in ('favicon.ico', 'favicon.svg'):
     shutil.copyfile(dist / filename, root / filename)
-for directory in ('butterfly', 'vendor', 'sounds', 'music', 'maps'):
+for directory in ('butterfly', 'vendor', 'sounds', 'maps'):
     shutil.copytree(dist / directory, root / directory, dirs_exist_ok=True)
+# Root music is owner-managed; a build must never overwrite it from dist.
+if (dist / 'music').exists():
+    shutil.rmtree(dist / 'music')
+shutil.copytree(root / 'music', dist / 'music')
 pieces = []
 for filename in modules:
     source = (dist / filename).read_text()

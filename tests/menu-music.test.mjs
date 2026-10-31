@@ -88,3 +88,19 @@ test('the two supplied songs are shipped as valid fast-start audio and match the
   assert.deepEqual(file,readFileSync(new URL('../music/'+track.file,import.meta.url)));
  }
 });
+
+test('playlist refresh adds tracks without restarting the playing song and removes deleted songs',async()=>{
+ let tracks=[...MENU_TRACKS],clock=0;const f=fixture({enabled:true,now:()=>clock,fetcher:async()=>Response.json({version:1,tracks})});
+ f.music.setActive(true,true);await settle();f.audio.currentTime=42;const loads=f.audio.loads,src=f.audio.src;
+ tracks=[{title:'Added',src:'music/Added%20song.mp3'},...tracks];assert.equal(await f.music.refreshTracks(),true);
+ assert.equal(f.audio.src,src);assert.equal(f.audio.currentTime,42);assert.equal(f.audio.loads,loads);assert.equal(f.music.tracks.length,3);
+ tracks=tracks.filter(track=>track.src!==src);clock=30001;assert.equal(await f.music.refreshTracks(),true);assert.notEqual(f.audio.src,src);
+ tracks=[];clock=60002;await f.music.refreshTracks();assert.equal(f.audio.paused,true);assert.match(f.statuses.at(-1),/No songs/);
+});
+test('bad playlists and network errors preserve existing tracks and cannot select external URLs or traversal paths',async()=>{
+ const {validateMusicTracks}=await import('../dist/menu-music.js');
+ for(const src of ['https://evil.example/a.mp3','music/../private.mp3','music/%2e%2e/private.mp3','music/%2foutside.mp3','music/a.mp3?x=1','music/a.js'])assert.throws(()=>validateMusicTracks([{title:'Bad',src}]));
+ assert.equal(validateMusicTracks([{title:'Safe',src:'music/Seal%20%F0%9F%A6%AD.MP3'}]).length,1);
+ const f=fixture({fetcher:async()=>Response.json({version:1,tracks:[{title:'Bad',src:'https://evil.example/a.mp3'}]})});assert.equal(await f.music.refreshTracks(),false);assert.deepEqual(f.music.tracks,MENU_TRACKS);
+ f.music.fetcher=async()=>{throw Error('offline');};assert.equal(await f.music.refreshTracks({force:true}),false);assert.deepEqual(f.music.tracks,MENU_TRACKS);
+});

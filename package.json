@@ -5,7 +5,8 @@
   "scripts": {
     "build": "python3 build-standalone.py",
     "build:maps": "node tools/build-community-maps.mjs && python3 build-standalone.py",
-    "dev": "python3 -m http.server 5173 --directory dist",
+    "dev": "python3 tools/dev_server.py",
+    "music:update": "python3 tools/music_catalog.py",
     "dev:private": "node verification/private-play-server.mjs",
     "test": "node --test tests/*.test.mjs",
     "bench:verification": "node tools/benchmark-verification.mjs"

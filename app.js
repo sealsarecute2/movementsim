@@ -36,7 +36,7 @@ function updatePlayerLogin(state){
   $('account-username-save').textContent=state.profileBusy?'SAVING…':'SAVE USERNAME';
   const username=state.player?.username||'',usernameInput=$('account-username');
   if(usernameInput.dataset.savedUsername!==username){usernameInput.value=username;usernameInput.dataset.savedUsername=username;}
-  $('account-profile-status').textContent=state.profileStatus||(!username&&state.signedIn?'Choose a username for your leaderboard entries.':'');
+  $('account-profile-status').textContent=state.profileStatus||(!username&&state.signedIn?'Choose a username.':'');
   if(verifiedRuns){
     if(!state.signedIn)cancelVerification('Sign in again to start a verified run.');
     const authorization=playerLogin.authorization();
@@ -114,7 +114,13 @@ if(settings.checkpointSound==='off'||Object.hasOwn(CHECKPOINT_CHIMES,settings.ch
 if(Number.isFinite(settings.audioVolume))audioVolume=Math.max(0,Math.min(1,settings.audioVolume));
 musicEnabled=settings.musicEnabled===true;
 if(Number.isFinite(settings.musicVolume))musicVolume=Math.max(0,Math.min(1,settings.musicVolume));
-const menuMusic=new MenuMusic({enabled:musicEnabled,volume:musicVolume,onStatus:message=>{$('menu-music-status').textContent=message;}});
+function updateMusicLibrary(tracks){
+  $('menu-music-count').textContent=tracks.length+' track'+(tracks.length===1?'':'s');
+  $('menu-music-count').title=tracks.map(track=>track.title).join('\n')||'Add audio files to the music folder.';
+}
+const menuMusic=new MenuMusic({enabled:musicEnabled,volume:musicVolume,fetcher:(...args)=>fetch(...args),onTracks:updateMusicLibrary,
+  onStatus:message=>{$('menu-music-status').textContent=/^(Menu music is off|Music paused|Music volume is muted)/.test(message)?'':message;}});
+updateMusicLibrary(menuMusic.tracks);
 function updateMenuMusic() {
   menuMusic.setActive(!playing&&!completed&&!overlay.classList.contains('hidden'),windowFocused&&!document.hidden);
 }
@@ -377,7 +383,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   if(!Object.hasOwn(MAPS,value)) return;
   if(!preserveSavedRun){try{sessionStorage.removeItem('movement-lab-run-v1');}catch{}pendingRunRestore=null;}
   sourceLoadGeneration++;sourceLoadController?.abort();
-  $('source-map-status').textContent='Lightweight parkour geometry. Use the Multiplayer upload button to share a custom map.';
+  $('source-map-status').textContent='';
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
   sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
@@ -391,6 +397,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   $('map-badge').textContent=selected.title.toUpperCase();
   $('course-title').textContent=selected.title.toUpperCase();
   $('map-description').textContent=selected.description;
+  $('map-info').dataset.help=selected.description||'';
   $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
   $('map-credit').textContent=selected.community?(boxes.sourceMap?.importedGeometry?'Local import · original brush shapes · untextured geometry.':`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
@@ -434,7 +441,7 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
       description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'An imported map with its original solid brush shapes.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
     chooseMap(metadata.id,true,restore);
     if(restore)restoreSavedRun(pendingRunRestore);pendingRunRestore=null;
-    status.textContent=`${metadata.title} ready.${imported.importedGeometry?' Original brush shapes preserved.':''} Choose Bhop practice for uncapped movement.`;
+    status.textContent=`${metadata.title} ready.`;
   } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
@@ -768,7 +775,7 @@ window.addEventListener('blur',()=>{
 window.addEventListener('focus',()=>{
   windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
 });
-window.addEventListener('pagehide',()=>{cancelVerification('Verification ended when this page was left.');verifiedRuns?.dispose();playerLogin?.dispose();leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pagehide',()=>{globalThis.clearInterval?.(musicCatalogPoll);cancelVerification('Verification ended when this page was left.');verifiedRuns?.dispose();playerLogin?.dispose();leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
 window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
@@ -776,7 +783,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 $('menu-music-enabled').checked=musicEnabled;
 $('menu-music-enabled').addEventListener('change',()=>{
-  musicEnabled=$('menu-music-enabled').checked;menuMusic.setEnabled(musicEnabled);updateMenuMusic();saveSettings();
+  musicEnabled=$('menu-music-enabled').checked;if(musicEnabled)void menuMusic.refreshTracks({force:true});menuMusic.setEnabled(musicEnabled);updateMenuMusic();saveSettings();
 });
 $('menu-music-volume').value=Math.round(musicVolume*100);$('menu-music-volume-value').textContent=Math.round(musicVolume*100)+'%';
 $('menu-music-volume').addEventListener('input',()=>{
@@ -803,7 +810,7 @@ async function uploadRoomMap(file){
     roomCourses.push({id:prepared.id,title:prepared.descriptor.title,revision:1,custom:prepared.descriptor});
     $('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${escapeRoomText(course.title)}</option>`).join('');
     $('room-map').value=prepared.id;
-    $('room-map-status').textContent=prepared.descriptor.title+' ready · '+(prepared.bytes.length/1048576).toFixed(2)+' MB. Host the room to share it with joining players.';
+    $('room-map-status').textContent=prepared.descriptor.title+' ready · '+(prepared.bytes.length/1048576).toFixed(2)+' MB';
     return true;
   }catch(error){if(generation===roomUploadGeneration)$('room-map-status').textContent=error.message||'Could not read this map. Try another file.';return false;}
   finally{if(generation===roomUploadGeneration){roomUploadLoading=false;updateRoomUi();}}
@@ -836,7 +843,7 @@ function updateRoomUi(){
   const busy=room?.busy===true,active=room?.active===true;
   $('room-setup').classList.toggle('hidden',busy);$('room-session').classList.toggle('hidden',!active);$('room-leave').classList.toggle('hidden',!busy);
   $('room-leave').textContent=active?'LEAVE ROOM':'CANCEL CONNECTION';
-  $('room-status').textContent=room?.status||'Host a private room or join a friend.';
+  $('room-status').textContent=room?.status||'';
   $('room-host').disabled=busy||roomUploadLoading||roomStarting||!rendererReady;$('room-join').disabled=busy||roomUploadLoading||roomStarting||!rendererReady;
   $('room-upload').disabled=busy||roomUploadLoading||roomStarting;
   $('room-upload').textContent=roomUploadLoading?'PREPARING MAP…':'UPLOAD CUSTOM MAP ↗';
@@ -848,7 +855,7 @@ function updateRoomUi(){
   $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
   $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
   const course=roomCourses.find(c=>c.id===room.course.id)||{title:room.course.custom?.title||'Custom map'};
-  $('room-course').textContent=`${course.title} / ${PRESETS[room.course.preset].title} · Leave the room to change maps.`;
+  $('room-course').textContent=`${course.title} / ${PRESETS[room.course.preset].title}`;
   $('room-players').innerHTML=roster.map(member=>{
     const state=member.self?roomLocalState():member.state;
     const progress=!state?'Joining…':state.completed?'Finished · '+format(state.time):room.course.id==='endless'?`${Math.floor(state.distance)} u`:format(state.time)+(state.paused?' · paused':'');
@@ -942,3 +949,6 @@ void playerLogin?.restore?.();
 window.addEventListener('online',()=>void playerLogin?.restore?.());
 window.addEventListener('storage',event=>{if(event.key===playerLogin?.storageKey||event.key===null)void playerLogin?.restore?.();});
 window.addEventListener('pageshow',event=>{if(event.persisted)void playerLogin?.restore?.();});
+
+if(musicEnabled)void menuMusic.refreshTracks();
+const musicCatalogPoll=globalThis.setInterval?.(()=>{if(musicEnabled&&windowFocused&&!document.hidden&&!playing)void menuMusic.refreshTracks();},30000);

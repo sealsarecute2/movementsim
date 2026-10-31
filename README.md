@@ -111,7 +111,11 @@ Enable **Settings → Shaders** for directional lighting on the boxes and a soft
 
 The main-menu slideshow has 15 views: course overviews, later sections, the Sandbox ladder tower, and both community-route previews. Use the arrows to browse; automatic changes pause during gameplay.
 
-**Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus.
+**Menu music** is off by default. Turn it on in Settings if you want music in the main menu and pause screen. It pauses during gameplay and when the window loses focus. Drop songs into the repository's root `music/` folder to add them to the shuffle playlist. Filenames become track titles; supported files include MP3, M4A, AAC, OGG, Opus, WAV, FLAC and WebM. Subfolders are supported.
+
+For local play, use `npm run dev` (or the existing private preview helper): enabled menu music checks the folder automatically, without a rebuild. On GitHub, push songs into `music/`; the playlist workflow discovers them, saves the generated catalog, and requests a Pages build. Removing a file removes it from the playlist. `npm run build` also refreshes the catalog, and `npm run music:update` refreshes only the catalog. Keep your audio files in root `music/`; `dist/music/` is a generated preview copy.
+
+Menu details use hover/focus hints. Crosshair and movement-sound settings start collapsed, while errors, loading messages and run status remain visible.
 
 ## Credits
 

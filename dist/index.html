@@ -39,83 +39,83 @@
       <aside class="menu-gallery" aria-label="Map screenshot slideshow">
         <div id="gallery-slides" class="gallery-slides"></div>
         <div class="gallery-shade"></div>
-        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2><p>Find your line. Keep your momentum.</p></div><div class="gallery-navigation"><span id="gallery-count">01 / 15</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
+        <div class="gallery-caption"><div><span class="eyebrow">THE TRAINING GROUNDS</span><h2 id="gallery-title">Starter course</h2></div><div class="gallery-navigation"><span id="gallery-count">01 / 15</span><button id="gallery-previous" type="button" aria-label="Previous map screenshot">←</button><button id="gallery-next" type="button" aria-label="Next map screenshot">→</button></div></div>
       </aside>
       <main class="menu main-panel">
         <div class="menu-wordmark"><span class="brand-icon">M<span>↗</span></span><span>MOVEMENT LAB <small>CS-STYLE MOVEMENT TRAINER</small></span></div>
         <p class="intro" id="menu-description" role="status"></p>
         <section id="home-view" class="menu-view" aria-labelledby="menu-title">
-          <span class="eyebrow">PRECISION IN MOTION</span>
+
           <h1 id="menu-title">MOVEMENT<br><span>LAB.</span></h1>
-          <p class="home-description">A place to find your flow.<br>Practice hops, strafes, and total control.</p>
+
           <nav class="main-navigation" aria-label="Main menu">
             <button id="open-map-select" type="button"><span><small>01</small> PLAY</span><b>↗</b></button>
             <button id="play-sandbox" type="button"><span><small>02</small> SANDBOX</span><b>↗</b></button>
             <button id="open-rooms" type="button"><span><small>03</small> MULTIPLAYER</span><b>↗</b></button>
             <button id="open-settings" type="button"><span><small>04</small> SETTINGS</span><b>↗</b></button>
           </nav>
-          <p class="menu-footnote">BUILT FOR THE NEXT CLEAN RUN.</p>
+
         </section>
         <section id="maps-view" class="menu-view hidden" aria-labelledby="maps-title">
           <button id="maps-back" class="menu-back" type="button">← MAIN MENU</button>
-          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2><span class="eyebrow">FIND YOUR NEXT RUN</span></div>
-          <fieldset class="physics-setting"><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic" type="button">CS-style</button><button data-preset="practice" type="button">Bhop practice</button></div><p id="preset-description">Capped speed · standard air control</p></fieldset>
+          <div class="view-heading"><h2 id="maps-title">SELECT MAP</h2></div>
+          <fieldset class="physics-setting"><legend>PHYSICS</legend><div class="segmented"><button class="selected" data-preset="classic" type="button" title="Capped speed and standard air control.">CS-style</button><button data-preset="practice" type="button" title="Uncapped speed and stronger air control.">Bhop practice</button></div><p id="preset-description" class="sr-only">Capped speed · standard air control</p></fieldset>
           <div id="map-grid" class="map-grid" role="group" aria-label="Choose a course"></div>
-          <div class="community-heading"><h3>COMMUNITY MAPS</h3><button id="import-source-map" class="text-button" type="button">Import .bsp / .zip ↗</button></div>
+          <div class="community-heading"><h3>COMMUNITY MAPS</h3><button id="import-source-map" title="Import an uncompressed Source 1 map for solo play. Use Multiplayer upload to share a map." class="text-button" type="button">Import .bsp / .zip ↗</button></div>
           <input id="source-map-file" type="file" accept=".bsp,.zip" hidden>
           <div id="community-map-grid" class="map-grid community-grid" role="group" aria-label="Choose a community map"></div>
-          <p id="source-map-status" class="input-note" role="status" aria-live="polite">Lightweight parkour geometry. Local imports stay in this tab.</p>
-          <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
+          <p id="source-map-status" class="input-note" role="status" aria-live="polite"></p>
+          <div class="selected-map"><div><h3><span id="selected-map-title">Starter course</span> <span id="map-info" class="menu-help" tabindex="0" aria-label="Map information" aria-describedby="map-description" data-help="">i</span></h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description sr-only"></p></div>
           <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
-          <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
+          <div class="map-actions"><button id="play" title="Start practice. Click to capture the mouse; Esc pauses." class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
           <section id="verified-controls" class="verified-controls hidden" aria-label="Verified course run">
-            <button id="verified-prepare" class="leaderboard-open" type="button">VERIFIED RUN</button>
+            <button id="verified-prepare" title="Server-verified solo run. Pausing or resetting cancels verification. Only top-five results reach the leaderboard." class="leaderboard-open" type="button">VERIFIED RUN</button>
             <p id="verified-note" role="status" aria-live="polite">Sign in in Settings to start a verified run.</p>
             <div id="verified-challenge" class="verified-challenge hidden"></div>
           </section>
-          <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
+          <button id="play-endless" title="Infinite route. Checkpoints every eight blocks." type="button"><span><strong>ENDLESS</strong></span><b>∞</b></button>
           <button id="verify-endless" class="text-button" type="button">VERIFIED ENDLESS RUN ↗</button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
-          <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
+          <p id="input-note" class="input-note" role="status"></p>
         </section>
         <section id="rooms-view" class="menu-view hidden" aria-labelledby="rooms-title">
           <button id="rooms-back" class="menu-back" type="button">← MAIN MENU</button>
           <div class="view-heading"><h2 id="rooms-title">PRIVATE ROOMS</h2><span class="eyebrow">UP TO 4 PLAYERS</span></div>
-          <p class="room-description">Share a map. Find your flow together.<br>Players pass through each other.</p>
+
           <div id="room-setup" class="room-setup">
             <label class="room-field" for="room-name">YOUR NAME<input id="room-name" maxlength="24" placeholder="Player" autocomplete="nickname"></label>
             <div class="room-options"><label class="room-field" for="room-map">MAP<select id="room-map"></select></label><label class="room-field" for="room-preset">PHYSICS<select id="room-preset"><option value="classic">CS-style</option><option value="practice">Bhop practice</option></select></label></div>
-            <button id="room-upload" class="room-join" type="button">UPLOAD CUSTOM MAP <span>↗</span></button>
+            <button id="room-upload" title="Source .bsp, .zip or playable map .json. Guests receive the map automatically." class="room-join" type="button">UPLOAD CUSTOM MAP <span>↗</span></button>
             <input id="room-map-file" type="file" accept=".bsp,.zip,.json" class="hidden">
-            <p id="room-map-status" class="room-description" role="status" aria-live="polite">Source .bsp, .zip or map .json. Joining players receive the playable map from the host.</p>
+            <p id="room-map-status" class="room-description" role="status" aria-live="polite"></p>
             <button id="room-host" class="play" type="button">HOST ROOM <span>↗</span></button>
             <div class="room-divider"><span>OR JOIN A FRIEND</span></div>
             <label class="room-field" for="room-code-input">INVITE CODE<input id="room-code-input" maxlength="20" placeholder="ABCD-EFGH-JKLM" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
             <button id="room-join" class="room-join" type="button">JOIN ROOM <span>↗</span></button>
           </div>
-          <p id="room-status" class="room-status" role="status" aria-live="polite">Host a private room or join a friend.</p>
+          <p id="room-status" class="room-status" role="status" aria-live="polite"></p>
           <div id="room-session" class="room-session hidden">
             <div class="room-invite"><div><span class="eyebrow">PRIVATE INVITE CODE</span><strong id="room-code"></strong></div><button id="room-copy" type="button">COPY</button></div>
             <p id="room-course" class="room-description"></p>
-            <div class="room-table"><table><thead><tr><th scope="col">PLAYER</th><th scope="col">RUN</th><th scope="col">PING TO HOST</th></tr></thead><tbody id="room-players"></tbody></table></div>
-            <p class="room-description">Ping is measured in milliseconds. Lower is better.<br>The room closes when the host leaves. Keep the host’s game tab open.</p>
+            <div class="room-table"><table><thead><tr><th scope="col">PLAYER</th><th scope="col">RUN</th><th scope="col"><abbr title="Round-trip latency to the host, in milliseconds.">PING</abbr></th></tr></thead><tbody id="room-players"></tbody></table></div>
+            <p class="room-description">The host must keep this tab open.</p>
             <button id="room-play" class="play" type="button">ENTER MAP <span>↗</span></button>
           </div>
           <button id="room-leave" class="text-button hidden" type="button">LEAVE ROOM</button>
         </section>
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
           <button id="settings-back" class="menu-back" type="button">← MAIN MENU</button>
-          <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="eyebrow">SAVED AUTOMATICALLY</span></div>
+          <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="menu-help" tabindex="0" aria-label="Settings help" data-help="Preferences save automatically on this browser.">i</span></div>
           <section id="player-account" class="player-account hidden" aria-labelledby="account-title">
-            <h3 id="account-title" class="settings-heading">PLAYER ACCOUNT</h3>
+            <h3 id="account-title" class="settings-heading">PLAYER ACCOUNT <span class="menu-help" tabindex="0" aria-label="Account information" data-help="Your username appears on verified leaderboards. Sign-in stays saved until you sign out.">i</span></h3>
             <p id="account-status" role="status" aria-live="polite">Sign in to your Movement Lab account.</p>
-            <p>Your username appears on verified leaderboards. You stay signed in on this browser until you sign out.</p>
+
             <div id="account-google-button" class="hidden"></div>
             <button id="account-prepare" class="text-button" type="button">SIGN IN</button>
             <form id="account-profile" class="account-profile hidden">
               <label for="account-username">USERNAME</label>
               <div class="account-username-row"><input id="account-username" name="username" type="text" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="account-username-help account-profile-status" required><button id="account-username-save" class="text-button" type="submit">SAVE USERNAME</button></div>
-              <p id="account-username-help">3–20 letters, numbers or underscores. Each username belongs to one account.</p>
+              <p id="account-username-help">3–20 letters, numbers or _.</p>
               <p id="account-profile-status" role="status" aria-live="polite"></p>
             </form>
             <button id="account-signout" class="text-button hidden" type="button">SIGN OUT</button>
@@ -123,41 +123,41 @@
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option></select></div>
-      <div class="shader-setting"><label><input id="shaders-enabled" type="checkbox"> Shaders</label><p>Directional box lighting &amp; a soft player shadow.</p></div>
-      <details class="crosshair-settings" open><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
+      <div class="shader-setting"><label title="Directional box lighting and a soft player shadow."><input id="shaders-enabled" type="checkbox"> Shaders</label></div>
+      <details class="crosshair-settings"><summary>Custom crosshair <span>+</span></summary><div class="crosshair-content">
         <div class="crosshair-top"><label for="crosshair-style">STYLE<select id="crosshair-style"><option value="default">Default</option><option value="dot">Dot</option><option value="cross">Cross</option></select></label><div class="crosshair-preview-stage" role="img" aria-label="Live crosshair preview"><div id="crosshair-preview" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div></div></div>
         <fieldset class="crosshair-colour"><legend>COLOUR <output id="crosshair-colour-value">#DDDDDD</output></legend><label class="rgb-row" for="crosshair-red"><span>R</span><input id="crosshair-red" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair red"><output id="crosshair-red-value">221</output></label><label class="rgb-row" for="crosshair-green"><span>G</span><input id="crosshair-green" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair green"><output id="crosshair-green-value">221</output></label><label class="rgb-row" for="crosshair-blue"><span>B</span><input id="crosshair-blue" type="range" min="0" max="255" step="1" value="221" aria-label="Crosshair blue"><output id="crosshair-blue-value">221</output></label></fieldset>
         <label class="crosshair-scale" for="crosshair-scale">SCALE <output id="crosshair-scale-value">1.00×</output><input id="crosshair-scale" type="range" min="0.5" max="3" step="0.05" value="1"></label>
       </div></details>
-      <div class="knife-settings"><label><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
-      <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Light / heavy · <kbd>R</kbd> Cancel inspect</p>
-      <details class="sound-settings" open><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
-        <label class="sound-toggle"><input id="movement-sounds" type="checkbox" checked> CS2 jump, footsteps, landing &amp; fall wind</label>
-        <div class="sound-choice"><label for="checkpoint-sound">CHECKPOINT CHIME<select id="checkpoint-sound"><option value="pulse">Pulse · clean two-note chime</option><option value="glass">Glass · soft, bright shimmer</option><option value="arcade">Arcade · short rising melody</option><option value="off">Off</option></select></label><button id="checkpoint-preview" type="button">▶ Preview</button></div>
+      <div class="knife-settings"><label title="F to inspect. Hold left or right mouse to attack. R cancels inspection."><input id="knife-enabled" type="checkbox" checked> Butterfly knife</label><label><input id="knife-sounds" type="checkbox" checked> Knife sounds</label><span id="knife-status" role="status" aria-live="polite">Loading Butterfly…</span></div>
+
+      <details class="sound-settings"><summary>Movement &amp; checkpoint sounds <span>+</span></summary><div class="sound-content">
+        <label class="sound-toggle"><input id="movement-sounds" type="checkbox" checked> Movement sounds</label>
+        <div class="sound-choice"><label for="checkpoint-sound">CHECKPOINT CHIME<select id="checkpoint-sound"><option value="pulse">Pulse</option><option value="glass">Glass</option><option value="arcade">Arcade</option><option value="off">Off</option></select></label><button id="checkpoint-preview" type="button">▶ Preview</button></div>
         <label class="volume-label" for="audio-volume">MOVEMENT &amp; CHIME VOLUME <output id="audio-volume-value">65%</output><input id="audio-volume" type="range" min="0" max="100" step="1" value="65"></label>
-        <p id="audio-status" role="status">Choose a chime to hear it. Your choice is saved.</p>
+        <p id="audio-status" role="status"></p>
       </div></details>
-      <details class="menu-music-settings" open><summary>Menu music <span>+</span></summary><div class="sound-content">
-        <label class="sound-toggle"><input id="menu-music-enabled" type="checkbox"> Play music in the main menu &amp; pause screen</label>
+      <details class="menu-music-settings" open><summary>Menu music <small id="menu-music-count" class="music-count">2 tracks</small><span>+</span></summary><div class="sound-content">
+        <label class="sound-toggle" title="Shuffled in menus. Pauses during runs and when unfocused."><input id="menu-music-enabled" type="checkbox"> Enable music</label>
         <label class="volume-label music-volume" for="menu-music-volume">MUSIC VOLUME <output id="menu-music-volume-value">35%</output><input id="menu-music-volume" type="range" min="0" max="100" step="1" value="35"></label>
-        <p id="menu-music-status" role="status" aria-live="polite">Menu music is off.</p>
-        <p class="music-tracks">Defend The Train OST - BTHG HQ<br>Surya Hearts - Retrofit</p>
+        <p id="menu-music-status" role="status" aria-live="polite"></p>
+
       </div></details>
         </section>
       </main>
     </section>
     <main id="pause-menu" class="menu pause-menu hidden" aria-labelledby="pause-title">
-      <span class="eyebrow">TAKE A BREATH</span><h1 id="pause-title">PAUSED</h1>
+      <h1 id="pause-title">PAUSED</h1>
       <p id="pause-map" class="pause-map">Starter course</p>
-      <button id="continue" class="play" type="button">CONTINUE <span>↗</span></button>
-      <p id="pause-input-note" class="input-note" role="status">Continue captures the mouse. Esc pauses.</p>
+      <button id="continue" title="Resume and capture the mouse. Esc pauses." class="play" type="button">CONTINUE <span>↗</span></button>
+      <p id="pause-input-note" class="input-note" role="status"></p>
       <details class="pause-controls" open><summary>CONTROLS <span>+</span></summary>
       <div class="controls-grid"><div><kbd>W A S D</kbd><span>Move</span></div><div><kbd>MOUSE</kbd><span>Look / ladder angle</span></div><div><kbd>SPACE / WHEEL</kbd><span>Hop / push off ladder</span></div><div><kbd>SHIFT</kbd><span>Walk</span></div><div><kbd>CTRL / C</kbd><span>Crouch</span></div><div><kbd>Q / E</kbd><span>Restart / checkpoint</span></div></div>
         <p class="knife-controls"><kbd>F</kbd> Inspect · Hold <kbd>LMB / RMB</kbd> Attack · <kbd>R</kbd> Cancel inspect</p>
       </details>
       <div class="settings-row"><label for="pause-sensitivity">SENSITIVITY <output id="pause-sensitivity-value">1.00×</output><input id="pause-sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="pause-fov">FOV <output id="pause-fov-value">100</output><input id="pause-fov" type="range" min="80" max="120" step="1" value="100"></label></div>
-      <button id="back-to-main" class="back-to-main" type="button">BACK TO MAIN MENU <span>↗</span></button>
-      <p class="input-note">Ends the current run.</p>
+      <button id="back-to-main" title="End the current run and return to the main menu." class="back-to-main" type="button">BACK TO MAIN MENU <span>↗</span></button>
+
     </main>
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><p id="finish-verified" class="finish-verified hidden" role="status" aria-live="polite"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-verify-again" class="text-button hidden">NEW VERIFIED RUN</button><button id="check-reference" class="text-button hidden">CHECK REFERENCE RUN</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
