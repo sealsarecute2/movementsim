@@ -7,10 +7,10 @@ import {createPlayer,step,PRESETS,support} from '../dist/physics.js';
 // authored coordinates here use the simulator axes; the writer converts them.
 const toSource=v=>[v[0],-v[2],v[1]];
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-4,`${a} != ${b}`);
-function bspFixture(brushes,{spawn=[0,8,0],entity=null}={}) {
+function bspFixture(brushes,{spawn=[0,8,0],entity=null,entities=[]}={}) {
  const chunks=new Map(),encode=new TextEncoder();
  const entityText=e=>'{'+Object.entries(e).map(([k,v])=>`"${k}" "${v}"`).join('\n')+'}\n';
- chunks.set(0,encode.encode(entityText({classname:'worldspawn'})+entityText({classname:'info_player_start',origin:toSource(spawn).join(' '),angles:'0 90 0'})+(entity?entityText({classname:'func_brush',model:'*1',...entity}):'')+'\0'));
+ chunks.set(0,encode.encode(entityText({classname:'worldspawn'})+entityText({classname:'info_player_start',origin:toSource(spawn).join(' '),angles:'0 90 0'})+(entity?entityText({classname:'func_brush',model:'*1',...entity}):'')+entities.map(entityText).join('')+'\0'));
  const planeList=brushes.flatMap(b=>b),planes=new Uint8Array(planeList.length*20),pv=new DataView(planes.buffer);
  const putVec=(view,offset,vec)=>vec.forEach((n,i)=>view.setFloat32(offset+i*4,n,true));
  planeList.forEach((p,i)=>{putVec(pv,i*20,toSource(p.normal));pv.setFloat32(i*20+12,p.distance,true);});chunks.set(1,planes);
@@ -64,4 +64,20 @@ test('walking across adjoining coplanar convex brushes does not catch on their s
  const p=createPlayer({x:-90,y:.25*(-90+16),z:0,yaw:Math.PI/2});
  for(let i=0;i<200;i++)step(p,{forward:1},[a,b],PRESETS.practice);
  assert.ok(p.x>50);assert.ok(p.grounded);close(p.y,.25*(p.x+16));
+});
+
+test('BSP uploads retain exact teleporter volumes and resolve info_target destinations in the playable map',async()=>{
+ const trigger=boxPlanes({min:[300,-100,-60],max:[360,0,60]});
+ const map=await loadSourceMap(bspFixture([floor(),trigger],{spawn:[0,-90,0],entity:{classname:'trigger_teleport',target:'exit'},entities:[{classname:'info_target',targetname:'exit',origin:toSource([500,-100,0]).join(' '),angles:'0 90 0'}]}));
+ assert.equal(map.boxes.length,1,'Trigger brushes do not become solid walls.');assert.equal(map.killHeight,-2120);
+ const runtime=(await import('../dist/source-runtime.js')).createSourceRuntime(map),p=createPlayer({x:330,y:-100,z:0,yaw:1});
+ const events=runtime.step(p,{...p,x:290},1/256);assert.equal(events[0].type,'teleport');assert.equal(p.x,500);assert.equal(p.y,-100);assert.equal(p.vx,0);assert.equal(events[0].destination.x,500);
+});
+test('BSP trigger_hurt becomes a non-solid killbox, while disabled and zero-damage triggers do not kill',async()=>{
+ const trigger=boxPlanes({min:[300,-100,-60],max:[360,0,60]});
+ const {createSourceRuntime}=await import('../dist/source-runtime.js');
+ for(const [properties,kills] of [[{damage:'9999'},true],[{damage:'0'},false],[{damage:'9999',StartDisabled:'1'},false]]){
+  const map=await loadSourceMap(bspFixture([floor(),trigger],{spawn:[0,-90,0],entity:{classname:'trigger_hurt',...properties}})),p=createPlayer({x:330,y:-100,z:0,yaw:0});
+  const events=createSourceRuntime(map).step(p,{...p,x:290},1/256);assert.equal(events.some(e=>e.type==='respawn'),kills);assert.equal(map.boxes.length,1);
+ }
 });

@@ -287,3 +287,28 @@ test('Metered publishes discovery, uses server-provided TURN credentials and sen
  socket.message({type:'direct',from:'host',data:{kind:'offer'}});assert.equal(received[0][0],'host');signaling.close();
  assert.throws(()=>createRoomSignaling({host:true,code:'ABCDEFGHJKLM',config:{meteredPublishableKey:'sk_secret'},WebSocketClass:Socket}),/publishable/);
 });
+
+test('a host shares a multi-chunk custom map with guests before they enter the room',async()=>{
+ const {prepareCustomRoomMap}=await import('../dist/room-map.js');
+ const boxes=Array.from({length:1500},(_,i)=>({min:[i*32,-120,0],max:[i*32+24,0,24]}));boxes.unshift({min:[-200,-120,-200],max:[200,0,200]});
+ const data={title:'Private 🦭 map',boxes,spawns:[{x:0,y:0,z:0,yaw:0}],stages:[{title:'Custom'}],checkpointPads:[0],finishPad:null,sectionFalls:[-2120],killboxes:[{min:[-100,40,100],max:[100,80,200]}]};
+ const packet=await prepareCustomRoomMap(data),custom={id:packet.id,revision:1,preset:'classic',custom:packet.descriptor},net=network();let received;
+ try{
+  const host=net.create();await host.room.start({host:true,name:'Host',course:custom,mapData:packet});
+  const guest=net.create({onCourse:async(selection,map)=>{received=map;assert.equal(selection.id,custom.id);}}),request=guest.room.start({host:false,name:'Guest',code:host.room.code});
+  for(let i=0;i<300&&!guest.room.active;i++){await flush();net.pump();net.advance(50);}
+  await request;assert.equal(guest.room.active,true);assert.equal(received.boxes.length,1501);assert.equal(received.killboxes.length,1);assert.equal(received.killHeight,-2120);
+  assert.equal(host.room.roster().length,2);assert.equal(guest.room.course.custom.sha256,packet.descriptor.sha256);
+ }finally{net.close();}
+});
+test('a corrupted custom-map transfer is rejected before any guest geometry is installed',async()=>{
+ const {prepareCustomRoomMap}=await import('../dist/room-map.js');
+ const packet=await prepareCustomRoomMap({title:'Test',boxes:[{min:[-100,-120,-100],max:[100,0,100]}],spawns:[{x:0,y:0,z:0,yaw:0}],stages:[{}],checkpointPads:[0],finishPad:null,sectionFalls:[-2120]});
+ const net=network();let applied=false;
+ try{
+  packet.bytes[0]^=1;const host=net.create();await host.room.start({host:true,name:'Host',course:{id:packet.id,revision:1,preset:'classic',custom:packet.descriptor},mapData:packet});
+  const guest=net.create({onCourse:async()=>{applied=true;}}),request=guest.room.start({host:false,name:'Guest',code:host.room.code}),rejected=assert.rejects(request,/Could not load the room map/);
+  for(let i=0;i<100&&guest.room.busy;i++){await flush();net.pump();net.advance(50);}
+  await rejected;assert.equal(applied,false);assert.equal(guest.room.active,false);assert.equal(guest.room.course,null);
+ }finally{net.close();}
+});

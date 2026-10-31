@@ -418,6 +418,9 @@ body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visib
           <div id="room-setup" class="room-setup">
             <label class="room-field" for="room-name">YOUR NAME<input id="room-name" maxlength="24" placeholder="Player" autocomplete="nickname"></label>
             <div class="room-options"><label class="room-field" for="room-map">MAP<select id="room-map"></select></label><label class="room-field" for="room-preset">PHYSICS<select id="room-preset"><option value="classic">CS-style</option><option value="practice">Bhop practice</option></select></label></div>
+            <button id="room-upload" class="room-join" type="button">UPLOAD CUSTOM MAP <span>↗</span></button>
+            <input id="room-map-file" type="file" accept=".bsp,.zip,.json" class="hidden">
+            <p id="room-map-status" class="room-description" role="status" aria-live="polite">Source .bsp, .zip or map .json. Joining players receive the playable map from the host.</p>
             <button id="room-host" class="play" type="button">HOST ROOM <span>↗</span></button>
             <div class="room-divider"><span>OR JOIN A FRIEND</span></div>
             <label class="room-field" for="room-code-input">INVITE CODE<input id="room-code-input" maxlength="20" placeholder="ABCD-EFGH-JKLM" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
@@ -493,6 +496,18 @@ body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visib
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><p id="finish-verified" class="finish-verified hidden" role="status" aria-live="polite"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-verify-again" class="text-button hidden">NEW VERIFIED RUN</button><button id="check-reference" class="text-button hidden">CHECK REFERENCE RUN</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
   <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Top five verified players · one best per account.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module">
+const DEFAULT_KILL_DROP=2000;
+const isMapSolid=box=>box.solid!==false&&!box.sign&&!box.signPost&&!box.killbox&&!box.teleporter;
+const mapFloorCache=new WeakMap();
+function defaultKillHeight(boxes){
+  if(!mapFloorCache.has(boxes)){
+    let lowest=Infinity;
+    for(const box of boxes)if(Number.isFinite(box.min?.[1]))lowest=Math.min(lowest,box.min[1]);
+    mapFloorCache.set(boxes,(Number.isFinite(lowest)?lowest:0)-DEFAULT_KILL_DROP);
+  }
+  return mapFloorCache.get(boxes);
+}
+
 // Untextured convex solids shared by the importer, renderer and player hull.
 // A curved brush is a polygonal solid; its original facets stay intact.
 const GEOMETRY_EPS = 1e-5;
@@ -975,15 +990,15 @@ function brushOverlap(p,brush) {
 function supportHeight(p,box) {
   return brushSurface(box,p.x,p.z,16,p.ducked?54:72)?.height??-Infinity;
 }
-function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => isMapSolid(o)&&!o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
 function support(p, boxes, distance = 0.08) {
   if(boxes.nearby)boxes=boxes.nearby(p);
   if(boxes.some(b=>b.planes))return boxes.find(b=>{
-    if(b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
+    if(!isMapSolid(b)||b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
     const top=supportHeight(p,b);
     return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance;
   });
-  return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
+  return boxes.find(b => isMapSolid(b)&&!b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
     p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
 }
@@ -993,6 +1008,7 @@ function sweep(p, delta, boxes, includeLadders = false) {
   let best = { t: 1, normal: [0, 0, 0], box: null };
   const height = p.ducked ? 54 : 72;
   for (const b of boxes) {
+    if(!isMapSolid(b))continue;
     if(b.ladder&&!includeLadders)continue;
     if(b.planes) {
       let enter=-Infinity,leave=1,normal=null,valid=true;
@@ -1484,7 +1500,7 @@ function projectPlayerShadow(player,boxes,light) {
   const duck=Math.max(0,Math.min(1,player.duckAmount||0)),x=player.x,z=player.z;
   let hit=null,nearest=Infinity;
   for(const box of boxes) {
-    if(box.ladder)continue;
+    if(!isMapSolid(box)||box.ladder)continue;
     const surface=box.planes?brushSurface(box,x,z,0,0):{height:box.max[1],normal:[0,1,0]};
     if(!surface||surface.height>player.y+.1)continue;
     const gap=Math.max(0,player.y-surface.height);
@@ -1667,24 +1683,65 @@ function makeImportedGeometryMap(source) {
   }
   return hydrateParkourMap({id:source.id,title:source.title,revision:source.revision||2,importedGeometry:true,boxes,spawns,
     stages:[{title:source.title,tip:'Original brush shapes. Space to hop; E returns to the start. Q restarts.'}],checkpointPads:[0],finishPad,finishArea,
-    sectionFalls:[Math.min(...boxes.map(b=>b.min[1]))-256],
-    boosts:(source.triggers||[]).filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&!t.filtername&&Number.isFinite(Number(t.speed))).map(t=>({min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed})),
-    teleports:(source.triggers||[]).filter(t=>t.classname==='trigger_teleport'&&t.StartDisabled!=='1'&&!t.filtername&&source.destinations?.has(t.target)&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(source.destinations.get(t.target)[k]))).map(t=>({min:t.min,max:t.max,target:t.target,destination:source.destinations.get(t.target)}))});
+    sectionFalls:[defaultKillHeight(boxes)],
+    movementEntities:{entities:source.entities||[],triggers:source.triggers||[],buttons:source.buttons||[],destinations:[...(source.destinations||new Map())]}});
+}
+
+const movementEntityKeys=['classname','targetname','target','landmark','filtername','filterclass','filtertype','Negated','StartDisabled','spawnflags','damage','damagetype','hammerid','pushdir','speed',...Array.from({length:20},(_,i)=>'Filter'+String(i+1).padStart(2,'0'))];
+const finiteMapVector=value=>Array.isArray(value)&&value.length===3&&value.every(n=>Number.isFinite(n)&&Math.abs(n)<=1e7);
+function validateMovementVolume(volume){
+  if(!volume||!finiteMapVector(volume.min)||!finiteMapVector(volume.max)||volume.min.some((n,i)=>n>=volume.max[i]))throw Error('Invalid movement trigger.');
+  const result={min:[...volume.min],max:[...volume.max]};
+  if(volume.planes){if(!Array.isArray(volume.planes)||volume.planes.length>128)throw Error('Invalid trigger planes.');result.planes=makeConvexBrush(volume.planes).planes;}
+  return result;
+}
+function validateMovementDestination(value){
+  if(!value||!['x','y','z','yaw','pitch'].every(key=>Number.isFinite(value[key])&&Math.abs(value[key])<=1e7))throw Error('Invalid teleport destination.');
+  return Object.fromEntries(['x','y','z','yaw','pitch'].map(key=>[key,value[key]]));
+}
+function normalizeMovementEntities(value){
+  if(!value||!['entities','triggers','destinations'].every(key=>Array.isArray(value[key]))||value.entities.length>4096||value.triggers.length>4096||value.destinations.length>4096||(value.buttons?.length||0)>1024)throw Error('Too many movement entities.');
+  const entity=(e,index,volume=false)=>{
+    if(!e||typeof e!=='object')throw Error('Invalid movement entity.');
+    const result=volume?validateMovementVolume(e):{};
+    for(const key of movementEntityKeys)if(e[key]!==undefined){if(!['string','number'].includes(typeof e[key])||String(e[key]).length>256)throw Error('Invalid movement entity field.');result[key]=String(e[key]);}
+    if(e.outputs!==undefined){if(!Array.isArray(e.outputs)||e.outputs.length>32)throw Error('Too many trigger outputs.');result.outputs=e.outputs.map(o=>{if(typeof o.event!=='string'||o.event.length>40||typeof o.value!=='string'||o.value.length>512)throw Error('Invalid trigger output.');return {event:o.event,value:o.value};});}
+    result.hammerid||='movement-'+index;return result;
+  };
+  return {entities:value.entities.filter(e=>/^filter_/.test(e.classname)).map((e,i)=>entity(e,i)),triggers:value.triggers.map((e,i)=>entity(e,i,true)),buttons:(value.buttons||[]).map((e,i)=>entity(e,i,true)),
+    destinations:value.destinations.map(entry=>{if(!Array.isArray(entry)||typeof entry[0]!=='string'||!entry[0]||entry[0].length>256)throw Error('Invalid teleport target.');return [entry[0],validateMovementDestination(entry[1])];})};
 }
 
 function hydrateParkourMap(data) {
-  if(!data||!Array.isArray(data.boxes)||!data.boxes.length||!Array.isArray(data.spawns)||data.spawns.length!==data.stages?.length||data.boxes.length>20000)throw Error('Invalid parkour map.');
+  if(!data||!Array.isArray(data.boxes)||!data.boxes.length||!Array.isArray(data.spawns)||data.spawns.length!==data.stages?.length||data.boxes.length>20000||data.spawns.length>256)throw Error('Invalid parkour map.');
   const solids=data.finishArea?[...data.boxes,data.finishArea]:data.boxes;
-  for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
+  for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Math.abs(n)<=1e7&&Number.isFinite(box.max[i])&&Math.abs(box.max[i])<=1e7&&n<box.max[i]))throw Error('Invalid parkour block.');
   // Reconstruct cached geometry after JSON/session restore and validate planes.
-  for(const box of solids)if(box.planes){const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
+  for(const box of solids)if(box.planes){if(!Array.isArray(box.planes)||box.planes.length>128)throw Error('Too many brush planes.');const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');
   const map={...data,greybox:true};
+  if(data.movementEntities)map.movementEntities=normalizeMovementEntities(data.movementEntities);
+  for(const field of ['killboxes','teleports','boosts'])if(data[field]!==undefined){
+    if(!Array.isArray(data[field])||data[field].length>4096)throw Error('Too many movement triggers.');
+    map[field]=data[field].map(value=>{
+      const volume=validateMovementVolume(value);
+      if(field==='teleports'){
+        if(typeof value.target!=='string'||value.target.length>256)throw Error('Invalid teleport target.');
+        return {...volume,target:value.target,destination:validateMovementDestination(value.destination)};
+      }
+      if(field==='boosts'){
+        const direction=typeof value.pushdir==='string'?value.pushdir.trim().split(/\s+/).map(Number):[];
+        if(direction.length!==3||!direction.every(Number.isFinite)||!Number.isFinite(Number(value.speed))||Math.abs(Number(value.speed))>100000)throw Error('Invalid boost.');
+        return {...volume,pushdir:direction.join(' '),speed:Number(value.speed)};
+      }
+      return volume;
+    });
+  }
   map.boxes.sourceMap=map;
   if(!Array.isArray(map.sectionFalls)||map.sectionFalls.length!==map.spawns.length||!map.sectionFalls.every(Number.isFinite))throw Error('Invalid section reset heights.');
-  map.killHeight=Math.min(...map.sectionFalls);
+  map.killHeight=defaultKillHeight(map.boxes);
   if(map.boxes.length>800){
     const cells=new Map(),size=512,large=[];
     for(const box of map.boxes){
@@ -1703,6 +1760,60 @@ function hydrateParkourMap(data) {
     };
   }
   return map;
+}
+
+
+const ROOM_MAP_MAX_BYTES=16*1024*1024;
+const ROOM_MAP_CHUNK_BYTES=8192;
+const roomMapHash=/^[a-f0-9]{64}$/;
+function validateRoomMapDescriptor(value){
+  if(!value||!roomMapHash.test(value.sha256)||!Number.isSafeInteger(value.bytes)||value.bytes<1||value.bytes>ROOM_MAP_MAX_BYTES||
+    typeof value.title!=='string'||!value.title.trim()||value.title.length>80||/[\u0000-\u001f\u007f]/.test(value.title))throw Error('Invalid custom room map.');
+  return {sha256:value.sha256,bytes:value.bytes,title:value.title};
+}
+function roomMapData(map,title){
+  let signCount=0,signCharacters=0;
+  const box=value=>{
+    const result={min:[...value.min],max:[...value.max]};
+    if(value.planes)result.planes=value.planes.map(p=>({normal:[...p.normal],distance:p.distance}));
+    for(const key of ['checkpoint','finish','obstacle','roof','ladder','signPost','solid','boost'])if(value[key]!==undefined)result[key]=value[key];
+    if(value.normal)result.normal=[...value.normal];
+    if(value.sign){
+      if(typeof value.sign.title!=='string'||value.sign.title.length>120||!Array.isArray(value.sign.lines)||value.sign.lines.length>12||value.sign.lines.some(s=>typeof s!=='string'||s.length>120))throw Error('Invalid custom map sign.');
+      signCharacters+=value.sign.title.length+value.sign.lines.reduce((sum,line)=>sum+line.length,0);
+      if(++signCount>128||signCharacters>8192)throw Error('Custom map signs contain too much text.');
+      result.sign={title:value.sign.title,lines:[...value.sign.lines]};
+    }
+    return result;
+  };
+  const result={id:'local-map',title,revision:1,importedGeometry:!!map.importedGeometry,boxes:map.boxes.map(box),spawns:map.spawns.map(p=>Object.fromEntries(['x','y','z','yaw','pitch'].map(k=>[k,p[k]??0]))),
+    stages:map.stages.map(stage=>Object.fromEntries(['title','tip','target','resetTarget'].filter(k=>typeof stage[k]==='string').map(k=>[k,stage[k].slice(0,k==='tip'?512:120)]))),
+    checkpointPads:[...map.checkpointPads],finishPad:map.finishPad,sectionFalls:[...map.sectionFalls]};
+  if(map.finishArea)result.finishArea=box(map.finishArea);
+  for(const key of ['portals','boosts','teleports','killboxes','movementEntities'])if(map[key]!==undefined)result[key]=map[key];
+  return result;
+}
+async function roomMapDigest(bytes,cryptoApi=globalThis.crypto){
+  const hash=new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes));return [...hash].map(n=>n.toString(16).padStart(2,'0')).join('');
+}
+async function prepareCustomRoomMap(map,title=map.title||'Custom map'){
+  title=String(title).replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,80)||'Custom map';
+  const checked=hydrateParkourMap(structuredClone(roomMapData(map,title))),payload=roomMapData(checked,title),bytes=new TextEncoder().encode(JSON.stringify(payload));
+  if(bytes.length>ROOM_MAP_MAX_BYTES)throw Error('The playable room map must be smaller than 16 MB.');
+  const descriptor=validateRoomMapDescriptor({title,bytes:bytes.length,sha256:await roomMapDigest(bytes)});
+  return {id:'custom-'+descriptor.sha256,revision:1,descriptor,bytes};
+}
+async function decodeCustomRoomMap(bytes,descriptor){
+  descriptor=validateRoomMapDescriptor(descriptor);
+  if(!(bytes instanceof Uint8Array)||bytes.length!==descriptor.bytes||await roomMapDigest(bytes)!==descriptor.sha256)throw Error('The custom map download did not match the host.');
+  const decoded=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+  const map=hydrateParkourMap(roomMapData(hydrateParkourMap(decoded),descriptor.title));
+  map.id='custom-'+descriptor.sha256;map.title=descriptor.title;map.revision=1;return map;
+}
+function encodeRoomMapChunk(bytes){return btoa(String.fromCharCode(...bytes));}
+function decodeRoomMapChunk(value){
+  if(typeof value!=='string'||value.length>Math.ceil(ROOM_MAP_CHUNK_BYTES/3)*4||!/^[-A-Za-z0-9+/]+={0,2}$/.test(value))throw Error('Invalid map packet.');
+  return Uint8Array.from(atob(value),character=>character.charCodeAt(0));
 }
 
 // Read original Source 1 maps without rewriting or executing their contents.
@@ -1799,8 +1910,8 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
     }
     return found;
   }
-  function collisionBrush(index,modelIndex=0) {
-    const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
+  function collisionBrush(index,modelIndex=0,trigger=false) {
+    const brush=brushes[index];if(!brush||!trigger&&(brush.contents&0x1000b)===0)return null;
     if(brush.first<0||brush.count<4||brush.count>512||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
     const brushSides=sides.slice(brush.first,brush.first+brush.count);
     const offset=modelOffset(modelIndex),boundary=brushSides.map(s=>{
@@ -1860,17 +1971,20 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
     }
   }
   const mesh=[...batches].map(([material,data])=>({material,data:new Float32Array(data)}));
-  const destinations=new Map(entities.filter(e=>e.classname==='info_teleport_destination').map(e=>[e.targetname,sourceSpawn(e)]));
+  const destinations=new Map(entities.filter(e=>['info_teleport_destination','info_target','info_landmark'].includes(e.classname)&&e.targetname)
+    .map(e=>[e.targetname,sourceSpawn(e)]).filter(([,spawn])=>Object.values(spawn).every(Number.isFinite)));
   const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>['info_player_terrorist','info_player_counterterrorist','info_player_start','info_player_deathmatch'].includes(e.classname)&&e.StartDisabled!=='1')||{origin:'0 0 0'});
   const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
   const spawns=targets.map(name=>({...destinations.get(name)||initial}));
   const stages=targets.map((name,i)=>({title:stageTitles?.[i]||(stageTargets?'Section '+name.toUpperCase():title),tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name,...(resetTargets?{resetTarget:resetTargets[i]}:{})}));
-  const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap(e=>{
-    const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];
+  const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap((e,i)=>{
+    const bounds=entityBounds(e);if(!bounds)return [];
+    const volumes=[...modelBrushes(Number(e.model.slice(1)))].map(index=>collisionBrush(index,Number(e.model.slice(1)),true)).filter(Boolean);
+    return (volumes.length?volumes:[bounds]).map(volume=>({...e,...volume,hammerid:e.hammerid||'trigger-'+i}));
   });
   const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
   const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
-  const sourceMap={id,title,revision,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,routeSurfacesOnly,routeBands,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  const sourceMap={id,title,revision,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,routeSurfacesOnly,routeBands,finish:destinations.get(finishTarget),killHeight:defaultKillHeight(boxes)};
   boxes.sourceMap=sourceMap;
   // Keep the broadphase near the player; full maps contain thousands of brushes.
   const cells=new Map(),cellSize=512,large=[];
@@ -1911,7 +2025,7 @@ function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
 function createSourceRuntime(map) {
   if(map.greybox)return createParkourRuntime(map);
   const named=new Map();
-  for(const e of map.entities)if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
+  for(const e of [...map.entities,...map.triggers,...(map.buttons||[])])if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
   let disabled,time,actorName,pending,inside,cooldown,current,finished;
   const matches=(pattern,value)=>pattern==='*'||pattern===value||pattern.endsWith('*')&&value.startsWith(pattern.slice(0,-1));
   function filter(name,depth=0) {
@@ -1938,7 +2052,7 @@ function createSourceRuntime(map) {
   function fire(entity,event) {
     for(const output of entity.outputs||[])if(output.event===event) {
       const pieces=output.value.split(/\x1b|,/),delay=Math.max(0,Number(pieces[3])||0);
-      if(delay)pending.push({at:time+delay,value:output.value});else execute(output.value);
+      if(delay){if(pending.length<1024&&delay<=60)pending.push({at:time+delay,value:output.value});}else execute(output.value);
     }
   }
   function reset(stage=0) {
@@ -1959,16 +2073,24 @@ function createSourceRuntime(map) {
       const touching=new Set(),events=[];
       for(const trigger of map.triggers) {
         if(disabled.has(trigger.hammerid)||!sourceTriggerCrossing(previous,player,trigger,player.ducked?54:72))continue;
+        if(touching.has(trigger.hammerid))continue;
         touching.add(trigger.hammerid);
         if(!filter(trigger.filtername))continue;
-        if(trigger.classname==='trigger_multiple'){
+        if(trigger.classname==='trigger_hurt'&&Number(trigger.damage??10)>0){events.push({type:'respawn',stage:current});break;}
+        else if(trigger.classname==='trigger_multiple'){
           if(!inside.has(trigger.hammerid)){fire(trigger,'OnStartTouch');fire(trigger,'OnStartTouchAll');fire(trigger,'OnTrigger');}
         } else if(trigger.classname==='trigger_push'){
           const [pitch,yaw]=(trigger.pushdir||'0 0 0').split(/\s+/).map(v=>Number(v)*Math.PI/180),force=(Number(trigger.speed)||0)*dt;
           player.vx+=Math.cos(pitch)*Math.cos(yaw)*force;player.vy-=Math.sin(pitch)*force;player.vz-=Math.cos(pitch)*Math.sin(yaw)*force;
         } else if(trigger.classname==='trigger_teleport'&&!cooldown){
           const destination=map.destinations.get(trigger.target);
-          if(destination){Object.assign(player,destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ducked:false,duckAmount:0});cooldown=.08;actorName='';pending=[];events.push({type:'teleport',target:trigger.target});break;}
+          if(destination){
+            // Source landmark teleports retain the relative offset and angles.
+            const landmark=map.destinations.get(trigger.landmark),arrival=landmark?
+              {x:destination.x+player.x-landmark.x,y:destination.y+player.y-landmark.y,z:destination.z+player.z-landmark.z}:destination;
+            Object.assign(player,arrival,{grounded:false,groundBox:null,ladder:null,ladderNormal:null});
+            cooldown=.08;actorName='';pending=[];events.push({type:'teleport',target:trigger.target,destination:{x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch}});break;
+          }
         }
       }
       inside=touching;
@@ -1983,14 +2105,19 @@ function createSourceRuntime(map) {
 
 function createParkourRuntime(map) {
   let current=0,finished=false,teleportCooldown=0;
+  const entities=map.movementEntities,entityRuntime=entities?createSourceRuntime({...entities,greybox:false,destinations:new Map(entities.destinations),spawns:[],buttons:entities.buttons||[]}):null;
   const activation=(from,to,pad)=>brushCheckpointVolumes(pad).map(volume=>sourceTriggerCrossing(from,to,volume,0,0)).filter(Boolean).sort((a,b)=>a.enter-b.enter)[0];
   return {
     get stage(){return current;},
-    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;teleportCooldown=0;},
-    interact(){return false;},
+    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;teleportCooldown=0;entityRuntime?.reset();},
+    interact(player){return entityRuntime?.interact(player)||false;},
     step(player,previous,dt) {
       const events=[];let lastTime=-1;
       teleportCooldown=Math.max(0,teleportCooldown-dt);
+      const entityEvents=entityRuntime?.step(player,previous,dt)||[];
+      if(entityEvents.length)return entityEvents.map(event=>event.type==='respawn'?{...event,stage:current}:event);
+      const kill=map.killboxes?.find(box=>sourceTriggerCrossing(previous,player,box,player.ducked?54:72));
+      if(kill)return [{type:'respawn',stage:current}];
       const teleport=!teleportCooldown&&map.teleports?.find(t=>sourceTriggerCrossing(previous,player,t,player.ducked?54:72));
       if(teleport){
         Object.assign(player,teleport.destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ladderNormal:null,ducked:false,duckAmount:0});
@@ -2186,7 +2313,7 @@ const WORLD_FRAGMENT_GLSL = `
     #else
     precision mediump float;
     #endif
-    uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
+    uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive; uniform float uOpacity;
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     uniform vec3 uAtmosphereSun; uniform vec3 uAtmosphereColour; uniform vec3 uAtmosphereState;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
@@ -2234,7 +2361,7 @@ const WORLD_FRAGMENT_GLSL = `
         fog=uAtmosphereState.x>0.5?cycleAtmosphere(direction,uSkyHorizon,uSkyZenith,uSkyGround,uAtmosphereSun,uAtmosphereColour,uAtmosphereState.y,uAtmosphereState.z):
           backgroundGradient(direction,uSkyHorizon,uSkyZenith,uSkyGround);
       }
-      gl_FragColor=vec4(mix(fog,color,fade),1.0);
+      gl_FragColor=vec4(mix(fog,color,fade),uOpacity);
     }`;
 
 function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
@@ -2253,14 +2380,14 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if(!gl.getProgramParameter(program,gl.LINK_STATUS)){gl.deleteProgram?.(program);throw Error(gl.getProgramInfoLog(program));}
     const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24],['aNormal',3,28],['aShade',1,40]]
       .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
-    const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
+    const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uOpacity','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
       'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uPlayerShadowNormal','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
       ...(gallery?['uGalleryShadowMatrix','uGalleryShadowMap','uGalleryShadowTexel','uGalleryShadowNormalMatrix']:[])].map(name=>[name,gl.getUniformLocation(program,name)]));
     return {program,attributes,uniforms};
   }
   const standardPipeline=worldPipeline();let pipeline=standardPipeline,captureState=null,galleryResources=null,galleryUnavailable=false;
   gl.useProgram(pipeline.program);
-  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer();
+  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer(),signBuffer=gl.createBuffer();
   for(const {loc} of pipeline.attributes)gl.enableVertexAttribArray(loc);
   function bindGeometry(targetBuffer) {
     gl.bindBuffer(gl.ARRAY_BUFFER, targetBuffer);
@@ -2275,7 +2402,7 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if(next!=='black'&&skybox!==next)skyStarted=now();
     skybox=next;
   }
-  let vertices = [], count = 0, currentBoxes = boxes;
+  let vertices = [], count = 0, currentBoxes = boxes,signMeshes=[];
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
     const key=target?(isShapedBrush(target)?target:[...target.min,...target.max].join(',')):'';
@@ -2324,10 +2451,13 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     }
   }
   function setBoxes(next) {
-    currentBoxes = next; vertices=[];
+    currentBoxes = next; vertices=[];signMeshes=[];
     for(const b of next) {
-      if(b.sign){addBox(b,[.045,.065,.085]);vertices.push(...buildSignMesh(b));continue;}
-      if(b.signPost){addBox(b,[.11,.14,.17]);continue;}
+      if(b.sign||b.signPost){
+        const opaque=vertices;vertices=[];addBox(b,b.sign?[.08,.12,.16]:[.16,.20,.24]);
+        if(b.sign)vertices.push(...buildSignMesh(b));
+        signMeshes.push({box:b,data:new Float32Array(vertices)});vertices=opaque;continue;
+      }
       if(b.ladder) {
         const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
         // Cyan rails and individual rungs mark the exact climbable face.
@@ -2360,6 +2490,9 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     }
     count=vertices.length/11;
     bindGeometry(buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+    const translucent=[];
+    for(const entry of signMeshes){entry.first=translucent.length/11;entry.count=entry.data.length/11;for(const value of entry.data)translucent.push(value);delete entry.data;}
+    if(translucent.length){bindGeometry(signBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(translucent),gl.STATIC_DRAW);}
   }
   setBoxes(boxes);
   function resize() {
@@ -2403,12 +2536,21 @@ function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
       gl.uniform3f(u.uTargetMin,...target.min);gl.uniform3f(u.uTargetMax,...target.max);
     }
     bindGeometry(buffer);
+    gl.uniform1f(u.uOpacity,1);
     gl.drawArrays(gl.TRIANGLES,0,count);
     if(remotePlayers.length){
       const mesh=buildRemotePlayerMesh(remotePlayers);
       gl.uniform1f(u.uTargetActive,0);gl.uniform1f(u.uShadowOpacity,0);
       bindGeometry(playerBuffer);gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.DYNAMIC_DRAW||gl.STATIC_DRAW);
       gl.drawArrays(gl.TRIANGLES,0,mesh.length/11);
+    }
+    if(signMeshes.length){
+      gl.uniform1f(u.uTargetActive,0);gl.uniform1f(u.uShadowOpacity,0);gl.uniform1f(u.uOpacity,.55);
+      gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+      const distance=entry=>{const b=entry.box;return Math.hypot((b.min[0]+b.max[0])/2-p.x,(b.min[1]+b.max[1])/2-p.y,(b.min[2]+b.max[2])/2-p.z);};
+      bindGeometry(signBuffer);
+      for(const entry of [...signMeshes].sort((a,b)=>distance(b)-distance(a)))gl.drawArrays(gl.TRIANGLES,entry.first,entry.count);
+      gl.disable(gl.BLEND);gl.depthMask(true);gl.uniform1f(u.uOpacity,1);
     }
     setGlow(target);
     if(glowCount) {
@@ -2879,8 +3021,8 @@ function roomPlayerSpawn(spawn,slot,boxes) {
   const position=([side,back])=>({...spawn,x:spawn.x+side*cy-back*sy,z:spawn.z+side*sy+back*cy});
   const safe=p=>{
     const nearby=boxes.nearby?boxes.nearby(p):boxes;
-    return nearby.some(b=>!b.ladder&&Math.abs(b.max[1]-p.y)<.01&&p.x-16>=b.min[0]&&p.x+16<=b.max[0]&&p.z-16>=b.min[2]&&p.z+16<=b.max[2])&&
-      !nearby.some(b=>!b.ladder&&p.x+16>b.min[0]+.001&&p.x-16<b.max[0]-.001&&p.z+16>b.min[2]+.001&&p.z-16<b.max[2]-.001&&p.y+72>b.min[1]+.001&&p.y<b.max[1]-.001);
+    return nearby.some(b=>isMapSolid(b)&&!b.ladder&&Math.abs(b.max[1]-p.y)<.01&&p.x-16>=b.min[0]&&p.x+16<=b.max[0]&&p.z-16>=b.min[2]&&p.z+16<=b.max[2])&&
+      !nearby.some(b=>isMapSolid(b)&&!b.ladder&&p.x+16>b.min[0]+.001&&p.x-16<b.max[0]-.001&&p.z+16>b.min[2]+.001&&p.z-16<b.max[2]-.001&&p.y+72>b.min[1]+.001&&p.y<b.max[1]-.001);
   };
   for(const layout of layouts){const seats=layout.map(position);if(seats.every(safe))return seats[slot];}
   // A narrow checkpoint may have fewer than four safe places. Preserve the
@@ -2894,6 +3036,11 @@ function roomPlayerSpawn(spawn,slot,boxes) {
   return seats[slot]||{...spawn};
 }
 function validateRoomCourse(course,courses) {
+  if(course?.custom){
+    const custom=validateRoomMapDescriptor(course.custom);
+    if(course.id!=='custom-'+custom.sha256||course.revision!==1||!['classic','practice'].includes(course.preset))throw Error('Invalid custom room map.');
+    return {id:course.id,revision:1,preset:course.preset,custom};
+  }
   const known=courses.find(c=>c.id===course?.id&&(c.revision||1)===course.revision);
   if(!known||!['classic','practice'].includes(course.preset))throw Error('This room uses a different map version. Refresh the game and retry.');
   if(course.id==='endless'&&(!Number.isInteger(course.seed)||course.seed<0||course.seed>0xffffffff))throw Error('Invalid Endless room.');
@@ -2994,11 +3141,17 @@ class MultiplayerRoom {
   get active(){return this.phase==='hosting'||this.phase==='connected';}
   get busy(){return this.active||this.phase==='connecting';}
   notify(){this.onChange(this);}
-  async start({host,code,name,course}) {
+  async start({host,code,name,course,mapData}) {
     this.leave('',false);const generation=++this.generation;
     this.host=host;this.slot=host?0:null;this.code=host?makeRoomCode():normaliseRoomCode(code);this.name=roomPlayerName(name);
     if(!this.code)throw Error('Enter the full 12-character room code.');
-    if(host)this.course=validateRoomCourse(course,this.courses);
+    if(host){
+      this.course=validateRoomCourse(course,this.courses);
+      if(this.course.custom){
+        if(!(mapData?.bytes instanceof Uint8Array)||mapData.bytes.length!==this.course.custom.bytes||mapData.descriptor?.sha256!==this.course.custom.sha256)throw Error('Upload the custom map before hosting.');
+        this.mapData=mapData;
+      }
+    }
     this.phase='connecting';this.status=host?'Opening your room…':'Finding the host…';this.notify();
     const joined=new Promise((resolve,reject)=>{this.resolveStart=resolve;this.rejectStart=reject;});joined.catch(()=>{});
     this.startedAt=this.now();this.timer=this.setIntervalFn(()=>this.pump(),50);this.timer?.unref?.();
@@ -3025,8 +3178,8 @@ class MultiplayerRoom {
     this.generation++;this.phase='idle';this.status=message;this.rejectStart?.(Error(message||'Connection cancelled.'));this.rejectStart=null;this.resolveStart=null;
     if(this.timer!==undefined)this.clearIntervalFn(this.timer);this.timer=undefined;
     this.signaling?.close();this.signaling=null;
-    for(const link of this.links.values()){link.closed=true;link.pc.close();}
-    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.slot=null;this.session=null;this.course=null;this.earlyCandidates=new Map();
+    for(const link of this.links.values()){link.closed=true;link.mapReceive=null;link.pc.close();}
+    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.slot=null;this.session=null;this.course=null;this.mapData=null;this.earlyCandidates=new Map();
     if(notify)this.notify();
   }
   async signal(id,data) {
@@ -3099,14 +3252,32 @@ class MultiplayerRoom {
     if(kind==='control'&&data.type==='welcome'&&!this.host&&!this.active&&!link.loading){
       if(data.protocol!==ROOM_PROTOCOL||typeof data.session!=='string'||data.hostId!==link.id||![1,2,3].includes(data.slot)||data.id!==this.id){this.fail('This room uses a different multiplayer version. Refresh and retry.');return;}
       link.loading=true;this.status='Loading the host’s map…';this.notify();
-      const generation=this.generation;this.course=validateRoomCourse(data.course,this.courses);this.session=data.session;this.slot=data.slot;
-      await this.onCourse(this.course);if(generation!==this.generation||link.closed)return;
-      link.prepared=true;link.lastReady=now;this.status='Joining the room…';
-      this.members.set(this.id,{id:this.id,name:this.name,slot:this.slot,host:false,ping:null,samples:[],lastSeen:now});
-      this.members.set(link.id,{id:link.id,name:roomPlayerName(data.name),slot:0,host:true,ping:null,samples:[],lastSeen:now});
-      this.send(link,{type:'ready',session:this.session,name:this.name});this.notify();return;
+      this.course=validateRoomCourse(data.course,this.courses);this.session=data.session;this.slot=data.slot;link.hostName=roomPlayerName(data.name);
+      if(this.course.custom){
+        link.mapReceive={bytes:new Uint8Array(this.course.custom.bytes),offset:0,sequence:0};
+        this.send(link,{type:'map-request',session:this.session,sha256:this.course.custom.sha256});
+        this.status='Downloading '+this.course.custom.title+' from the host…';this.notify();return;
+      }
+      await this.prepareGuest(link);return;
     }
     if(data.session!==this.session||!this.session)return;
+    if(kind==='control'&&data.type==='map-request'&&this.host&&!link.mapRequested&&this.course.custom&&data.sha256===this.course.custom.sha256){
+      link.mapRequested=true;link.mapSendOffset=0;link.mapSendSequence=0;this.sendMapChunks(link);return;
+    }
+    if(kind==='control'&&data.type==='map-progress'&&this.host&&link.mapRequested)return;
+    if(kind==='control'&&data.type==='map-chunk'&&!this.host&&link.mapReceive){
+      const transfer=link.mapReceive;
+      if(data.sha256!==this.course.custom.sha256||data.sequence!==transfer.sequence)throw Error('Invalid map packet sequence.');
+      const chunk=decodeRoomMapChunk(data.data),expected=Math.min(ROOM_MAP_CHUNK_BYTES,transfer.bytes.length-transfer.offset);
+      if(chunk.length!==expected||!expected)throw Error('Invalid map packet size.');
+      transfer.bytes.set(chunk,transfer.offset);transfer.offset+=chunk.length;transfer.sequence++;this.status='Downloading '+this.course.custom.title+' · '+Math.floor(100*transfer.offset/transfer.bytes.length)+'%';
+      if(transfer.sequence%4===0)this.send(link,{type:'map-progress',session:this.session,bytes:transfer.offset});
+      if(transfer.offset===transfer.bytes.length){
+        link.mapReceive=null;const generation=this.generation,map=await decodeCustomRoomMap(transfer.bytes,this.course.custom);
+        if(generation!==this.generation||link.closed)return;await this.prepareGuest(link,map);
+      }else this.notify();
+      return;
+    }
     if(kind==='control'&&data.type==='ready'&&this.host){
       if(!link.accepted){link.accepted=true;this.members.set(link.id,{id:link.id,name:roomPlayerName(data.name),slot:link.slot,host:false,ping:null,samples:[],lastSeen:now});this.notify();}
       this.send(link,{type:'joined',session:this.session});return;
@@ -3134,6 +3305,21 @@ class MultiplayerRoom {
       for(const id of this.members.keys())if(!keep.has(id))this.members.delete(id);
     }else if(kind==='control'&&data.type==='closed'&&!this.host)this.fail('The host left. You can keep playing solo.');
   }
+  async prepareGuest(link,map){
+    const generation=this.generation;await this.onCourse(this.course,map);if(generation!==this.generation||link.closed)return;
+    link.prepared=true;link.lastReady=this.now();this.status='Joining the room…';
+    this.members.set(this.id,{id:this.id,name:this.name,slot:this.slot,host:false,ping:null,samples:[],lastSeen:this.now()});
+    this.members.set(link.id,{id:link.id,name:link.hostName,slot:0,host:true,ping:null,samples:[],lastSeen:this.now()});
+    this.send(link,{type:'ready',session:this.session,name:this.name});this.notify();
+  }
+  sendMapChunks(link){
+    if(!this.host||!this.mapData||!link.mapRequested||link.closed)return;
+    for(let i=0;i<8&&link.mapSendOffset<this.mapData.bytes.length;i++){
+      const chunk=this.mapData.bytes.subarray(link.mapSendOffset,link.mapSendOffset+ROOM_MAP_CHUNK_BYTES);
+      if(!this.send(link,{type:'map-chunk',session:this.session,sha256:this.course.custom.sha256,sequence:link.mapSendSequence,data:encodeRoomMapChunk(chunk)}))break;
+      link.mapSendOffset+=chunk.length;link.mapSendSequence++;
+    }
+  }
   sample(member,state,at){
     if(!member)return;
     const previous=member.timer,running=state.running??(!state.paused&&!state.completed&&state.time>0);
@@ -3149,9 +3335,10 @@ class MultiplayerRoom {
   }
   pump() {
     if(!this.busy)return;const now=this.now();
-    if(this.phase==='connecting'&&now-this.startedAt>30000){this.fail('Could not join. Check the code or try a different network.');return;}
+    if(this.phase==='connecting'&&now-this.startedAt>(this.course?.custom?90000:30000)){this.fail('Could not join. Check the code or try a different network.');return;}
     const own=this.members.get(this.id),state=sanitiseRoomState(this.getState());if(own&&state)this.sample(own,state,now);
     for(const link of [...this.links.values()]){
+      this.sendMapChunks(link);
       if(now-link.lastSeen>20000){this.drop(link.id,this.host?'A player disconnected.':'The host disconnected. You can keep playing solo.');continue;}
       if(!this.host&&link.prepared&&!link.accepted&&now-link.lastReady>500){link.lastReady=now;this.send(link,{type:'ready',session:this.session,name:this.name});}
       if(link.accepted&&now-link.lastPing>=1000){
@@ -3172,7 +3359,7 @@ class MultiplayerRoom {
   }
   drop(id,message) {
     const link=this.links.get(id);if(!link||link.closed)return;
-    link.closed=true;this.links.delete(id);this.members.delete(id);link.pc.close();
+    link.closed=true;link.mapReceive=null;this.links.delete(id);this.members.delete(id);link.pc.close();
     if(!this.host)this.fail(message);else{this.status=message;this.notify();}
   }
   get ping(){return this.host?null:this.links.get(this.hostId)?.ping??null;}
@@ -3713,6 +3900,7 @@ let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
 let leaderboardController=null;
 let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
+let roomMapUpload=null,roomUploadLoading=false,roomUploadGeneration=0;
 let pendingRunRestore=null;
 const referenceMode=new URLSearchParams(window.location?.search||'').get('referenceRun')==='1';
 let referenceRecorder=null,referenceChecking=false;
@@ -4017,7 +4205,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   if(!Object.hasOwn(MAPS,value)) return;
   if(!preserveSavedRun){try{sessionStorage.removeItem('movement-lab-run-v1');}catch{}pendingRunRestore=null;}
   sourceLoadGeneration++;sourceLoadController?.abort();
-  $('source-map-status').textContent='Lightweight parkour geometry. Local imports stay in this tab.';
+  $('source-map-status').textContent='Lightweight parkour geometry. Use the Multiplayer upload button to share a custom map.';
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
   sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
@@ -4209,7 +4397,7 @@ function tickMovement(input) {
   }
   if(runActive) runTime+=DT*Math.max(0,timerEnd-timerStart);
   if(finished) {finishRun();return;}
-  if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
+  if(player.y<defaultKillHeight(boxes)) {
     if(endless&&verifiedHadRun&&['active','finishing'].includes(verifiedRuns?.state().phase)){finishRun();return;}
     respawns++;reset(false);
     toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
@@ -4269,7 +4457,7 @@ $('open-map-select').addEventListener('click',()=>{
   if(!MAPS[map].timed)chooseMap('course');showMain('maps');
 });
 $('open-settings').addEventListener('click',()=>showMain('settings'));
-$('open-rooms').addEventListener('click',()=>{if(!room?.busy){$('room-map').value=map==='local-map'?'course':map;$('room-preset').value=preset;}showMain('rooms');updateRoomUi();});
+$('open-rooms').addEventListener('click',()=>{if(!room?.busy){$('room-map').value=roomCourses.some(course=>course.id===map)?map:'course';$('room-preset').value=preset;}showMain('rooms');updateRoomUi();});
 $('rooms-back').addEventListener('click',()=>showMain());
 $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
@@ -4427,19 +4615,47 @@ document.addEventListener('pointerdown',()=>{if(windowFocused&&!document.hidden)
 const roomCourses=[...MAP_LIST,...COMMUNITY_MAPS];
 $('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${course.title}</option>`).join('');
 $('room-map').value='course';$('room-preset').value=preset;
+async function uploadRoomMap(file){
+  if(room?.busy||roomStarting||roomUploadLoading||!file)return false;
+  const generation=++roomUploadGeneration;roomUploadLoading=true;updateRoomUi();
+  $('room-map-status').textContent='Reading '+file.name+'…';
+  try{
+    const isJson=/\.json$/i.test(file.name);
+    if(file.size>(isJson?ROOM_MAP_MAX_BYTES:180*1024*1024))throw Error(isJson?'Map JSON must be smaller than 16 MB.':'Map files must be smaller than 180 MB.');
+    const title=file.name.replace(/\.(bsp|zip|json)$/i,'').slice(0,80)||'Custom map';
+    const imported=isJson?hydrateParkourMap(JSON.parse(await file.text())):await loadSourceMap(await file.arrayBuffer(),{id:'local-map',title});
+    const prepared=await prepareCustomRoomMap(imported,title);
+    if(generation!==roomUploadGeneration)return false;
+    roomMapUpload=prepared;
+    for(let i=roomCourses.length-1;i>=0;i--)if(roomCourses[i].custom)roomCourses.splice(i,1);
+    roomCourses.push({id:prepared.id,title:prepared.descriptor.title,revision:1,custom:prepared.descriptor});
+    $('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${escapeRoomText(course.title)}</option>`).join('');
+    $('room-map').value=prepared.id;
+    $('room-map-status').textContent=prepared.descriptor.title+' ready · '+(prepared.bytes.length/1048576).toFixed(2)+' MB. Host the room to share it with joining players.';
+    return true;
+  }catch(error){if(generation===roomUploadGeneration)$('room-map-status').textContent=error.message||'Could not read this map. Try another file.';return false;}
+  finally{if(generation===roomUploadGeneration){roomUploadLoading=false;updateRoomUi();}}
+}
+$('room-upload').addEventListener('click',()=>$('room-map-file').click());
+$('room-map-file').addEventListener('change',()=>{const file=$('room-map-file').files?.[0];if(file)void uploadRoomMap(file);$('room-map-file').value='';});
 try{$('room-name').value=roomPlayerName(localStorage.getItem('movement-lab-player-name')||'Player');}catch{$('room-name').value='Player';}
 function escapeRoomText(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function roomLocalState(){
   return {x:player.x,y:player.y,z:player.z-(endless?.originZ||0),yaw:player.yaw,pitch:player.pitch,duckAmount:player.duckAmount,
     time:runTime,checkpoint,distance:endless?.distance||0,paused:!playing,completed,running:playing&&runActive&&!completed};
 }
-async function applyRoomCourse(course){
+async function applyRoomCourse(course,customMap){
   roomApplyingCourse=true;
   try{
     if(playing||lockPending)pause();
     choosePreset(course.preset);
     const community=COMMUNITY_MAPS.find(c=>c.id===course.id);
-    if(community)await selectCommunityMap(community);else chooseMap(course.id);
+    if(course.custom){
+      const imported=customMap||await decodeCustomRoomMap(roomMapUpload?.bytes,course.custom);
+      for(const [id,entry] of Object.entries(MAPS))if(entry.custom&&id!==course.id)delete MAPS[id];
+      MAPS[course.id]={id:course.id,title:course.custom.title,revision:1,timed:imported.finishPad!==null,community:true,custom:true,description:'Custom multiplayer map shared by the host.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+      chooseMap(course.id);
+    }else if(community)await selectCommunityMap(community);else chooseMap(course.id);
     if(map!==course.id)throw Error('The room map could not load. Try joining again.');
     started=false;reset();
   }finally{roomApplyingCourse=false;}
@@ -4449,7 +4665,9 @@ function updateRoomUi(){
   $('room-setup').classList.toggle('hidden',busy);$('room-session').classList.toggle('hidden',!active);$('room-leave').classList.toggle('hidden',!busy);
   $('room-leave').textContent=active?'LEAVE ROOM':'CANCEL CONNECTION';
   $('room-status').textContent=room?.status||'Host a private room or join a friend.';
-  $('room-host').disabled=busy||!rendererReady;$('room-join').disabled=busy||!rendererReady;
+  $('room-host').disabled=busy||roomUploadLoading||roomStarting||!rendererReady;$('room-join').disabled=busy||roomUploadLoading||roomStarting||!rendererReady;
+  $('room-upload').disabled=busy||roomUploadLoading||roomStarting;
+  $('room-upload').textContent=roomUploadLoading?'PREPARING MAP…':'UPLOAD CUSTOM MAP ↗';
   $('network-hud').classList.toggle('hidden',!active);
   $('room-leaderboard').classList.toggle('hidden',!active);
   $('import-source-map').disabled=busy;
@@ -4457,7 +4675,7 @@ function updateRoomUi(){
   const roster=room.roster(),code=displayRoomCode(room.code);
   $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
   $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
-  const course=roomCourses.find(c=>c.id===room.course.id);
+  const course=roomCourses.find(c=>c.id===room.course.id)||{title:room.course.custom?.title||'Custom map'};
   $('room-course').textContent=`${course.title} / ${PRESETS[room.course.preset].title} · Leave the room to change maps.`;
   $('room-players').innerHTML=roster.map(member=>{
     const state=member.self?roomLocalState():member.state;
@@ -4497,23 +4715,23 @@ function drawRoomLabels(camera,players){
   }).join('');
 }
 async function startRoom(host){
-  if(roomStarting||room?.busy||!rendererReady)return;
+  if(roomStarting||roomUploadLoading||room?.busy||!rendererReady)return;
   cancelVerification('Joining a room ended verification.');
   if(typeof globalThis.RTCPeerConnection!=='function'){$('room-status').textContent='This browser does not support multiplayer connections. Use a current desktop browser.';return;}
   const name=roomPlayerName($('room-name').value);try{localStorage.setItem('movement-lab-player-name',name);}catch{}
-  roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;
+  roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;$('room-upload').disabled=true;
   $('room-copy').textContent='COPY';
   try{
     const selected=roomCourses.find(c=>c.id===$('room-map').value)||roomCourses[0];
-    const course={id:selected.id,revision:selected.revision||1,preset:$('room-preset').value==='practice'?'practice':'classic',
+    const course={id:selected.id,revision:selected.revision||1,preset:$('room-preset').value==='practice'?'practice':'classic',...(selected.custom?{custom:selected.custom}:{}),
       ...(selected.id==='endless'?{seed:globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}:{})};
     if(host)await applyRoomCourse(course);
     room=new MultiplayerRoom({config:MULTIPLAYER_CONFIG,courses:roomCourses,getState:roomLocalState,onCourse:applyRoomCourse,onChange:updateRoomUi});
-    await room.start({host,code:$('room-code-input').value,name,course});
+    await room.start({host,code:$('room-code-input').value,name,course,mapData:selected.custom?roomMapUpload:undefined});
     if(host){started=false;reset();}
     updateRoomUi();
   }catch(error){if(room?.busy)room.leave(error.message);$('room-status').textContent=error.message||'Could not connect. Try again.';$('room-host').disabled=!rendererReady;$('room-join').disabled=!rendererReady;}
-  finally{roomStarting=false;}
+  finally{roomStarting=false;$('room-upload').disabled=room?.busy===true;}
 }
 $('room-host').addEventListener('click',()=>void startRoom(true));
 $('room-join').addEventListener('click',()=>void startRoom(false));

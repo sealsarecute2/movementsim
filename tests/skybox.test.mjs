@@ -245,3 +245,10 @@ test('world geometry and checkpoint glow follow the actual convex surface',async
  const glow=f.uploads.at(-1);for(let i=0;i<glow.length;i+=11)assert.ok(Math.abs(glow[i+1]-.25*glow[i]-.8)<.001);
  const world=f.draws[0];assert.ok(world.uniforms.uPlayerShadowNormal[0]<-.2);assert.ok(Math.abs(world.uniforms.uPlayerShadow[1])<.001);
 });
+
+test('world signs use a translucent pass without writing depth, leaving ordinary geometry opaque',t=>{
+ const f=fixture(t),board={min:[-90,32,-100],max:[90,118,-96],sign:{title:'TEST',lines:['WALK THROUGH']}},post={min:[-3,0,-99],max:[3,32,-97],signPost:true};
+ f.renderer.setBoxes([f.box,board,post]);f.renderer.draw(f.camera);
+ const signs=f.draws.filter(draw=>draw.uniforms.uOpacity===.55);assert.equal(signs.length,2);assert.ok(signs.every(draw=>draw.blend&&draw.writeDepth===false));
+ assert.equal(f.draws[0].uniforms.uOpacity,1);assert.equal(f.draws[0].blend,false);assert.equal(f.draws[0].writeDepth,true);
+});

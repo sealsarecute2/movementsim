@@ -1,4 +1,5 @@
 import { isShapedBrush, makeConvexBrush, boxPlanes, brushSurface, safeGeometrySpawn } from './geometry.js';
+import {defaultKillHeight} from './map-rules.js';
 // Keep the curated playable route, preserving the shape of angled brushes.
 // Original teleport-pad footprints identify jumping surfaces, not decorations.
 export function makeParkourMap(source) {
@@ -124,24 +125,65 @@ export function makeImportedGeometryMap(source) {
   }
   return hydrateParkourMap({id:source.id,title:source.title,revision:source.revision||2,importedGeometry:true,boxes,spawns,
     stages:[{title:source.title,tip:'Original brush shapes. Space to hop; E returns to the start. Q restarts.'}],checkpointPads:[0],finishPad,finishArea,
-    sectionFalls:[Math.min(...boxes.map(b=>b.min[1]))-256],
-    boosts:(source.triggers||[]).filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&!t.filtername&&Number.isFinite(Number(t.speed))).map(t=>({min:t.min,max:t.max,pushdir:t.pushdir,speed:t.speed})),
-    teleports:(source.triggers||[]).filter(t=>t.classname==='trigger_teleport'&&t.StartDisabled!=='1'&&!t.filtername&&source.destinations?.has(t.target)&&['x','y','z','yaw','pitch'].every(k=>Number.isFinite(source.destinations.get(t.target)[k]))).map(t=>({min:t.min,max:t.max,target:t.target,destination:source.destinations.get(t.target)}))});
+    sectionFalls:[defaultKillHeight(boxes)],
+    movementEntities:{entities:source.entities||[],triggers:source.triggers||[],buttons:source.buttons||[],destinations:[...(source.destinations||new Map())]}});
+}
+
+const movementEntityKeys=['classname','targetname','target','landmark','filtername','filterclass','filtertype','Negated','StartDisabled','spawnflags','damage','damagetype','hammerid','pushdir','speed',...Array.from({length:20},(_,i)=>'Filter'+String(i+1).padStart(2,'0'))];
+const finiteMapVector=value=>Array.isArray(value)&&value.length===3&&value.every(n=>Number.isFinite(n)&&Math.abs(n)<=1e7);
+function validateMovementVolume(volume){
+  if(!volume||!finiteMapVector(volume.min)||!finiteMapVector(volume.max)||volume.min.some((n,i)=>n>=volume.max[i]))throw Error('Invalid movement trigger.');
+  const result={min:[...volume.min],max:[...volume.max]};
+  if(volume.planes){if(!Array.isArray(volume.planes)||volume.planes.length>128)throw Error('Invalid trigger planes.');result.planes=makeConvexBrush(volume.planes).planes;}
+  return result;
+}
+function validateMovementDestination(value){
+  if(!value||!['x','y','z','yaw','pitch'].every(key=>Number.isFinite(value[key])&&Math.abs(value[key])<=1e7))throw Error('Invalid teleport destination.');
+  return Object.fromEntries(['x','y','z','yaw','pitch'].map(key=>[key,value[key]]));
+}
+function normalizeMovementEntities(value){
+  if(!value||!['entities','triggers','destinations'].every(key=>Array.isArray(value[key]))||value.entities.length>4096||value.triggers.length>4096||value.destinations.length>4096||(value.buttons?.length||0)>1024)throw Error('Too many movement entities.');
+  const entity=(e,index,volume=false)=>{
+    if(!e||typeof e!=='object')throw Error('Invalid movement entity.');
+    const result=volume?validateMovementVolume(e):{};
+    for(const key of movementEntityKeys)if(e[key]!==undefined){if(!['string','number'].includes(typeof e[key])||String(e[key]).length>256)throw Error('Invalid movement entity field.');result[key]=String(e[key]);}
+    if(e.outputs!==undefined){if(!Array.isArray(e.outputs)||e.outputs.length>32)throw Error('Too many trigger outputs.');result.outputs=e.outputs.map(o=>{if(typeof o.event!=='string'||o.event.length>40||typeof o.value!=='string'||o.value.length>512)throw Error('Invalid trigger output.');return {event:o.event,value:o.value};});}
+    result.hammerid||='movement-'+index;return result;
+  };
+  return {entities:value.entities.filter(e=>/^filter_/.test(e.classname)).map((e,i)=>entity(e,i)),triggers:value.triggers.map((e,i)=>entity(e,i,true)),buttons:(value.buttons||[]).map((e,i)=>entity(e,i,true)),
+    destinations:value.destinations.map(entry=>{if(!Array.isArray(entry)||typeof entry[0]!=='string'||!entry[0]||entry[0].length>256)throw Error('Invalid teleport target.');return [entry[0],validateMovementDestination(entry[1])];})};
 }
 
 export function hydrateParkourMap(data) {
-  if(!data||!Array.isArray(data.boxes)||!data.boxes.length||!Array.isArray(data.spawns)||data.spawns.length!==data.stages?.length||data.boxes.length>20000)throw Error('Invalid parkour map.');
+  if(!data||!Array.isArray(data.boxes)||!data.boxes.length||!Array.isArray(data.spawns)||data.spawns.length!==data.stages?.length||data.boxes.length>20000||data.spawns.length>256)throw Error('Invalid parkour map.');
   const solids=data.finishArea?[...data.boxes,data.finishArea]:data.boxes;
-  for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Number.isFinite(box.max[i])&&n<box.max[i]))throw Error('Invalid parkour block.');
+  for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Math.abs(n)<=1e7&&Number.isFinite(box.max[i])&&Math.abs(box.max[i])<=1e7&&n<box.max[i]))throw Error('Invalid parkour block.');
   // Reconstruct cached geometry after JSON/session restore and validate planes.
-  for(const box of solids)if(box.planes){const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
+  for(const box of solids)if(box.planes){if(!Array.isArray(box.planes)||box.planes.length>128)throw Error('Too many brush planes.');const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');
   const map={...data,greybox:true};
+  if(data.movementEntities)map.movementEntities=normalizeMovementEntities(data.movementEntities);
+  for(const field of ['killboxes','teleports','boosts'])if(data[field]!==undefined){
+    if(!Array.isArray(data[field])||data[field].length>4096)throw Error('Too many movement triggers.');
+    map[field]=data[field].map(value=>{
+      const volume=validateMovementVolume(value);
+      if(field==='teleports'){
+        if(typeof value.target!=='string'||value.target.length>256)throw Error('Invalid teleport target.');
+        return {...volume,target:value.target,destination:validateMovementDestination(value.destination)};
+      }
+      if(field==='boosts'){
+        const direction=typeof value.pushdir==='string'?value.pushdir.trim().split(/\s+/).map(Number):[];
+        if(direction.length!==3||!direction.every(Number.isFinite)||!Number.isFinite(Number(value.speed))||Math.abs(Number(value.speed))>100000)throw Error('Invalid boost.');
+        return {...volume,pushdir:direction.join(' '),speed:Number(value.speed)};
+      }
+      return volume;
+    });
+  }
   map.boxes.sourceMap=map;
   if(!Array.isArray(map.sectionFalls)||map.sectionFalls.length!==map.spawns.length||!map.sectionFalls.every(Number.isFinite))throw Error('Invalid section reset heights.');
-  map.killHeight=Math.min(...map.sectionFalls);
+  map.killHeight=defaultKillHeight(map.boxes);
   if(map.boxes.length>800){
     const cells=new Map(),size=512,large=[];
     for(const box of map.boxes){

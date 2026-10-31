@@ -20,7 +20,7 @@ You can also open **Sandbox** from the main menu to practise on a wide floor.
 
 Your ping appears while playing, and the room list shows each player's ping to the host in milliseconds. Lower is better. The host row says **HOST**. Everyone shares the same map and physics; Endless also shares its random seed. Checkpoints, restarts, and timers are individual.
 
-Keep the host's computer awake and game tab open. Leaving or refreshing closes the room; guests can continue solo. Leave the room before choosing another map or physics mode. Local map imports are for solo play.
+Keep the host's computer awake and game tab open. Leaving or refreshing closes the room; guests can continue solo. Leave the room before choosing another map or physics mode. To share a custom map, choose **Upload custom map** in Multiplayer, select a Source `.bsp`, `.zip` or playable map `.json`, and then host. Joining players download the playable geometry and triggers directly from the host; they do not need to upload their own copy.
 
 Rooms use the free PeerJS connection service by default, with gameplay sent between browsers. Some networks need a relay to connect; the site supports optional Metered relay configuration. No account or installation is needed for players. [Room hosting configuration](MULTIPLAYER.md).
 
@@ -79,7 +79,7 @@ To climb a ladder, move into its cyan rails and rungs. Use W/S and look up or do
 
 The community maps use plain blocks for their jumping routes. Boost pads activate automatically. On **bhop_kitsune**, follow the blue exit pad to the next stage; portals preserve your horizontal speed and save the new checkpoint. Its side walls and roofs are excluded from the route. Endless has open stepping-stone sections in place of wall wraps.
 
-Use **Import .bsp / .zip** for uncompressed CS:S / Source 1 maps (BSP 19 or 20). Uploaded maps preserve solid brush shapes, including ramps, wedges, angled platforms and polygonal round pillars, with plain grey surfaces. Re-import a map to use the improved geometry. Custom prop models, displacement terrain and scripted map features are not supported. Local imports stay in your browser and are not uploaded.
+Use **Import .bsp / .zip** for uncompressed CS:S / Source 1 maps (BSP 19 or 20). Uploaded maps preserve solid brush shapes, including ramps, wedges, angled platforms and polygonal round pillars, with plain grey surfaces. Re-import a map to use the improved geometry. Custom prop models, displacement terrain and scripted map features are not supported. Solo imports stay in your browser. The Multiplayer upload button shares only the playable map with your room. Teleport destinations, landmark offsets, movement filters and `trigger_hurt` killboxes are retained; embedded map scripts are never executed.
 
 ## Checkpoints, saving, and times
 
@@ -96,6 +96,8 @@ Sign in through Settings, select a course, choose **Verified Run**, complete the
 For Endless, choose **Verified Endless Run**. Everyone plays the same generated route. Your first fall banks the distance, with a ten-minute maximum; pausing or resetting cancels the attempt. Sandbox and local map imports have no global rankings.
 
 Choose a unique username in Settings for your public records. Your login stays saved on this browser until you sign out. Existing private test scores stay separate. [Server and leaderboard details](verification/BETA.md).
+
+Teaching signs are translucent and non-solid: you can walk through both boards and posts. The fallback kill plane sits 2,000 units below the lowest map object. Explicit map killboxes and checkpoint reset zones still apply.
 
 ## Make it comfortable
 

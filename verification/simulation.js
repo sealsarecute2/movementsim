@@ -1,6 +1,7 @@
 import {createPlayer,step,support,platformAirspace,PRESETS,DT} from '../dist/physics.js';
 import {createSourceRuntime} from '../dist/source-runtime.js';
 import {createEndless} from '../dist/endless.js';
+import {defaultKillHeight} from '../dist/map-rules.js';
 
 // Headless, input-only staging simulation. Never accepts client state or scores.
 // It follows app.js tick progression; parity tests protect against rule drift.
@@ -57,7 +58,7 @@ export class RunSimulation {
     }
     if(this.active)this.time+=DT*Math.max(0,timerEnd-timerStart);
     if(finished){this.completed=true;return;}
-    if(p.y<Math.min(...this.boxes.map(b=>b.max[1]))-550)this.invalidate('respawn');
+    if(p.y<defaultKillHeight(this.boxes))this.invalidate('respawn');
   }
   state(){
     const p=this.player;

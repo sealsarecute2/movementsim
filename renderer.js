@@ -43,7 +43,7 @@ export const WORLD_FRAGMENT_GLSL = `
     #else
     precision mediump float;
     #endif
-    uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive;
+    uniform vec3 uTargetMin; uniform vec3 uTargetMax; uniform float uTargetActive; uniform float uOpacity;
     uniform vec3 uFogEye; uniform vec3 uSkyHorizon; uniform vec3 uSkyZenith; uniform vec3 uSkyGround; uniform float uFogGain;
     uniform vec3 uAtmosphereSun; uniform vec3 uAtmosphereColour; uniform vec3 uAtmosphereState;
     uniform vec3 uLightDirection; uniform vec3 uLightColour; uniform vec3 uAmbientColour;
@@ -91,7 +91,7 @@ export const WORLD_FRAGMENT_GLSL = `
         fog=uAtmosphereState.x>0.5?cycleAtmosphere(direction,uSkyHorizon,uSkyZenith,uSkyGround,uAtmosphereSun,uAtmosphereColour,uAtmosphereState.y,uAtmosphereState.z):
           backgroundGradient(direction,uSkyHorizon,uSkyZenith,uSkyGround);
       }
-      gl_FragColor=vec4(mix(fog,color,fade),1.0);
+      gl_FragColor=vec4(mix(fog,color,fade),uOpacity);
     }`;
 
 export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
@@ -110,14 +110,14 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if(!gl.getProgramParameter(program,gl.LINK_STATUS)){gl.deleteProgram?.(program);throw Error(gl.getProgramInfoLog(program));}
     const attributes=[['aPosition',3,0],['aColor',3,12],['aTop',1,24],['aNormal',3,28],['aShade',1,40]]
       .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
-    const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
+    const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uTargetMin','uTargetMax','uTargetActive','uOpacity','uSkyHorizon','uSkyZenith','uSkyGround','uFogGain','uFogEye',
       'uLightDirection','uLightColour','uAmbientColour','uLightPower','uShadersGain','uPlayerShadow','uPlayerShadowNormal','uShadowOpacity','uAtmosphereSun','uAtmosphereColour','uAtmosphereState',
       ...(gallery?['uGalleryShadowMatrix','uGalleryShadowMap','uGalleryShadowTexel','uGalleryShadowNormalMatrix']:[])].map(name=>[name,gl.getUniformLocation(program,name)]));
     return {program,attributes,uniforms};
   }
   const standardPipeline=worldPipeline();let pipeline=standardPipeline,captureState=null,galleryResources=null,galleryUnavailable=false;
   gl.useProgram(pipeline.program);
-  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer();
+  const buffer = gl.createBuffer(), glowBuffer = gl.createBuffer(), playerBuffer=gl.createBuffer(),signBuffer=gl.createBuffer();
   for(const {loc} of pipeline.attributes)gl.enableVertexAttribArray(loc);
   function bindGeometry(targetBuffer) {
     gl.bindBuffer(gl.ARRAY_BUFFER, targetBuffer);
@@ -132,7 +132,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     if(next!=='black'&&skybox!==next)skyStarted=now();
     skybox=next;
   }
-  let vertices = [], count = 0, currentBoxes = boxes;
+  let vertices = [], count = 0, currentBoxes = boxes,signMeshes=[];
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
     const key=target?(isShapedBrush(target)?target:[...target.min,...target.max].join(',')):'';
@@ -181,10 +181,13 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     }
   }
   function setBoxes(next) {
-    currentBoxes = next; vertices=[];
+    currentBoxes = next; vertices=[];signMeshes=[];
     for(const b of next) {
-      if(b.sign){addBox(b,[.045,.065,.085]);vertices.push(...buildSignMesh(b));continue;}
-      if(b.signPost){addBox(b,[.11,.14,.17]);continue;}
+      if(b.sign||b.signPost){
+        const opaque=vertices;vertices=[];addBox(b,b.sign?[.08,.12,.16]:[.16,.20,.24]);
+        if(b.sign)vertices.push(...buildSignMesh(b));
+        signMeshes.push({box:b,data:new Float32Array(vertices)});vertices=opaque;continue;
+      }
       if(b.ladder) {
         const [x,y,z]=b.min,[X,Y,Z]=b.max,n=b.normal;
         // Cyan rails and individual rungs mark the exact climbable face.
@@ -217,6 +220,9 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     }
     count=vertices.length/11;
     bindGeometry(buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);
+    const translucent=[];
+    for(const entry of signMeshes){entry.first=translucent.length/11;entry.count=entry.data.length/11;for(const value of entry.data)translucent.push(value);delete entry.data;}
+    if(translucent.length){bindGeometry(signBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(translucent),gl.STATIC_DRAW);}
   }
   setBoxes(boxes);
   function resize() {
@@ -260,12 +266,21 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
       gl.uniform3f(u.uTargetMin,...target.min);gl.uniform3f(u.uTargetMax,...target.max);
     }
     bindGeometry(buffer);
+    gl.uniform1f(u.uOpacity,1);
     gl.drawArrays(gl.TRIANGLES,0,count);
     if(remotePlayers.length){
       const mesh=buildRemotePlayerMesh(remotePlayers);
       gl.uniform1f(u.uTargetActive,0);gl.uniform1f(u.uShadowOpacity,0);
       bindGeometry(playerBuffer);gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.DYNAMIC_DRAW||gl.STATIC_DRAW);
       gl.drawArrays(gl.TRIANGLES,0,mesh.length/11);
+    }
+    if(signMeshes.length){
+      gl.uniform1f(u.uTargetActive,0);gl.uniform1f(u.uShadowOpacity,0);gl.uniform1f(u.uOpacity,.55);
+      gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+      const distance=entry=>{const b=entry.box;return Math.hypot((b.min[0]+b.max[0])/2-p.x,(b.min[1]+b.max[1])/2-p.y,(b.min[2]+b.max[2])/2-p.z);};
+      bindGeometry(signBuffer);
+      for(const entry of [...signMeshes].sort((a,b)=>distance(b)-distance(a)))gl.drawArrays(gl.TRIANGLES,entry.first,entry.count);
+      gl.disable(gl.BLEND);gl.depthMask(true);gl.uniform1f(u.uOpacity,1);
     }
     setGlow(target);
     if(glowCount) {

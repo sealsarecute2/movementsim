@@ -106,9 +106,9 @@ test('Endless distance candidates come only from the shared-seed first fall or t
   const simulation=new RunSimulation(trustedCourse('endless'),preset,RANKED_ENDLESS_SEED),frame={forward:1,side:1,yaw:0,pitch:0,walk:false,duck:false,jumpHeld:false,jumpPressed:false};
   while(!simulation.invalid&&simulation.ticks<2000)simulation.step(frame);
   const initial={...init,seed:RANKED_ENDLESS_SEED,selection:{map:'endless',revision:3,preset}},outcome={...simulation.state(),reason:'respawn',endedAt:startedAt+4000};
-  assert.equal(scoreFromOutcome(initial,outcome).distanceUnits,384);
+  assert.equal(scoreFromOutcome(initial,outcome).distanceUnits,583);
   for(const change of [{reason:'client-left'},{reason:'player-cancelled'},{reason:'input-rate'},{invalid:'invalid-physics'},{distance:NaN}])assert.equal(scoreFromOutcome(initial,{...outcome,...change}),null);
   assert.equal(scoreFromOutcome({...initial,seed:42},outcome),null);
-  assert.equal(scoreFromOutcome(initial,{...outcome,reason:'run-expired',invalid:null,endedAt:initial.lease.expiresAt+16}).distanceUnits,384);
+  assert.equal(scoreFromOutcome(initial,{...outcome,reason:'run-expired',invalid:null,endedAt:initial.lease.expiresAt+16}).distanceUnits,583);
  }
 });

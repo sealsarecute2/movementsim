@@ -1,5 +1,6 @@
 import { BLACK_HOLE_DIRECTION } from './skybox.js';
 import { brushSurface } from './geometry.js';
+import {isMapSolid} from './map-rules.js';
 
 const unitLight=vector=>{const length=Math.hypot(...vector);return vector.map(n=>n/length);};
 const FIXED_LIGHT=unitLight([-.45,.85,.27]);
@@ -20,7 +21,7 @@ export function projectPlayerShadow(player,boxes,light) {
   const duck=Math.max(0,Math.min(1,player.duckAmount||0)),x=player.x,z=player.z;
   let hit=null,nearest=Infinity;
   for(const box of boxes) {
-    if(box.ladder)continue;
+    if(!isMapSolid(box)||box.ladder)continue;
     const surface=box.planes?brushSurface(box,x,z,0,0):{height:box.max[1],normal:[0,1,0]};
     if(!surface||surface.height>player.y+.1)continue;
     const gap=Math.max(0,player.y-surface.height);

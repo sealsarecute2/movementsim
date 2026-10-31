@@ -4,7 +4,15 @@ The public site works with PeerJS's free signaling service without an account or
 
 Movement is sent up to 20 times a second on a channel that can discard stale packets. Joining and ping requests use a separate reliable channel. Guests send their own state to the host, which distributes the room snapshot. Ping is the measured round-trip time over that player-to-host connection. Characters interpolate recent positions and snap when a portal or reset changes position sharply. Character geometry is excluded from collisions.
 
-Room times are casual, client-reported times. Shared leaderboards retain the existing owner-published record process.
+Room times are casual, client-reported times. Global top-five leaderboards use separate server-verified solo runs. Custom room maps cannot submit global records.
+
+## Custom maps
+
+Choose **Upload custom map** before hosting, then select Source 1 BSP 19/20 (`.bsp` or `.zip`) or a playable map `.json`. The map is prepared and selected in the room menu. Guests receive it automatically before joining the active room. No shared upload host, account or manual copy is needed.
+
+Only validated playable geometry, spawns, checkpoints, signs and movement triggers are shared. The parser retains teleport destinations (including `info_target` and landmarks), teleport offsets and momentum, enable/disable filters, boosts and harmful `trigger_hurt` volumes. Arbitrary entity commands and embedded scripts are ignored. Explicit reset zones remain active; the fallback kill plane is 2,000 units below the lowest geometry object.
+
+The source upload limit is 180 MB. The prepared map is limited to 16 MB, 20,000 geometry objects and bounded trigger counts. Reliable WebRTC control packets carry 8 KiB chunks, with sequence and size checks, backpressure and a SHA-256 digest. A guest installs geometry only after the complete payload passes its checksum and map validation. Transfer activity is bounded by the room connection deadline; leaving releases partial downloads. The signaling service only exchanges connection information.
 
 ## Optional Metered signaling and TURN relay
 

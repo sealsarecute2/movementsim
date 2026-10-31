@@ -17,6 +17,8 @@ import { PLAYER_AUTH_CONFIG } from './player-auth-config.js';
 import { GooglePlayerLogin, validPlayerAuthEndpoint } from './player-auth.js';
 import { VerifiedRunClient, supportsVerifiedRun } from './verified-runs.js';
 import { RANKED_ENDLESS_SEED } from './ranked-courses.js';
+import { defaultKillHeight } from './map-rules.js';
+import { prepareCustomRoomMap,decodeCustomRoomMap,ROOM_MAP_MAX_BYTES } from './room-map.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -70,6 +72,7 @@ let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
 let leaderboardController=null;
 let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
+let roomMapUpload=null,roomUploadLoading=false,roomUploadGeneration=0;
 let pendingRunRestore=null;
 const referenceMode=new URLSearchParams(window.location?.search||'').get('referenceRun')==='1';
 let referenceRecorder=null,referenceChecking=false;
@@ -374,7 +377,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   if(!Object.hasOwn(MAPS,value)) return;
   if(!preserveSavedRun){try{sessionStorage.removeItem('movement-lab-run-v1');}catch{}pendingRunRestore=null;}
   sourceLoadGeneration++;sourceLoadController?.abort();
-  $('source-map-status').textContent='Lightweight parkour geometry. Local imports stay in this tab.';
+  $('source-map-status').textContent='Lightweight parkour geometry. Use the Multiplayer upload button to share a custom map.';
   saveEndlessBest();endless=null;
   map=value; boxes=MAPS[map].boxes; renderer.setBoxes(boxes);
   sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
@@ -566,7 +569,7 @@ function tickMovement(input) {
   }
   if(runActive) runTime+=DT*Math.max(0,timerEnd-timerStart);
   if(finished) {finishRun();return;}
-  if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
+  if(player.y<defaultKillHeight(boxes)) {
     if(endless&&verifiedHadRun&&['active','finishing'].includes(verifiedRuns?.state().phase)){finishRun();return;}
     respawns++;reset(false);
     toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
@@ -626,7 +629,7 @@ $('open-map-select').addEventListener('click',()=>{
   if(!MAPS[map].timed)chooseMap('course');showMain('maps');
 });
 $('open-settings').addEventListener('click',()=>showMain('settings'));
-$('open-rooms').addEventListener('click',()=>{if(!room?.busy){$('room-map').value=map==='local-map'?'course':map;$('room-preset').value=preset;}showMain('rooms');updateRoomUi();});
+$('open-rooms').addEventListener('click',()=>{if(!room?.busy){$('room-map').value=roomCourses.some(course=>course.id===map)?map:'course';$('room-preset').value=preset;}showMain('rooms');updateRoomUi();});
 $('rooms-back').addEventListener('click',()=>showMain());
 $('maps-back').addEventListener('click',()=>showMain());
 $('settings-back').addEventListener('click',()=>showMain());
@@ -784,19 +787,47 @@ document.addEventListener('pointerdown',()=>{if(windowFocused&&!document.hidden)
 const roomCourses=[...MAP_LIST,...COMMUNITY_MAPS];
 $('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${course.title}</option>`).join('');
 $('room-map').value='course';$('room-preset').value=preset;
+async function uploadRoomMap(file){
+  if(room?.busy||roomStarting||roomUploadLoading||!file)return false;
+  const generation=++roomUploadGeneration;roomUploadLoading=true;updateRoomUi();
+  $('room-map-status').textContent='Reading '+file.name+'…';
+  try{
+    const isJson=/\.json$/i.test(file.name);
+    if(file.size>(isJson?ROOM_MAP_MAX_BYTES:180*1024*1024))throw Error(isJson?'Map JSON must be smaller than 16 MB.':'Map files must be smaller than 180 MB.');
+    const title=file.name.replace(/\.(bsp|zip|json)$/i,'').slice(0,80)||'Custom map';
+    const imported=isJson?hydrateParkourMap(JSON.parse(await file.text())):await loadSourceMap(await file.arrayBuffer(),{id:'local-map',title});
+    const prepared=await prepareCustomRoomMap(imported,title);
+    if(generation!==roomUploadGeneration)return false;
+    roomMapUpload=prepared;
+    for(let i=roomCourses.length-1;i>=0;i--)if(roomCourses[i].custom)roomCourses.splice(i,1);
+    roomCourses.push({id:prepared.id,title:prepared.descriptor.title,revision:1,custom:prepared.descriptor});
+    $('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${escapeRoomText(course.title)}</option>`).join('');
+    $('room-map').value=prepared.id;
+    $('room-map-status').textContent=prepared.descriptor.title+' ready · '+(prepared.bytes.length/1048576).toFixed(2)+' MB. Host the room to share it with joining players.';
+    return true;
+  }catch(error){if(generation===roomUploadGeneration)$('room-map-status').textContent=error.message||'Could not read this map. Try another file.';return false;}
+  finally{if(generation===roomUploadGeneration){roomUploadLoading=false;updateRoomUi();}}
+}
+$('room-upload').addEventListener('click',()=>$('room-map-file').click());
+$('room-map-file').addEventListener('change',()=>{const file=$('room-map-file').files?.[0];if(file)void uploadRoomMap(file);$('room-map-file').value='';});
 try{$('room-name').value=roomPlayerName(localStorage.getItem('movement-lab-player-name')||'Player');}catch{$('room-name').value='Player';}
 function escapeRoomText(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function roomLocalState(){
   return {x:player.x,y:player.y,z:player.z-(endless?.originZ||0),yaw:player.yaw,pitch:player.pitch,duckAmount:player.duckAmount,
     time:runTime,checkpoint,distance:endless?.distance||0,paused:!playing,completed,running:playing&&runActive&&!completed};
 }
-async function applyRoomCourse(course){
+async function applyRoomCourse(course,customMap){
   roomApplyingCourse=true;
   try{
     if(playing||lockPending)pause();
     choosePreset(course.preset);
     const community=COMMUNITY_MAPS.find(c=>c.id===course.id);
-    if(community)await selectCommunityMap(community);else chooseMap(course.id);
+    if(course.custom){
+      const imported=customMap||await decodeCustomRoomMap(roomMapUpload?.bytes,course.custom);
+      for(const [id,entry] of Object.entries(MAPS))if(entry.custom&&id!==course.id)delete MAPS[id];
+      MAPS[course.id]={id:course.id,title:course.custom.title,revision:1,timed:imported.finishPad!==null,community:true,custom:true,description:'Custom multiplayer map shared by the host.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+      chooseMap(course.id);
+    }else if(community)await selectCommunityMap(community);else chooseMap(course.id);
     if(map!==course.id)throw Error('The room map could not load. Try joining again.');
     started=false;reset();
   }finally{roomApplyingCourse=false;}
@@ -806,7 +837,9 @@ function updateRoomUi(){
   $('room-setup').classList.toggle('hidden',busy);$('room-session').classList.toggle('hidden',!active);$('room-leave').classList.toggle('hidden',!busy);
   $('room-leave').textContent=active?'LEAVE ROOM':'CANCEL CONNECTION';
   $('room-status').textContent=room?.status||'Host a private room or join a friend.';
-  $('room-host').disabled=busy||!rendererReady;$('room-join').disabled=busy||!rendererReady;
+  $('room-host').disabled=busy||roomUploadLoading||roomStarting||!rendererReady;$('room-join').disabled=busy||roomUploadLoading||roomStarting||!rendererReady;
+  $('room-upload').disabled=busy||roomUploadLoading||roomStarting;
+  $('room-upload').textContent=roomUploadLoading?'PREPARING MAP…':'UPLOAD CUSTOM MAP ↗';
   $('network-hud').classList.toggle('hidden',!active);
   $('room-leaderboard').classList.toggle('hidden',!active);
   $('import-source-map').disabled=busy;
@@ -814,7 +847,7 @@ function updateRoomUi(){
   const roster=room.roster(),code=displayRoomCode(room.code);
   $('room-code').textContent=code;$('network-room').textContent=`${roster.length}/${ROOM_LIMIT} · ${code}`;
   $('network-ping').textContent=room.host?'HOST':room.ping===null?'PING —':`${Math.round(room.ping)} ms`;
-  const course=roomCourses.find(c=>c.id===room.course.id);
+  const course=roomCourses.find(c=>c.id===room.course.id)||{title:room.course.custom?.title||'Custom map'};
   $('room-course').textContent=`${course.title} / ${PRESETS[room.course.preset].title} · Leave the room to change maps.`;
   $('room-players').innerHTML=roster.map(member=>{
     const state=member.self?roomLocalState():member.state;
@@ -854,23 +887,23 @@ function drawRoomLabels(camera,players){
   }).join('');
 }
 async function startRoom(host){
-  if(roomStarting||room?.busy||!rendererReady)return;
+  if(roomStarting||roomUploadLoading||room?.busy||!rendererReady)return;
   cancelVerification('Joining a room ended verification.');
   if(typeof globalThis.RTCPeerConnection!=='function'){$('room-status').textContent='This browser does not support multiplayer connections. Use a current desktop browser.';return;}
   const name=roomPlayerName($('room-name').value);try{localStorage.setItem('movement-lab-player-name',name);}catch{}
-  roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;
+  roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;$('room-upload').disabled=true;
   $('room-copy').textContent='COPY';
   try{
     const selected=roomCourses.find(c=>c.id===$('room-map').value)||roomCourses[0];
-    const course={id:selected.id,revision:selected.revision||1,preset:$('room-preset').value==='practice'?'practice':'classic',
+    const course={id:selected.id,revision:selected.revision||1,preset:$('room-preset').value==='practice'?'practice':'classic',...(selected.custom?{custom:selected.custom}:{}),
       ...(selected.id==='endless'?{seed:globalThis.crypto.getRandomValues(new Uint32Array(1))[0]}:{})};
     if(host)await applyRoomCourse(course);
     room=new MultiplayerRoom({config:MULTIPLAYER_CONFIG,courses:roomCourses,getState:roomLocalState,onCourse:applyRoomCourse,onChange:updateRoomUi});
-    await room.start({host,code:$('room-code-input').value,name,course});
+    await room.start({host,code:$('room-code-input').value,name,course,mapData:selected.custom?roomMapUpload:undefined});
     if(host){started=false;reset();}
     updateRoomUi();
   }catch(error){if(room?.busy)room.leave(error.message);$('room-status').textContent=error.message||'Could not connect. Try again.';$('room-host').disabled=!rendererReady;$('room-join').disabled=!rendererReady;}
-  finally{roomStarting=false;}
+  finally{roomStarting=false;$('room-upload').disabled=room?.busy===true;}
 }
 $('room-host').addEventListener('click',()=>void startRoom(true));
 $('room-join').addEventListener('click',()=>void startRoom(false));

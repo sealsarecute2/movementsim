@@ -2,6 +2,7 @@
 // Binary structures: ValveSoftware/source-sdk-2013/src/public/bspfile.h.
 import { makeParkourMap, makeImportedGeometryMap } from './parkour-map.js';
 import { makeConvexBrush } from './geometry.js';
+import { defaultKillHeight } from './map-rules.js';
 const sourceText = new TextDecoder('windows-1252');
 const sourcePoint = v => [v[0], v[2], -v[1]];
 const sourceVector = s => (s || '0 0 0').trim().split(/\s+/).map(Number);
@@ -94,8 +95,8 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',revisi
     }
     return found;
   }
-  function collisionBrush(index,modelIndex=0) {
-    const brush=brushes[index];if(!brush||(brush.contents&0x1000b)===0)return null;
+  function collisionBrush(index,modelIndex=0,trigger=false) {
+    const brush=brushes[index];if(!brush||!trigger&&(brush.contents&0x1000b)===0)return null;
     if(brush.first<0||brush.count<4||brush.count>512||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
     const brushSides=sides.slice(brush.first,brush.first+brush.count);
     const offset=modelOffset(modelIndex),boundary=brushSides.map(s=>{
@@ -155,17 +156,20 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',revisi
     }
   }
   const mesh=[...batches].map(([material,data])=>({material,data:new Float32Array(data)}));
-  const destinations=new Map(entities.filter(e=>e.classname==='info_teleport_destination').map(e=>[e.targetname,sourceSpawn(e)]));
+  const destinations=new Map(entities.filter(e=>['info_teleport_destination','info_target','info_landmark'].includes(e.classname)&&e.targetname)
+    .map(e=>[e.targetname,sourceSpawn(e)]).filter(([,spawn])=>Object.values(spawn).every(Number.isFinite)));
   const initial=destinations.get(entryTarget)||sourceSpawn(entities.find(e=>['info_player_terrorist','info_player_counterterrorist','info_player_start','info_player_deathmatch'].includes(e.classname)&&e.StartDisabled!=='1')||{origin:'0 0 0'});
   const targets=stageTargets?.filter(name=>destinations.has(name))||[entryTarget||'start'];
   const spawns=targets.map(name=>({...destinations.get(name)||initial}));
   const stages=targets.map((name,i)=>({title:stageTitles?.[i]||(stageTargets?'Section '+name.toUpperCase():title),tip:'Keep hopping. E returns to your checkpoint. Click nearby boost buttons with the knife.',target:name,...(resetTargets?{resetTarget:resetTargets[i]}:{})}));
-  const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap(e=>{
-    const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];
+  const triggers=entities.filter(e=>e.model&&e.classname.startsWith('trigger_')).flatMap((e,i)=>{
+    const bounds=entityBounds(e);if(!bounds)return [];
+    const volumes=[...modelBrushes(Number(e.model.slice(1)))].map(index=>collisionBrush(index,Number(e.model.slice(1)),true)).filter(Boolean);
+    return (volumes.length?volumes:[bounds]).map(volume=>({...e,...volume,hammerid:e.hammerid||'trigger-'+i}));
   });
   const buttons=entities.filter(e=>e.classname==='func_button').flatMap(e=>{const bounds=entityBounds(e);return bounds?[{...e,...bounds}]:[];});
   const pak=bytes.subarray(lumps[40].offset,lumps[40].offset+lumps[40].length);
-  const sourceMap={id,title,revision,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,routeSurfacesOnly,routeBands,finish:destinations.get(finishTarget),killHeight:Math.min(...boxes.map(b=>b.min[1]))-512};
+  const sourceMap={id,title,revision,version,entities,materials,mesh,boxes,spawns,stages,destinations,triggers,buttons,pak,entryTarget,exitTargets,routeSurfacesOnly,routeBands,finish:destinations.get(finishTarget),killHeight:defaultKillHeight(boxes)};
   boxes.sourceMap=sourceMap;
   // Keep the broadphase near the player; full maps contain thousands of brushes.
   const cells=new Map(),cellSize=512,large=[];

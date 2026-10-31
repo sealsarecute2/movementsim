@@ -23,7 +23,7 @@ export function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
 export function createSourceRuntime(map) {
   if(map.greybox)return createParkourRuntime(map);
   const named=new Map();
-  for(const e of map.entities)if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
+  for(const e of [...map.entities,...map.triggers,...(map.buttons||[])])if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
   let disabled,time,actorName,pending,inside,cooldown,current,finished;
   const matches=(pattern,value)=>pattern==='*'||pattern===value||pattern.endsWith('*')&&value.startsWith(pattern.slice(0,-1));
   function filter(name,depth=0) {
@@ -50,7 +50,7 @@ export function createSourceRuntime(map) {
   function fire(entity,event) {
     for(const output of entity.outputs||[])if(output.event===event) {
       const pieces=output.value.split(/\x1b|,/),delay=Math.max(0,Number(pieces[3])||0);
-      if(delay)pending.push({at:time+delay,value:output.value});else execute(output.value);
+      if(delay){if(pending.length<1024&&delay<=60)pending.push({at:time+delay,value:output.value});}else execute(output.value);
     }
   }
   function reset(stage=0) {
@@ -71,16 +71,24 @@ export function createSourceRuntime(map) {
       const touching=new Set(),events=[];
       for(const trigger of map.triggers) {
         if(disabled.has(trigger.hammerid)||!sourceTriggerCrossing(previous,player,trigger,player.ducked?54:72))continue;
+        if(touching.has(trigger.hammerid))continue;
         touching.add(trigger.hammerid);
         if(!filter(trigger.filtername))continue;
-        if(trigger.classname==='trigger_multiple'){
+        if(trigger.classname==='trigger_hurt'&&Number(trigger.damage??10)>0){events.push({type:'respawn',stage:current});break;}
+        else if(trigger.classname==='trigger_multiple'){
           if(!inside.has(trigger.hammerid)){fire(trigger,'OnStartTouch');fire(trigger,'OnStartTouchAll');fire(trigger,'OnTrigger');}
         } else if(trigger.classname==='trigger_push'){
           const [pitch,yaw]=(trigger.pushdir||'0 0 0').split(/\s+/).map(v=>Number(v)*Math.PI/180),force=(Number(trigger.speed)||0)*dt;
           player.vx+=Math.cos(pitch)*Math.cos(yaw)*force;player.vy-=Math.sin(pitch)*force;player.vz-=Math.cos(pitch)*Math.sin(yaw)*force;
         } else if(trigger.classname==='trigger_teleport'&&!cooldown){
           const destination=map.destinations.get(trigger.target);
-          if(destination){Object.assign(player,destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ducked:false,duckAmount:0});cooldown=.08;actorName='';pending=[];events.push({type:'teleport',target:trigger.target});break;}
+          if(destination){
+            // Source landmark teleports retain the relative offset and angles.
+            const landmark=map.destinations.get(trigger.landmark),arrival=landmark?
+              {x:destination.x+player.x-landmark.x,y:destination.y+player.y-landmark.y,z:destination.z+player.z-landmark.z}:destination;
+            Object.assign(player,arrival,{grounded:false,groundBox:null,ladder:null,ladderNormal:null});
+            cooldown=.08;actorName='';pending=[];events.push({type:'teleport',target:trigger.target,destination:{x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch}});break;
+          }
         }
       }
       inside=touching;
@@ -95,14 +103,19 @@ export function createSourceRuntime(map) {
 
 function createParkourRuntime(map) {
   let current=0,finished=false,teleportCooldown=0;
+  const entities=map.movementEntities,entityRuntime=entities?createSourceRuntime({...entities,greybox:false,destinations:new Map(entities.destinations),spawns:[],buttons:entities.buttons||[]}):null;
   const activation=(from,to,pad)=>brushCheckpointVolumes(pad).map(volume=>sourceTriggerCrossing(from,to,volume,0,0)).filter(Boolean).sort((a,b)=>a.enter-b.enter)[0];
   return {
     get stage(){return current;},
-    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;teleportCooldown=0;},
-    interact(){return false;},
+    reset(stage=0){current=Math.max(0,Math.min(map.spawns.length-1,stage));finished=false;teleportCooldown=0;entityRuntime?.reset();},
+    interact(player){return entityRuntime?.interact(player)||false;},
     step(player,previous,dt) {
       const events=[];let lastTime=-1;
       teleportCooldown=Math.max(0,teleportCooldown-dt);
+      const entityEvents=entityRuntime?.step(player,previous,dt)||[];
+      if(entityEvents.length)return entityEvents.map(event=>event.type==='respawn'?{...event,stage:current}:event);
+      const kill=map.killboxes?.find(box=>sourceTriggerCrossing(previous,player,box,player.ducked?54:72));
+      if(kill)return [{type:'respawn',stage:current}];
       const teleport=!teleportCooldown&&map.teleports?.find(t=>sourceTriggerCrossing(previous,player,t,player.ducked?54:72));
       if(teleport){
         Object.assign(player,teleport.destination,{vx:0,vy:0,vz:0,grounded:false,groundBox:null,ladder:null,ladderNormal:null,ducked:false,duckAmount:0});

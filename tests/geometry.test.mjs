@@ -106,6 +106,6 @@ test('simple uploaded boost and teleport volumes remain usable after shape conve
  ]};
  const map=hydrateParkourMap(JSON.parse(JSON.stringify(makeImportedGeometryMap(source),(key,value)=>key==='sourceMap'?undefined:value)));
  const runtime=createSourceRuntime(map),p=createPlayer(map.spawns[0]);runtime.step(p,{...p},.01);assert.ok(p.vy>9);
- p.x=200;const events=runtime.step(p,{...p},.01);assert.equal(events[0].type,'teleport');assert.equal(p.x,500);assert.equal(p.y,8);assert.equal(p.vy,0);
+ p.x=200;const events=runtime.step(p,{...p},.01);assert.equal(events[0].type,'teleport');assert.equal(p.x,500);assert.equal(p.y,8);assert.equal(p.vy,10,'Source teleport momentum is preserved.');
  assert.deepEqual(runtime.step(p,{...p},.01),[],'cooldown prevents a destination teleport loop');
 });

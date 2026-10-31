@@ -1,5 +1,7 @@
 // Browser-hosted rooms. Signaling exchanges connection details only; gameplay
 // and ping packets use WebRTC data channels. No microphone/camera permissions.
+import {validateRoomMapDescriptor,decodeCustomRoomMap,ROOM_MAP_CHUNK_BYTES,encodeRoomMapChunk,decodeRoomMapChunk} from './room-map.js';
+import {isMapSolid} from './map-rules.js';
 export const ROOM_PROTOCOL = 1;
 export const ROOM_LIMIT = 4;
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -26,8 +28,8 @@ export function roomPlayerSpawn(spawn,slot,boxes) {
   const position=([side,back])=>({...spawn,x:spawn.x+side*cy-back*sy,z:spawn.z+side*sy+back*cy});
   const safe=p=>{
     const nearby=boxes.nearby?boxes.nearby(p):boxes;
-    return nearby.some(b=>!b.ladder&&Math.abs(b.max[1]-p.y)<.01&&p.x-16>=b.min[0]&&p.x+16<=b.max[0]&&p.z-16>=b.min[2]&&p.z+16<=b.max[2])&&
-      !nearby.some(b=>!b.ladder&&p.x+16>b.min[0]+.001&&p.x-16<b.max[0]-.001&&p.z+16>b.min[2]+.001&&p.z-16<b.max[2]-.001&&p.y+72>b.min[1]+.001&&p.y<b.max[1]-.001);
+    return nearby.some(b=>isMapSolid(b)&&!b.ladder&&Math.abs(b.max[1]-p.y)<.01&&p.x-16>=b.min[0]&&p.x+16<=b.max[0]&&p.z-16>=b.min[2]&&p.z+16<=b.max[2])&&
+      !nearby.some(b=>isMapSolid(b)&&!b.ladder&&p.x+16>b.min[0]+.001&&p.x-16<b.max[0]-.001&&p.z+16>b.min[2]+.001&&p.z-16<b.max[2]-.001&&p.y+72>b.min[1]+.001&&p.y<b.max[1]-.001);
   };
   for(const layout of layouts){const seats=layout.map(position);if(seats.every(safe))return seats[slot];}
   // A narrow checkpoint may have fewer than four safe places. Preserve the
@@ -41,6 +43,11 @@ export function roomPlayerSpawn(spawn,slot,boxes) {
   return seats[slot]||{...spawn};
 }
 export function validateRoomCourse(course,courses) {
+  if(course?.custom){
+    const custom=validateRoomMapDescriptor(course.custom);
+    if(course.id!=='custom-'+custom.sha256||course.revision!==1||!['classic','practice'].includes(course.preset))throw Error('Invalid custom room map.');
+    return {id:course.id,revision:1,preset:course.preset,custom};
+  }
   const known=courses.find(c=>c.id===course?.id&&(c.revision||1)===course.revision);
   if(!known||!['classic','practice'].includes(course.preset))throw Error('This room uses a different map version. Refresh the game and retry.');
   if(course.id==='endless'&&(!Number.isInteger(course.seed)||course.seed<0||course.seed>0xffffffff))throw Error('Invalid Endless room.');
@@ -141,11 +148,17 @@ export class MultiplayerRoom {
   get active(){return this.phase==='hosting'||this.phase==='connected';}
   get busy(){return this.active||this.phase==='connecting';}
   notify(){this.onChange(this);}
-  async start({host,code,name,course}) {
+  async start({host,code,name,course,mapData}) {
     this.leave('',false);const generation=++this.generation;
     this.host=host;this.slot=host?0:null;this.code=host?makeRoomCode():normaliseRoomCode(code);this.name=roomPlayerName(name);
     if(!this.code)throw Error('Enter the full 12-character room code.');
-    if(host)this.course=validateRoomCourse(course,this.courses);
+    if(host){
+      this.course=validateRoomCourse(course,this.courses);
+      if(this.course.custom){
+        if(!(mapData?.bytes instanceof Uint8Array)||mapData.bytes.length!==this.course.custom.bytes||mapData.descriptor?.sha256!==this.course.custom.sha256)throw Error('Upload the custom map before hosting.');
+        this.mapData=mapData;
+      }
+    }
     this.phase='connecting';this.status=host?'Opening your room…':'Finding the host…';this.notify();
     const joined=new Promise((resolve,reject)=>{this.resolveStart=resolve;this.rejectStart=reject;});joined.catch(()=>{});
     this.startedAt=this.now();this.timer=this.setIntervalFn(()=>this.pump(),50);this.timer?.unref?.();
@@ -172,8 +185,8 @@ export class MultiplayerRoom {
     this.generation++;this.phase='idle';this.status=message;this.rejectStart?.(Error(message||'Connection cancelled.'));this.rejectStart=null;this.resolveStart=null;
     if(this.timer!==undefined)this.clearIntervalFn(this.timer);this.timer=undefined;
     this.signaling?.close();this.signaling=null;
-    for(const link of this.links.values()){link.closed=true;link.pc.close();}
-    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.slot=null;this.session=null;this.course=null;this.earlyCandidates=new Map();
+    for(const link of this.links.values()){link.closed=true;link.mapReceive=null;link.pc.close();}
+    this.links.clear();this.members.clear();this.id=null;this.hostId=null;this.slot=null;this.session=null;this.course=null;this.mapData=null;this.earlyCandidates=new Map();
     if(notify)this.notify();
   }
   async signal(id,data) {
@@ -246,14 +259,32 @@ export class MultiplayerRoom {
     if(kind==='control'&&data.type==='welcome'&&!this.host&&!this.active&&!link.loading){
       if(data.protocol!==ROOM_PROTOCOL||typeof data.session!=='string'||data.hostId!==link.id||![1,2,3].includes(data.slot)||data.id!==this.id){this.fail('This room uses a different multiplayer version. Refresh and retry.');return;}
       link.loading=true;this.status='Loading the host’s map…';this.notify();
-      const generation=this.generation;this.course=validateRoomCourse(data.course,this.courses);this.session=data.session;this.slot=data.slot;
-      await this.onCourse(this.course);if(generation!==this.generation||link.closed)return;
-      link.prepared=true;link.lastReady=now;this.status='Joining the room…';
-      this.members.set(this.id,{id:this.id,name:this.name,slot:this.slot,host:false,ping:null,samples:[],lastSeen:now});
-      this.members.set(link.id,{id:link.id,name:roomPlayerName(data.name),slot:0,host:true,ping:null,samples:[],lastSeen:now});
-      this.send(link,{type:'ready',session:this.session,name:this.name});this.notify();return;
+      this.course=validateRoomCourse(data.course,this.courses);this.session=data.session;this.slot=data.slot;link.hostName=roomPlayerName(data.name);
+      if(this.course.custom){
+        link.mapReceive={bytes:new Uint8Array(this.course.custom.bytes),offset:0,sequence:0};
+        this.send(link,{type:'map-request',session:this.session,sha256:this.course.custom.sha256});
+        this.status='Downloading '+this.course.custom.title+' from the host…';this.notify();return;
+      }
+      await this.prepareGuest(link);return;
     }
     if(data.session!==this.session||!this.session)return;
+    if(kind==='control'&&data.type==='map-request'&&this.host&&!link.mapRequested&&this.course.custom&&data.sha256===this.course.custom.sha256){
+      link.mapRequested=true;link.mapSendOffset=0;link.mapSendSequence=0;this.sendMapChunks(link);return;
+    }
+    if(kind==='control'&&data.type==='map-progress'&&this.host&&link.mapRequested)return;
+    if(kind==='control'&&data.type==='map-chunk'&&!this.host&&link.mapReceive){
+      const transfer=link.mapReceive;
+      if(data.sha256!==this.course.custom.sha256||data.sequence!==transfer.sequence)throw Error('Invalid map packet sequence.');
+      const chunk=decodeRoomMapChunk(data.data),expected=Math.min(ROOM_MAP_CHUNK_BYTES,transfer.bytes.length-transfer.offset);
+      if(chunk.length!==expected||!expected)throw Error('Invalid map packet size.');
+      transfer.bytes.set(chunk,transfer.offset);transfer.offset+=chunk.length;transfer.sequence++;this.status='Downloading '+this.course.custom.title+' · '+Math.floor(100*transfer.offset/transfer.bytes.length)+'%';
+      if(transfer.sequence%4===0)this.send(link,{type:'map-progress',session:this.session,bytes:transfer.offset});
+      if(transfer.offset===transfer.bytes.length){
+        link.mapReceive=null;const generation=this.generation,map=await decodeCustomRoomMap(transfer.bytes,this.course.custom);
+        if(generation!==this.generation||link.closed)return;await this.prepareGuest(link,map);
+      }else this.notify();
+      return;
+    }
     if(kind==='control'&&data.type==='ready'&&this.host){
       if(!link.accepted){link.accepted=true;this.members.set(link.id,{id:link.id,name:roomPlayerName(data.name),slot:link.slot,host:false,ping:null,samples:[],lastSeen:now});this.notify();}
       this.send(link,{type:'joined',session:this.session});return;
@@ -281,6 +312,21 @@ export class MultiplayerRoom {
       for(const id of this.members.keys())if(!keep.has(id))this.members.delete(id);
     }else if(kind==='control'&&data.type==='closed'&&!this.host)this.fail('The host left. You can keep playing solo.');
   }
+  async prepareGuest(link,map){
+    const generation=this.generation;await this.onCourse(this.course,map);if(generation!==this.generation||link.closed)return;
+    link.prepared=true;link.lastReady=this.now();this.status='Joining the room…';
+    this.members.set(this.id,{id:this.id,name:this.name,slot:this.slot,host:false,ping:null,samples:[],lastSeen:this.now()});
+    this.members.set(link.id,{id:link.id,name:link.hostName,slot:0,host:true,ping:null,samples:[],lastSeen:this.now()});
+    this.send(link,{type:'ready',session:this.session,name:this.name});this.notify();
+  }
+  sendMapChunks(link){
+    if(!this.host||!this.mapData||!link.mapRequested||link.closed)return;
+    for(let i=0;i<8&&link.mapSendOffset<this.mapData.bytes.length;i++){
+      const chunk=this.mapData.bytes.subarray(link.mapSendOffset,link.mapSendOffset+ROOM_MAP_CHUNK_BYTES);
+      if(!this.send(link,{type:'map-chunk',session:this.session,sha256:this.course.custom.sha256,sequence:link.mapSendSequence,data:encodeRoomMapChunk(chunk)}))break;
+      link.mapSendOffset+=chunk.length;link.mapSendSequence++;
+    }
+  }
   sample(member,state,at){
     if(!member)return;
     const previous=member.timer,running=state.running??(!state.paused&&!state.completed&&state.time>0);
@@ -296,9 +342,10 @@ export class MultiplayerRoom {
   }
   pump() {
     if(!this.busy)return;const now=this.now();
-    if(this.phase==='connecting'&&now-this.startedAt>30000){this.fail('Could not join. Check the code or try a different network.');return;}
+    if(this.phase==='connecting'&&now-this.startedAt>(this.course?.custom?90000:30000)){this.fail('Could not join. Check the code or try a different network.');return;}
     const own=this.members.get(this.id),state=sanitiseRoomState(this.getState());if(own&&state)this.sample(own,state,now);
     for(const link of [...this.links.values()]){
+      this.sendMapChunks(link);
       if(now-link.lastSeen>20000){this.drop(link.id,this.host?'A player disconnected.':'The host disconnected. You can keep playing solo.');continue;}
       if(!this.host&&link.prepared&&!link.accepted&&now-link.lastReady>500){link.lastReady=now;this.send(link,{type:'ready',session:this.session,name:this.name});}
       if(link.accepted&&now-link.lastPing>=1000){
@@ -319,7 +366,7 @@ export class MultiplayerRoom {
   }
   drop(id,message) {
     const link=this.links.get(id);if(!link||link.closed)return;
-    link.closed=true;this.links.delete(id);this.members.delete(id);link.pc.close();
+    link.closed=true;link.mapReceive=null;this.links.delete(id);this.members.delete(id);link.pc.close();
     if(!this.host)this.fail(message);else{this.status=message;this.notify();}
   }
   get ping(){return this.host?null:this.links.get(this.hostId)?.ping??null;}

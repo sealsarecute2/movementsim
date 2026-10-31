@@ -85,6 +85,9 @@
           <div id="room-setup" class="room-setup">
             <label class="room-field" for="room-name">YOUR NAME<input id="room-name" maxlength="24" placeholder="Player" autocomplete="nickname"></label>
             <div class="room-options"><label class="room-field" for="room-map">MAP<select id="room-map"></select></label><label class="room-field" for="room-preset">PHYSICS<select id="room-preset"><option value="classic">CS-style</option><option value="practice">Bhop practice</option></select></label></div>
+            <button id="room-upload" class="room-join" type="button">UPLOAD CUSTOM MAP <span>↗</span></button>
+            <input id="room-map-file" type="file" accept=".bsp,.zip,.json" class="hidden">
+            <p id="room-map-status" class="room-description" role="status" aria-live="polite">Source .bsp, .zip or map .json. Joining players receive the playable map from the host.</p>
             <button id="room-host" class="play" type="button">HOST ROOM <span>↗</span></button>
             <div class="room-divider"><span>OR JOIN A FRIEND</span></div>
             <label class="room-field" for="room-code-input">INVITE CODE<input id="room-code-input" maxlength="20" placeholder="ABCD-EFGH-JKLM" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>

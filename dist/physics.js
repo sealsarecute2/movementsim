@@ -1,4 +1,5 @@
 // Independent Source-style movement recreation. No Valve code or assets included.
+import {isMapSolid} from './map-rules.js';
 // Projected air acceleration follows the model in Valve's public Source SDK.
 // CS2 subtick timing / landing penalties are approximated, not engine-identical.
 import { hullPlaneDistance, brushHullOverlap, brushSurface } from './geometry.js';
@@ -72,15 +73,15 @@ function brushOverlap(p,brush) {
 function supportHeight(p,box) {
   return brushSurface(box,p.x,p.z,16,p.ducked?54:72)?.height??-Infinity;
 }
-function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => !o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
+function blocked(p, boxes) { const b = bounds(p); return boxes.some(o => isMapSolid(o)&&!o.ladder&&(o.planes?brushOverlap(p,o):overlaps(b, o))); }
 export function support(p, boxes, distance = 0.08) {
   if(boxes.nearby)boxes=boxes.nearby(p);
   if(boxes.some(b=>b.planes))return boxes.find(b=>{
-    if(b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
+    if(!isMapSolid(b)||b.ladder||p.x+16<=b.min[0]+EPS||p.x-16>=b.max[0]-EPS||p.z+16<=b.min[2]+EPS||p.z-16>=b.max[2]-EPS)return false;
     const top=supportHeight(p,b);
     return Number.isFinite(top)&&p.y>=top-EPS&&p.y-top<=distance;
   });
-  return boxes.find(b => !b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
+  return boxes.find(b => isMapSolid(b)&&!b.ladder&&p.x + 16 > b.min[0] + EPS && p.x - 16 < b.max[0] - EPS &&
     p.z + 16 > b.min[2] + EPS && p.z - 16 < b.max[2] - EPS &&
     p.y >= b.max[1] - EPS && p.y - b.max[1] <= distance);
 }
@@ -90,6 +91,7 @@ function sweep(p, delta, boxes, includeLadders = false) {
   let best = { t: 1, normal: [0, 0, 0], box: null };
   const height = p.ducked ? 54 : 72;
   for (const b of boxes) {
+    if(!isMapSolid(b))continue;
     if(b.ladder&&!includeLadders)continue;
     if(b.planes) {
       let enter=-Infinity,leave=1,normal=null,valid=true;

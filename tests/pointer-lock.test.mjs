@@ -138,7 +138,7 @@ test('all course checkpoints work in order and respawn on the active course',()=
     for(let cp=1;cp<map.spawns.length;cp++) {
       app.read(`player=createPlayer(MAPS[map].spawns[${cp}]);tick()`);
       assert.equal(app.read('checkpoint'),cp,`${map.title} checkpoint ${cp}`);
-      app.read('player.y=-2000;tick()');
+      app.read('player.y=defaultKillHeight(boxes)-1;tick()');
       assert.equal(app.read('player.y'),map.spawns[cp].y);
       assert.equal(app.read('player.x'),map.spawns[cp].x);
     }
@@ -241,7 +241,7 @@ test('endless checkpoints save in the bottom right, respawn safely, and retain d
     assert.equal(app.read('checkpoint'),index/8);
     assert.equal(app.element('toast').classList.contains('checkpoint-notice'),true);
     assert.match(app.element('toast').textContent,/SAVED/);
-    app.read('player.y=-2000;tick()');
+    app.read('player.y=defaultKillHeight(boxes)-1;tick()');
     assert.equal(app.read('player.y'),app.read('endless.spawn.y'));
     assert.equal(app.read('player.z'),app.read('endless.spawn.z'));
     assert.equal(app.read('completed'),false);

@@ -354,9 +354,9 @@ test('a real input-only Endless fall saves server distance and releases its slot
   const run=await response.json(),upgrade=await f.call(run.socketPath,{headers:{upgrade:'websocket','sec-websocket-protocol':'movementlab-v1,ticket.'+run.ticket}});assert.equal(upgrade.status,101);socket=upgrade.webSocket;
   let resolveEnd;const ended=new Promise(resolve=>{resolveEnd=resolve;});socket.addEventListener('message',event=>{const value=JSON.parse(event.data);if(value.type==='ended')resolveEnd(value);});socket.accept();
   const frame={forward:1,side:1,yaw:0,pitch:0,walk:false,duck:false,jumpHeld:false,jumpPressed:false},start=performance.now();
-  for(let firstTick=0;firstTick<715;firstTick+=16){const count=Math.min(16,715-firstTick);await wait(Math.max(0,start+(firstTick+count)*1000/256-performance.now()));socket.send(JSON.stringify({seq:firstTick/16,firstTick,frames:Array.from({length:count},()=>frame)}));}
+  for(let firstTick=0;firstTick<1004;firstTick+=16){const count=Math.min(16,1004-firstTick);await wait(Math.max(0,start+(firstTick+count)*1000/256-performance.now()));socket.send(JSON.stringify({seq:firstTick/16,firstTick,frames:Array.from({length:count},()=>frame)}));}
   const outcome=await ended;assert.equal(outcome.reason,'respawn');assert.equal(outcome.verified,true);assert.equal(outcome.ranked,true);assert.equal(outcome.scoreStatus,'saved');
-  const board=await (await f.call('/v1/leaderboards/endless/classic?revision=3')).json();assert.equal(board.records[0].value,384);assert.equal(board.records[0].playerId,player.accountId);
+  const board=await (await f.call('/v1/leaderboards/endless/classic?revision=3')).json();assert.equal(board.records[0].value,583);assert.equal(board.records[0].playerId,player.accountId);
   assert.equal((await (await f.call('/v1/status',{token:ownerKey})).json()).active,0);
  }finally{socket?.close();await f.mf.dispose();}
 });
