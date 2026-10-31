@@ -89,7 +89,9 @@ Press **E** for another attempt from that checkpoint, or **Q** for a fresh run. 
 
 Refreshing the page restores your timed or community-map run at its checkpoint, paused. Click **Continue** to resume. Keep the same tab open: this is temporary progress. Restarting, changing maps or physics, or finishing clears the previous run. Endless keeps your best distance in your browser.
 
-All timed courses and both community maps have shared leaderboards with separate CS-style and Bhop practice rankings. Select a map and click **Leaderboard**, or open it after finishing. **Endless leaderboard** ranks distance, highest first. Records are added by the owner; completing a run does not automatically publish your score. [Leaderboard information](leaderboards/README.md).
+All timed courses and both community maps have Published leaderboards with separate CS-style and Bhop practice rankings. Select a map and click **Leaderboard**, or open it after finishing. **Endless leaderboard** ranks distance, highest first. Published records are added by the owner; an ordinary practice finish does not publish your score. [Leaderboard information](leaderboards/README.md).
+
+The **Verified Run beta** supports Bhop School / CS-style. Sign in through Settings, select that map and mode, choose **Verified Run**, complete the browser check, then choose **Start Verified Run**. The server calculates the time and saves accepted personal bests to the Verified leaderboard. Pausing or resetting ends verification; ordinary practice can continue. Public records use generated player labels, and private test scores stay separate. [Beta scope and server details](verification/BETA.md).
 
 ## Make it comfortable
 

@@ -4,3 +4,11 @@ node_modules/
 .openai/
 __pycache__/
 *.tar.gz
+.dev.vars*
+.staging*
+.player-auth*
+.google-login*
+.turnstile*
+.wrangler/
+verification/*-results.json
+verification/reference-runs/

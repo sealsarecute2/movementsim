@@ -1,0 +1,31 @@
+{
+  "name": "movement-lab-verifier-staging",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "login": "wrangler login",
+    "dev": "wrangler dev --config wrangler.json",
+    "check": "wrangler deploy --dry-run --config wrangler.json --outdir /tmp/movementsim-verifier-build",
+    "deploy:disabled": "wrangler deploy --config wrangler.json",
+    "test:hosted": "node hosted-benchmark.mjs",
+    "reference:record": "node reference-server.mjs",
+    "reference:hosted": "node hosted-reference.mjs",
+    "test:moving": "node hosted-moving.mjs",
+    "test:sustained": "node hosted-sustained.mjs",
+    "metrics:hosted": "node hosted-metrics.mjs",
+    "metrics:moving": "node hosted-metrics.mjs --moving-load",
+    "metrics:sustained": "node hosted-metrics.mjs --sustained-load",
+    "metrics:units": "node hosted-cpu-units.mjs",
+    "status:hosted": "node control-staging.mjs",
+    "stop:hosted": "node control-staging.mjs stop"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "jose": "6.2.14"
+  }
+}

@@ -1,5 +1,7 @@
 # Leaderboards
 
+These text files supply the **Published** tab. The **Verified** beta leaderboard is stored by the verifier and currently supports Bhop School / CS-style only. Players submit those records by starting a Verified Run in the game; they do not edit these files. [Verified beta details](../verification/BETA.md).
+
 Starter course, Bhop School, Ladder Run, both community maps, and Endless have shared leaderboards. Sandbox and local imports do not.
 
 Choose the map's file on GitHub and add one real, clean run per line:

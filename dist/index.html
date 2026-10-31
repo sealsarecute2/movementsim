@@ -27,6 +27,8 @@
   <div id="crosshair" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div>
   <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p><span id="best-label">BEST</span> <span id="best">—</span></p></aside>
   <div id="toast" role="status" aria-live="polite"></div>
+  <p id="reference-status" class="reference-status hidden" role="status" aria-live="polite"></p>
+  <p id="verified-status" class="verified-status hidden" role="status" aria-live="polite"></p>
   <div class="bottom-hud">
     <div class="input-panel"><span class="eyebrow">INPUT</span><div class="keys"><kbd data-key="KeyW" class="w">W</kbd><kbd data-key="KeyA">A</kbd><kbd data-key="KeyS">S</kbd><kbd data-key="KeyD">D</kbd></div><div class="modifiers"><kbd data-key="ShiftLeft">SHIFT</kbd><kbd data-key="ControlLeft">CTRL</kbd><kbd data-key="Space">SPACE</kbd></div><div class="quick-help"><span>Q</span> RESTART <span>E</span> CHECKPOINT</div></div>
     <div class="speed-panel"><div class="speed-readout"><strong id="speed">0</strong><span>u/s</span></div><div class="speed-track"><i id="speed-fill"></i><b></b></div><div class="speed-labels"><span id="motion-state">ON GROUND</span><span id="gain">250 MAX RUN</span></div><div class="hop-stats"><span>HOPS <b id="hops">00</b></span><span>PEAK <b id="peak">000</b></span><span>JUMP <b id="jump-speed">000</b></span></div></div>
@@ -66,6 +68,11 @@
           <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
           <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
+          <section id="verified-controls" class="verified-controls hidden" aria-label="Verified course run">
+            <button id="verified-prepare" class="leaderboard-open" type="button">VERIFIED RUN</button>
+            <p id="verified-note" role="status" aria-live="polite">Sign in in Settings to start a verified run.</p>
+            <div id="verified-challenge" class="verified-challenge hidden"></div>
+          </section>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
@@ -95,6 +102,14 @@
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
           <button id="settings-back" class="menu-back" type="button">← MAIN MENU</button>
           <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="eyebrow">SAVED AUTOMATICALLY</span></div>
+          <section id="player-account" class="player-account hidden" aria-labelledby="account-title">
+            <h3 id="account-title" class="settings-heading">PLAYER ACCOUNT</h3>
+            <p id="account-status" role="status" aria-live="polite">Sign in to your Movement Lab account.</p>
+            <p>Public verified runs publish your time and a generated player label. Sign-in expires after 15 minutes.</p>
+            <div id="account-google-button" class="hidden"></div>
+            <button id="account-prepare" class="text-button" type="button">SIGN IN</button>
+            <button id="account-signout" class="text-button hidden" type="button">SIGN OUT</button>
+          </section>
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option></select></div>
@@ -135,8 +150,8 @@
       <p class="input-note">Ends the current run.</p>
     </main>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
-  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><p id="finish-verified" class="finish-verified hidden" role="status" aria-live="polite"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-verify-again" class="text-button hidden">NEW VERIFIED RUN</button><button id="check-reference" class="text-button hidden">CHECK REFERENCE RUN</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
+  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-sources" role="group" aria-label="Record source"><button id="leaderboard-published" type="button" aria-pressed="true">PUBLISHED</button><button id="leaderboard-verified" type="button" aria-pressed="false">VERIFIED</button></div><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module" src="app.js"></script>
 </body>
 </html>

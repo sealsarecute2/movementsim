@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "movement-lab-verifier-staging",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "STAGING_ENABLED": "false",
+    "GOOGLE_LOGIN_ENABLED": "false",
+    "PLAYER_RUNS_ENABLED": "false",
+    "RANKED_SUBMISSIONS_ENABLED": "false",
+    "PRIVATE_PLAYER_TESTING_ENABLED": "false",
+    "TURNSTILE_SITE_KEY": "",
+    "GOOGLE_CLIENT_ID": "",
+    "ALLOWED_ORIGINS": "http://localhost:5173,https://sealsarecute2.github.io"
+  },
+  "durable_objects": {
+    "bindings": [
+      {"name":"ADMISSION","class_name":"AdmissionCoordinator"},
+      {"name":"RUNS","class_name":"VerifiedRun"},
+      {"name":"PLAYER_SESSIONS","class_name":"PlayerSessions"},
+      {"name":"SCORES","class_name":"VerifiedScores"}
+    ]
+  },
+  "migrations": [{"tag":"v1","new_sqlite_classes":["AdmissionCoordinator","VerifiedRun"]},{"tag":"v2","new_sqlite_classes":["PlayerSessions"]},{"tag":"v3","new_sqlite_classes":["VerifiedScores"]}],
+  "ratelimits": [
+    {"name":"START_RATE","namespace_id":"739101","simple":{"limit":30,"period":60}},
+    {"name":"AUTH_RATE","namespace_id":"739102","simple":{"limit":30,"period":60}}
+  ],
+  "observability": {"enabled":true}
+}

@@ -319,7 +319,20 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .room-player-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .room-rank { width:.75rem; flex-shrink:0; color:#738593; font-size:max(9px,.5rem); text-align:center; }
 .room-finished { color:#75e5b3; }
-body:not(.playing) .room-leaderboard { visibility:hidden; }
+.reference-status { position:fixed; top:5rem; left:var(--edge,2rem); z-index:30; max-width:min(34rem,calc(100vw - 4rem)); padding:.65rem .85rem; border:1px solid #54676c; background:#10181eed; color:#c4e6e8; font-size:11px; line-height:1.6; pointer-events:none; }
+.player-account { margin:0 0 1.5rem; padding:0 0 1rem; border-bottom:1px solid #34404b; }
+.player-account p { color:#a6b7c5; font-size:max(11px,.6875rem); line-height:1.6; }
+.verified-controls { margin:.75rem 0 1.5rem; padding:1rem; border:1px solid #34404b; border-radius:8px; }
+.verified-controls p { margin:.65rem 0 0; color:#a6b7c5; font-size:11px; line-height:1.6; }
+.verified-challenge { margin-top:.75rem; min-height:1px; }
+.verified-status { position:fixed; top:5rem; left:var(--edge,2rem); z-index:30; max-width:min(34rem,calc(100vw - 4rem)); margin:0; padding:.55rem .8rem; background:#10181eed; border:1px solid #54676c; color:#c4e6e8; font-size:11px; line-height:1.5; pointer-events:none; }
+.finish-verified { color:#a8d7cd; }
+.leaderboard-sources { display:flex; gap:.5rem; margin:.75rem 0 1rem; }
+.leaderboard-sources button { border:1px solid #34404b; border-radius:5px; background:transparent; padding:.6rem .9rem; color:#a6b7c5; font:inherit; font-size:11px; cursor:pointer; }
+.leaderboard-sources button[aria-pressed="true"] { background:#25343d; border-color:#7cacae; color:#e2f0f1; }
+.leaderboard-sources button:disabled { opacity:.4; cursor:default; }
+#account-google-button { margin:.75rem 0; min-height:40px; }
+body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visibility:hidden; }
 @media(max-width:760px), (max-height:560px) { .room-leaderboard { top:5.75rem; padding:.5rem; width:250px; }.room-leaderboard th,.room-leaderboard td { padding:.375rem .25rem; }.room-leaderboard th:nth-child(2),.room-leaderboard td:nth-child(2) { width:2.75rem; }.room-leaderboard th:last-child,.room-leaderboard td:last-child { width:6rem; } }
 
 @media(max-width:500px) { .room-leaderboard { top:12rem; } }
@@ -344,6 +357,8 @@ body:not(.playing) .room-leaderboard { visibility:hidden; }
   <div id="crosshair" class="reticle reticle--default" aria-hidden="true"><i></i><i></i></div>
   <aside class="run-stats"><span class="eyebrow">RUN TIME</span><div id="timer">00:00.000</div><p><span id="best-label">BEST</span> <span id="best">—</span></p></aside>
   <div id="toast" role="status" aria-live="polite"></div>
+  <p id="reference-status" class="reference-status hidden" role="status" aria-live="polite"></p>
+  <p id="verified-status" class="verified-status hidden" role="status" aria-live="polite"></p>
   <div class="bottom-hud">
     <div class="input-panel"><span class="eyebrow">INPUT</span><div class="keys"><kbd data-key="KeyW" class="w">W</kbd><kbd data-key="KeyA">A</kbd><kbd data-key="KeyS">S</kbd><kbd data-key="KeyD">D</kbd></div><div class="modifiers"><kbd data-key="ShiftLeft">SHIFT</kbd><kbd data-key="ControlLeft">CTRL</kbd><kbd data-key="Space">SPACE</kbd></div><div class="quick-help"><span>Q</span> RESTART <span>E</span> CHECKPOINT</div></div>
     <div class="speed-panel"><div class="speed-readout"><strong id="speed">0</strong><span>u/s</span></div><div class="speed-track"><i id="speed-fill"></i><b></b></div><div class="speed-labels"><span id="motion-state">ON GROUND</span><span id="gain">250 MAX RUN</span></div><div class="hop-stats"><span>HOPS <b id="hops">00</b></span><span>PEAK <b id="peak">000</b></span><span>JUMP <b id="jump-speed">000</b></span></div></div>
@@ -383,6 +398,11 @@ body:not(.playing) .room-leaderboard { visibility:hidden; }
           <div class="selected-map"><div><h3 id="selected-map-title">Starter course</h3><p id="map-meta">3 sections · 2 checkpoints</p></div><p id="map-description" class="map-description"></p></div>
           <p id="map-credit" class="map-credit"></p><a id="map-source-link" class="map-source-link hidden" href="https://gamebanana.com/mods/125406" target="_blank" rel="noopener noreferrer">Original map &amp; creator ↗</a>
           <div class="map-actions"><button id="play" class="play" type="button">START COURSE <span>↗</span></button><button id="leaderboard-button" class="leaderboard-open" type="button">LEADERBOARD <span>↗</span></button></div>
+          <section id="verified-controls" class="verified-controls hidden" aria-label="Verified course run">
+            <button id="verified-prepare" class="leaderboard-open" type="button">VERIFIED RUN</button>
+            <p id="verified-note" role="status" aria-live="polite">Sign in in Settings to start a verified run.</p>
+            <div id="verified-challenge" class="verified-challenge hidden"></div>
+          </section>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
@@ -412,6 +432,14 @@ body:not(.playing) .room-leaderboard { visibility:hidden; }
         <section id="settings-view" class="menu-view hidden" aria-labelledby="settings-title">
           <button id="settings-back" class="menu-back" type="button">← MAIN MENU</button>
           <div class="view-heading"><h2 id="settings-title">SETTINGS</h2><span class="eyebrow">SAVED AUTOMATICALLY</span></div>
+          <section id="player-account" class="player-account hidden" aria-labelledby="account-title">
+            <h3 id="account-title" class="settings-heading">PLAYER ACCOUNT</h3>
+            <p id="account-status" role="status" aria-live="polite">Sign in to your Movement Lab account.</p>
+            <p>Public verified runs publish your time and a generated player label. Sign-in expires after 15 minutes.</p>
+            <div id="account-google-button" class="hidden"></div>
+            <button id="account-prepare" class="text-button" type="button">SIGN IN</button>
+            <button id="account-signout" class="text-button hidden" type="button">SIGN OUT</button>
+          </section>
           <h3 class="settings-heading">LOOK &amp; FEEL</h3>
       <div class="settings-row"><label for="sensitivity">SENSITIVITY <output id="sensitivity-value">1.00×</output><input id="sensitivity" type="range" min="0.1" max="5" step="0.05" value="1"></label><label for="fov">FOV <output id="fov-value">100</output><input id="fov" type="range" min="80" max="120" step="1" value="100"></label></div>
       <div class="background-setting"><label for="skybox-select">BACKGROUND</label><select id="skybox-select"><option value="black">Default · Black</option><option value="cycle">Day / night cycle · 20 min</option><option value="blackhole">Black hole · End-inspired</option></select></div>
@@ -452,8 +480,8 @@ body:not(.playing) .room-leaderboard { visibility:hidden; }
       <p class="input-note">Ends the current run.</p>
     </main>
   </div>
-  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
-  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span>Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
+  <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><p id="finish-verified" class="finish-verified hidden" role="status" aria-live="polite"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-verify-again" class="text-button hidden">NEW VERIFIED RUN</button><button id="check-reference" class="text-button hidden">CHECK REFERENCE RUN</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
+  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-sources" role="group" aria-label="Record source"><button id="leaderboard-published" type="button" aria-pressed="true">PUBLISHED</button><button id="leaderboard-verified" type="button" aria-pressed="false">VERIFIED</button></div><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module">
 // Untextured convex solids shared by the importer, renderer and player hull.
 // A curved brush is a polygonal solid; its original facets stay intact.
@@ -3186,9 +3214,425 @@ class MultiplayerRoom {
 }
 
 
+// Opt-in local test fixtures. These files are diagnostic input recordings,
+// never proof of a score and never uploaded by normal gameplay.
+const REFERENCE_VERSION=1;
+const REFERENCE_MAX_TICKS=9*60/DT;
+const REFERENCE_MAX_BYTES=48*1024*1024;
+const REFERENCE_MAPS=['course','bhop-school','ladder-run','bhop_lego','bhop_kitsune'];
+function referenceState(player,{time,checkpoint,completed},ticks){
+  return {ticks,time,checkpoint,completed,x:player.x,y:player.y,z:player.z,vx:player.vx,vy:player.vy,vz:player.vz};
+}
+class ReferenceRunRecorder {
+  constructor(map,preset){
+    this.map=map.id;this.revision=map.revision||1;this.preset=preset;
+    this.frames=[];this.samples=[];this.reason=null;this.complete=false;
+  }
+  abort(reason){if(!this.reason){this.reason=reason;this.frames=[];this.samples=[];this.complete=false;}}
+  input(input){
+    if(this.reason||this.complete)return;
+    if(this.frames.length>=REFERENCE_MAX_TICKS){this.abort('The recording exceeded nine minutes.');return;}
+    this.frames.push({...input});
+  }
+  observe(player,state){
+    if(this.reason||this.complete||!this.frames.length)return;
+    if(state.respawns){this.abort('The run used a checkpoint reset.');return;}
+    const sample=referenceState(player,state,this.frames.length);
+    if(![sample.time,sample.x,sample.y,sample.z,sample.vx,sample.vy,sample.vz].every(Number.isFinite)){
+      this.abort('The movement state became invalid.');return;
+    }
+    if(sample.ticks%256===0||sample.checkpoint!==(this.samples.at(-1)?.checkpoint||0)||sample.completed)this.samples.push(sample);
+    this.complete=sample.completed;
+  }
+  export(){
+    if(!this.complete||this.reason)throw Error('Finish a clean run before checking the recording.');
+    return {version:REFERENCE_VERSION,map:this.map,revision:this.revision,preset:this.preset,tickRate:1/DT,
+      frames:this.frames,samples:this.samples};
+  }
+}
+
+// Public Worker endpoint only; server secrets stay in Cloudflare.
+const PLAYER_AUTH_CONFIG=Object.freeze({"enabled":true,"endpoint":"https://movement-lab-verifier-staging.sealsarecute2.workers.dev"});
+
+const googleLoginClientId=/^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/;
+let movementGoogleScriptPromise=null;
+function loadMovementGoogle(){
+  if(globalThis.google?.accounts?.id)return Promise.resolve(globalThis.google.accounts.id);
+  if(movementGoogleScriptPromise)return movementGoogleScriptPromise;
+  movementGoogleScriptPromise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');let timer;
+    const failed=()=>{clearTimeout(timer);script.remove();movementGoogleScriptPromise=null;reject(Error('google-unavailable'));};
+    script.src='https://accounts.google.com/gsi/client';script.async=true;script.referrerPolicy='strict-origin-when-cross-origin';
+    script.onerror=failed;script.onload=()=>{
+      clearTimeout(timer);const google=globalThis.google?.accounts?.id;
+      if(!google){failed();return;}resolve(google);
+    };
+    timer=setTimeout(failed,10000);document.head.append(script);
+  });
+  return movementGoogleScriptPromise;
+}
+function movementLoginRandom(cryptoApi){return btoa(String.fromCharCode(...cryptoApi.getRandomValues(new Uint8Array(32)))).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');}
+async function movementLoginHash(value,cryptoApi){
+  const hash=new Uint8Array(await cryptoApi.subtle.digest('SHA-256',new TextEncoder().encode(value)));
+  return btoa(String.fromCharCode(...hash)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
+}
+function validPlayerAuthEndpoint(endpoint){
+  return typeof endpoint==='string'&&/^https:\/\/movement-lab-verifier-staging\.[a-z0-9-]+\.workers\.dev$/.test(endpoint);
+}
+const movementLoginMessage=code=>({
+  'login-rate':'Too many sign-in attempts. Wait a minute and try again.',
+  'login-disabled':'Account sign-in is temporarily unavailable.',
+  'login-invalid':'Sign-in could not be verified. Try again.',
+  'login-already-used':'That sign-in has already been used. Try again.',
+  'login-expired':'Sign-in expired. Try again.',
+  'google-unavailable':'Google sign-in is temporarily unavailable. Try again.',
+  'login-unavailable':'Could not finish signing in. Please try again.',
+}[code]||'Could not finish signing in. Please try again.');
+
+class GooglePlayerLogin {
+  #session=null;
+  constructor({endpoint,fetcher=(...args)=>fetch(...args),cryptoApi=globalThis.crypto,now=Date.now,
+    loadGoogle=loadMovementGoogle,onChange=()=>{},schedule=(...args)=>globalThis.setTimeout(...args),
+    unschedule=(...args)=>globalThis.clearTimeout(...args)}={}){
+    if(!validPlayerAuthEndpoint(endpoint))throw Error('invalid-auth-endpoint');
+    Object.assign(this,{endpoint,fetcher,cryptoApi,now,loadGoogle,onChange,schedule,unschedule});
+    this.generation=0;this.busy=false;this.challenge=null;this.google=null;this.expiryTimer=null;
+    this.status='Sign in to your Movement Lab account.';
+  }
+  state(){return {signedIn:!!this.#session&&this.#session.expiresAt>this.now(),expiresAt:this.#session?.expiresAt||null,
+    busy:this.busy,prepared:!!this.challenge,status:this.status};}
+  authorization(){return this.#session?.expiresAt>this.now()?'Bearer '+this.#session.token:null;}
+  async request(path,{body,authorization}={}){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
+    try{
+      const response=await this.fetcher(this.endpoint+'/v1/auth/'+path,{method:body===undefined?'GET':'POST',
+        credentials:'omit',redirect:'error',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal,
+        headers:{...(body===undefined?{}:{'content-type':'application/json'}),...(authorization?{authorization}:{})},
+        ...(body===undefined?{}:{body:JSON.stringify(body)})});
+      let raw='';
+      if(response.body?.getReader){
+        const reader=response.body.getReader(),decoder=new TextDecoder();let size=0;
+        while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;
+          if(size>32768){await reader.cancel();throw Error('response-size');}raw+=decoder.decode(value,{stream:true});}
+        raw+=decoder.decode();
+      }else raw=await response.text();
+      if(raw.length>32768)throw Error('response-size');
+      const data=JSON.parse(raw);if(!response.ok)throw Error(data?.error||'login-unavailable');return data;
+    }finally{clearTimeout(timer);}
+  }
+  async prepare(container){
+    if(this.busy||this.state().signedIn)return false;
+    const generation=++this.generation;
+    this.busy=true;this.challenge=null;this.status='Preparing Google sign-in…';this.onChange(this.state());
+    try{
+      container.replaceChildren();
+      const config=await this.request('config');
+      if(generation!==this.generation)return false;
+      if(config.enabled!==true||!googleLoginClientId.test(config.clientId)||config.ranked!==false)throw Error('login-disabled');
+      const proof=movementLoginRandom(this.cryptoApi),proofHash=await movementLoginHash(proof,this.cryptoApi);
+      if(generation!==this.generation)return false;
+      const challenge=await this.request('challenge',{body:{proofHash}});
+      if(generation!==this.generation)return false;
+      if(challenge.clientId!==config.clientId||typeof challenge.challenge!=='string'||challenge.challenge.length>2048||
+        !/^[A-Za-z0-9_-]{43}$/.test(challenge.nonce)||!Number.isSafeInteger(challenge.expiresAt)||
+        challenge.expiresAt<=this.now()||challenge.expiresAt>this.now()+300000)throw Error('login-invalid');
+      const google=await this.loadGoogle();
+      if(generation!==this.generation)return false;
+      this.google=google;this.challenge={...challenge,proof};
+      google.initialize({client_id:config.clientId,nonce:challenge.nonce,auto_select:false,ux_mode:'popup',
+        callback:response=>{void this.acceptCredential(response,generation);}});
+      google.renderButton(container,{theme:'filled_black',size:'large',shape:'rectangular',text:'signin_with',width:280});
+      this.status='Choose your Google account to sign in.';return true;
+    }catch(error){if(generation===this.generation){this.challenge=null;this.status=movementLoginMessage(error.message);}return false;}
+    finally{if(generation===this.generation){this.busy=false;this.onChange(this.state());}}
+  }
+  async acceptCredential(response,generation=this.generation){
+    if(generation!==this.generation||this.busy||!this.challenge)return false;
+    const challenge=this.challenge;this.busy=true;this.status='Checking sign-in…';this.onChange(this.state());
+    try{
+      if(challenge.expiresAt<=this.now())throw Error('login-expired');
+      if(typeof response?.credential!=='string'||!response.credential||response.credential.length>16384)throw Error('login-invalid');
+      const session=await this.request('google',{body:{credential:response.credential,challenge:challenge.challenge,proof:challenge.proof}});
+      if(generation!==this.generation){
+        if(typeof session.token==='string')await this.request('logout',{body:{},authorization:'Bearer '+session.token}).catch(()=>{});
+        return false;
+      }
+      if(typeof session.token!=='string'||!session.token||session.token.length>2048||!Number.isSafeInteger(session.expiresAt)||
+        session.expiresAt<=this.now()||session.expiresAt>this.now()+900000||session.ranked!==false||
+        !/^[A-Za-z0-9_-]{43}$/.test(session.player?.id))throw Error('login-invalid');
+      this.unschedule(this.expiryTimer);
+      // Complete browser timer setup before exposing an authenticated state.
+      const expiryTimer=this.schedule(()=>{
+        this.#session=null;this.status='Your session expired. Sign in again.';this.onChange(this.state());
+      },session.expiresAt-this.now());
+      this.#session={token:session.token,expiresAt:session.expiresAt};this.challenge=null;this.expiryTimer=expiryTimer;
+      this.status='Signed in with Google.';return true;
+    }catch(error){if(generation===this.generation){this.challenge=null;this.status=movementLoginMessage(error.message);}return false;}
+    finally{if(generation===this.generation){this.busy=false;this.onChange(this.state());}}
+  }
+  async signOut(){
+    ++this.generation;const authorization=this.authorization();
+    this.#session=null;this.challenge=null;this.busy=false;this.unschedule(this.expiryTimer);this.expiryTimer=null;
+    this.google?.disableAutoSelect?.();this.status='Signed out.';this.onChange(this.state());
+    if(authorization)try{await this.request('logout',{body:{},authorization});}
+    catch{this.status='Signed out of this tab. The server session will expire shortly.';this.onChange(this.state());}
+  }
+  dispose(){++this.generation;this.#session=null;this.challenge=null;this.busy=false;this.unschedule(this.expiryTimer);this.expiryTimer=null;
+    this.status='Sign in to your Movement Lab account.';this.onChange(this.state());}
+}
+
+const VERIFIED_COURSES=Object.freeze({course:1,'bhop-school':1,'ladder-run':1,bhop_lego:2,bhop_kitsune:3});
+function supportsVerifiedRun(selection){return !!selection&&VERIFIED_COURSES[selection.map]===selection.revision&&['classic','practice'].includes(selection.preset);}
+const movementVerifiedId=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
+const movementVerifiedMessage=code=>({
+  'server-full':'All verified run slots are busy. Try again shortly.',
+  'account-active':'You already have a verified run open. Wait a moment and try again.',
+  'network-active':'Too many verified runs on this network. Try again shortly.',
+  'daily-budget':'Verified runs have reached today’s limit. Solo practice is available.',
+  'start-rate':'Too many starts. Wait a minute before trying again.',
+  'request-rate':'Too many requests. Wait a minute before trying again.',
+  'player-auth-required':'Sign in again in Settings to start a verified run.',
+  'login-invalid':'Sign in again in Settings to start a verified run.',
+  'player-runs-disabled':'Verified runs are not available yet.',
+  'verification-unavailable':'Verified runs are temporarily unavailable.',
+  'bot-check-failed':'The browser check expired or failed. Try again.',
+  'bot-check-required':'Complete the browser check before starting.',
+  'bot-check-unavailable':'The browser check is unavailable. Try again shortly.',
+  'revision-mismatch':'This course has changed. Reload the game.',
+  'private-test-access-required':'Sign in through Settings to enable your private test access.',
+  'private-test-account-mismatch':'Private testing is linked to another Google account. Sign in with the account used to set it up.',
+  'private-test-course-only':'Private testing is available on Bhop School / CS-style.',
+  'private-test-unavailable':'Could not enable private testing. Keep the local test server running and try signing in again.',
+  'course-not-ranked':'Verified beta: choose Bhop School / CS-style.',
+}[code]||'Verification lost its connection. You can continue practising.');
+let movementTurnstileScript=null;
+function loadMovementTurnstile(){
+  if(globalThis.turnstile?.render)return Promise.resolve(globalThis.turnstile);
+  if(movementTurnstileScript)return movementTurnstileScript;
+  movementTurnstileScript=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');let timer;
+    const fail=()=>{clearTimeout(timer);script.remove();movementTurnstileScript=null;reject(Error('bot-check-unavailable'));};
+    script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';script.async=true;script.referrerPolicy='strict-origin-when-cross-origin';
+    script.onerror=fail;script.onload=()=>{clearTimeout(timer);if(globalThis.turnstile?.render)resolve(globalThis.turnstile);else fail();};
+    timer=setTimeout(fail,10000);document.head.append(script);
+  });return movementTurnstileScript;
+}
+
+class VerifiedRunClient {
+  #run=null;#runAuth=null;#botToken=null;#socket=null;
+  constructor({endpoint,authorization=()=>null,fetcher=(...args)=>fetch(...args),createSocket=(...args)=>new WebSocket(...args),
+    loadTurnstile=loadMovementTurnstile,now=Date.now,onChange=()=>{},schedule=(...args)=>globalThis.setTimeout(...args),
+    unschedule=(...args)=>globalThis.clearTimeout(...args)}={}){
+    if(!validPlayerAuthEndpoint(endpoint))throw Error('invalid-auth-endpoint');
+    Object.assign(this,{endpoint,authorization,fetcher,createSocket,loadTurnstile,now,onChange,schedule,unschedule});
+    this.config=null;this.configRequest=null;this.phase='idle';this.status='Choose Verified Run to check availability.';this.generation=0;
+    this.selection=null;this.result=null;this.frames=[];this.seq=0;this.sentTicks=0;this.timer=null;this.widget=null;this.widgetId=null;
+    this.readyResolve=null;this.readyReject=null;
+    this.accessGeneration=0;
+  }
+  state(){return {phase:this.phase,status:this.status,enabled:this.config?.enabled===true,prepared:this.phase==='prepared',
+    busy:['access','loading','checking','allocating','connecting','finishing'].includes(this.phase),active:this.phase==='active',privateTest:this.config?.privateTest===true,
+    selection:this.selection?{...this.selection}:null,result:this.result};}
+  emit(){this.onChange(this.state());}
+  clearTimer(){this.unschedule(this.timer);this.timer=null;}
+  clearWidget(){this.clearTimer();if(this.widgetId!==null){try{this.widget?.remove(this.widgetId);}catch{}this.widgetId=null;}}
+  async request(path,{body,method,authorization,signal}={}){
+    const controller=new AbortController(),timer=this.schedule(()=>controller.abort(),10000);
+    const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
+    try{
+      const response=await this.fetcher(this.endpoint+path,{method:method||(body===undefined?'GET':'POST'),credentials:'omit',redirect:'error',cache:'no-store',
+        referrerPolicy:'no-referrer',signal:controller.signal,headers:{...(body===undefined?{}:{'content-type':'application/json'}),...(authorization?{authorization}:{})},
+        ...(body===undefined?{}:{body:JSON.stringify(body)})});
+      let raw='';
+      if(response.body?.getReader){
+        const reader=response.body.getReader(),decoder=new TextDecoder();let size=0;
+        while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>65536){await reader.cancel();throw Error('response-size');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
+      }else raw=await response.text();
+      if(raw.length>65536)throw Error('response-size');const value=JSON.parse(raw);
+      if(!response.ok)throw Error(value?.error||'verification-unavailable');return value;
+    }finally{this.unschedule(timer);signal?.removeEventListener('abort',abort);}
+  }
+  async loadConfig(){
+    if(this.config)return this.config;
+    if(this.configRequest)return this.configRequest;
+    this.configRequest=(async()=>{
+      try{
+        const config=await this.request('/v1/player/config',{authorization:this.authorization()});
+        if(typeof config.enabled!=='boolean'||config.ranked!==config.enabled||config.tickRate!==256||config.ruleset!=='verified-v1'||
+          (config.enabled&&(!/^[A-Za-z0-9_-]{20,256}$/.test(config.siteKey)||/^\d+x0{10,}/.test(config.siteKey))))throw Error('verification-unavailable');
+        if(config.courses!==undefined&&(!Array.isArray(config.courses)||!config.courses.length||config.courses.length>10||!config.courses.every(supportsVerifiedRun)))throw Error('verification-unavailable');
+        if(config.privateTest===true&&(!Array.isArray(config.courses)||config.courses.length!==1||config.courses[0].map!=='bhop-school'||config.courses[0].revision!==1||config.courses[0].preset!=='classic'))throw Error('verification-unavailable');
+        this.config=config;this.status=config.privateTest?
+          config.enabled?'Private test ready · Bhop School / CS-style.':'Sign in through Settings to enable private testing.':
+          config.enabled?(config.beta?'Verified beta · Bhop School / CS-style. Sign in, then complete the browser check.':'Sign in, then complete the browser check to verify a run.'):'Verified runs are not available yet.';
+        if(!config.enabled)this.phase='unavailable';this.emit();return config;
+      }finally{this.configRequest=null;}
+    })();return this.configRequest;
+  }
+  supportsSelection(selection){return supportsVerifiedRun(selection)&&(!this.config?.courses||this.config.courses.some(course=>['map','revision','preset'].every(key=>course[key]===selection[key])));}
+  async refreshAccess({enroll=false}={}){
+    const generation=++this.accessGeneration,authorization=this.authorization();
+    try{
+      await this.configRequest?.catch(()=>{});if(generation!==this.accessGeneration)return false;
+      this.config=null;const config=await this.loadConfig();
+      if(generation!==this.accessGeneration||authorization!==this.authorization())return false;
+      if(config.privateTest&&config.requiresEnrollment&&enroll){
+        if(globalThis.location?.origin!=='http://localhost:5173')throw Error('private-test-unavailable');
+        this.phase='access';this.status='Linking your account for private testing…';this.emit();
+        const controller=new AbortController(),timer=this.schedule(()=>controller.abort(),15000);
+        try{
+          const response=await this.fetcher('/__verification/private-tester',{method:'POST',credentials:'omit',redirect:'error',cache:'no-store',referrerPolicy:'no-referrer',
+            signal:controller.signal,headers:{authorization}});
+          const raw=await response.text();if(raw.length>4096)throw Error('private-test-unavailable');const result=JSON.parse(raw);
+          if(!response.ok||result.enrolled!==true)throw Error(result.error||'private-test-unavailable');
+        }finally{this.unschedule(timer);}
+        if(generation!==this.accessGeneration||authorization!==this.authorization())return false;
+        this.config=null;await this.loadConfig();
+      }
+      if(generation===this.accessGeneration){this.phase=this.config?.enabled?'idle':'unavailable';this.emit();}return this.config?.enabled===true;
+    }catch(error){if(generation===this.accessGeneration){this.phase='error';this.status=movementVerifiedMessage(error.message==='private-test-account-mismatch'?error.message:'private-test-unavailable');this.emit();}return false;}
+  }
+  async prepare(selection,container){
+    if(this.state().busy||this.state().active||!supportsVerifiedRun(selection))return false;
+    this.cancel('',false);const generation=this.generation;this.selection={...selection};this.phase='loading';this.status='Checking verified run availability…';this.emit();
+    try{
+      const config=await this.loadConfig();if(generation!==this.generation)return false;
+      if(!config.enabled)throw Error(config.privateTest?'private-test-access-required':'player-runs-disabled');if(!this.authorization())throw Error('player-auth-required');
+      if(!this.supportsSelection(selection))throw Error(config.privateTest?'private-test-course-only':'course-not-ranked');
+      this.phase='checking';this.status='Complete the browser check, then start your run.';this.emit();
+      this.widget=await this.loadTurnstile();if(generation!==this.generation)return false;
+      const fail=()=>{if(generation!==this.generation)return;this.#botToken=null;this.phase='error';this.status=movementVerifiedMessage('bot-check-failed');this.clearWidget();this.emit();};
+      this.timer=this.schedule(fail,120000);
+      this.widgetId=this.widget.render(container,{sitekey:config.siteKey,action:'verified-run',theme:'dark',appearance:'interaction-only',
+        'response-field':false,'refresh-expired':'never',callback:token=>{
+          if(generation!==this.generation||this.phase!=='checking')return;
+          if(typeof token!=='string'||!token||token.length>2048){fail();return;}
+          this.clearTimer();this.#botToken={value:token,expiresAt:this.now()+270000};this.phase='prepared';
+          this.status='Ready. Pausing or resetting ends verification.';this.timer=this.schedule(fail,270000);this.emit();
+        },'error-callback':()=>{fail();return true;},'expired-callback':fail,'timeout-callback':fail});
+      return true;
+    }catch(error){if(generation===this.generation){this.phase='error';this.status=movementVerifiedMessage(error.message);this.clearWidget();this.emit();}return false;}
+  }
+  async start(selection){
+    if(this.phase!=='prepared'||!this.#botToken||this.#botToken.expiresAt<=this.now()||
+      !this.supportsSelection(selection)||!['map','revision','preset'].every(key=>selection[key]===this.selection?.[key]))return false;
+    const generation=this.generation,authorization=this.authorization(),token=this.#botToken.value;
+    if(!authorization){this.cancel(movementVerifiedMessage('player-auth-required'));return false;}
+    this.clearWidget();this.#botToken=null;this.phase='allocating';this.status='Connecting your verified run…';this.emit();
+    try{
+      const run=await this.request('/v1/player/runs',{body:{map:selection.map,preset:selection.preset,turnstileToken:token},authorization});
+      if(generation!==this.generation){if(movementVerifiedId(run.runId))void this.cancelRemote(run.runId,authorization);return false;}
+      if(!movementVerifiedId(run.runId)||typeof run.ticket!=='string'||run.ticket.length>2048||run.ranked!==true||
+        run.socketPath!==`/v1/player/runs/${run.runId}/socket`||!Number.isSafeInteger(run.expiresAt)||run.expiresAt<=this.now()||
+        run.selection?.map!==selection.map||run.selection?.revision!==selection.revision||run.selection?.preset!==selection.preset||!!run.privateTest!==!!this.config.privateTest){
+        if(movementVerifiedId(run.runId))void this.cancelRemote(run.runId,authorization);throw Error('revision-mismatch');
+      }
+      this.#run={id:run.runId};this.#runAuth=authorization;this.frames=[];this.sentTicks=0;this.seq=0;this.phase='connecting';
+      const ready=new Promise((resolve,reject)=>{this.readyResolve=resolve;this.readyReject=reject;});
+      void ready.catch(()=>{});
+      this.#socket=this.createSocket(this.endpoint.replace('https:','wss:')+run.socketPath,['movementlab-v1','ticket.'+run.ticket]);
+      this.#socket.addEventListener('message',event=>{if(generation===this.generation)this.message(event.data,generation);});
+      const disconnected=()=>{if(generation===this.generation&&['connecting','active','finishing'].includes(this.phase))this.cancel('Verification lost its connection. You can continue practising.');};
+      this.#socket.addEventListener('close',disconnected);this.#socket.addEventListener('error',disconnected);
+      this.timer=this.schedule(()=>this.cancel('The verifier took too long to connect. Try again.'),8000);this.emit();
+      await ready;return generation===this.generation&&this.phase==='active';
+    }catch(error){if(generation===this.generation)this.cancel(movementVerifiedMessage(error.message));return false;}
+  }
+  message(raw,generation){
+    try{
+      if(typeof raw!=='string'||raw.length>65536)throw Error();const value=JSON.parse(raw);
+      if(value.type==='ready'){
+        if(this.phase!=='connecting'||value.runId!==this.#run.id||value.tickRate!==256||value.ranked!==true||!!value.privateTest!==!!this.config.privateTest)throw Error();
+        this.clearTimer();this.phase='active';this.status=this.config.privateTest?'Private verified test · server connected':'Verified run · server connected';this.readyResolve?.();this.readyResolve=null;this.readyReject=null;this.emit();return;
+      }
+      if(value.type==='state')return;
+      if(value.type!=='ended'||!['active','finishing'].includes(this.phase)||typeof value.reason!=='string')throw Error();
+      this.clearTimer();this.result={completed:value.completed===true,time:value.time,checkpoint:value.checkpoint,reason:value.reason,ranked:false,scoreStatus:value.scoreStatus};
+      const saved=value.ranked===true&&value.reason==='completed'&&value.completed===true&&value.invalid===null&&
+        Number.isFinite(value.time)&&value.time>0&&value.time<=600&&value.scoreStatus==='saved'&&value.score?.saved===true;
+      if(saved){this.result.ranked=true;this.result.personalBest=value.score.personalBest===true;this.phase='saved';
+        this.status=this.config.privateTest?'Private test verified · score saved.':this.result.personalBest?'Verified · new global personal best saved.':'Verified · run accepted. Your faster personal best is kept.';this.#runAuth=null;}
+      else if(value.reason==='completed'&&value.completed===true&&value.scoreStatus==='pending'){
+        this.phase='pending';this.status='Finished. Your verified score is waiting to save.';this.pollResult(generation,0);
+      }else{this.phase='ended';this.status=value.reason==='completed'?'Finished. The score was not saved.':'Verification ended. You can continue practising.';this.#runAuth=null;}
+      this.emit();
+    }catch{this.cancel('Verification received an invalid response. You can continue practising.');}
+  }
+  input(frame){
+    if(this.phase!=='active')return;
+    const {forward,side,yaw,pitch,walk,duck,jumpHeld,jumpPressed}=frame;
+    if(![-1,0,1].includes(forward)||![-1,0,1].includes(side)||!Number.isFinite(yaw)||Math.abs(yaw)>Math.PI||
+      !Number.isFinite(pitch)||Math.abs(pitch)>1.5||![walk,duck,jumpHeld,jumpPressed].every(value=>typeof value==='boolean')){
+      this.cancel('Verification received invalid controls. You can continue practising.');return;
+    }
+    this.frames.push({forward,side,yaw,pitch,walk,duck,jumpHeld,jumpPressed});if(this.frames.length>=16)this.flush();
+  }
+  flush(){
+    if(!this.frames.length)return;
+    if(!this.#socket||this.#socket.readyState!==1||this.#socket.bufferedAmount>16384){this.cancel('Verification connection is too slow. You can continue practising.');return;}
+    const frames=this.frames.splice(0,16);
+    try{this.#socket.send(JSON.stringify({seq:this.seq++,firstTick:this.sentTicks,frames}));this.sentTicks+=frames.length;}
+    catch{this.cancel('Verification lost its connection. You can continue practising.');}
+  }
+  finish(){
+    if(this.phase!=='active')return;this.flush();if(this.phase!=='active')return;
+    this.phase='finishing';this.status='Checking the finish with the server…';this.timer=this.schedule(()=>this.cancel('The finish could not be confirmed. Check the leaderboard later.'),10000);this.emit();
+  }
+  pollResult(generation,index){
+    if(index>=4)return;
+    this.timer=this.schedule(async()=>{
+      if(generation!==this.generation||this.phase!=='pending'||!this.#runAuth)return;
+      try{
+        const result=await this.request('/v1/player/runs/'+this.#run.id,{authorization:this.#runAuth});
+        if(generation!==this.generation||this.phase!=='pending')return;
+        if(result.scoreStatus!=='pending'){this.phase='finishing';this.message(JSON.stringify({type:'ended',...result}),generation);return;}
+      }catch{}
+      if(generation===this.generation&&this.phase==='pending')this.pollResult(generation,index+1);
+    },[2000,5000,15000,30000][index]);
+  }
+  async cancelRemote(id,authorization){try{await this.request(`/v1/player/runs/${id}/cancel`,{method:'POST',authorization});}catch{}}
+  cancel(status='Verification ended. You can continue practising.',notify=true){
+    ++this.generation;this.clearWidget();this.#botToken=null;this.readyReject?.(Error('cancelled'));this.readyResolve=null;this.readyReject=null;
+    const run=this.#run,authorization=this.#runAuth,socket=this.#socket;
+    this.#run=null;this.#runAuth=null;this.#socket=null;this.frames=[];this.result=null;
+    this.phase='idle';this.status=status||'Choose Verified Run to check availability.';
+    try{socket?.close();}catch{}if(run&&authorization)void this.cancelRemote(run.id,authorization);if(notify)this.emit();
+  }
+  dispose(){++this.accessGeneration;this.cancel('',false);}
+  async leaderboard(selection,{signal}={}){
+    if(!supportsVerifiedRun(selection))throw Error('invalid-board');
+    const data=await this.request(`/v1/leaderboards/${selection.map}/${selection.preset}?revision=${selection.revision}`,{signal,authorization:this.config?.privateTest?this.authorization():undefined});
+    if(data.map!==selection.map||data.preset!==selection.preset||data.revision!==selection.revision||data.ruleset!=='verified-v1'||!Array.isArray(data.records)||data.records.length>100)throw Error('invalid-board');
+    if(!data.records.every(row=>typeof row.name==='string'&&row.name.length<=40&&Number.isFinite(row.value)&&row.value>0&&row.value<=600&&movementVerifiedId(row.runId)))throw Error('invalid-board');
+    return data.records;
+  }
+}
+
+
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
+let playerLogin=null,verifiedRuns=null,verifiedArmed=false,verifiedConnecting=false,verifiedHadRun=false,verifiedStartGeneration=0,verifiedAccessAuth=null;
+function updatePlayerLogin(state){
+  $('account-status').textContent=state.status;
+  $('account-prepare').disabled=state.busy;
+  $('account-prepare').classList.toggle('hidden',state.signedIn);
+  $('account-prepare').textContent=state.prepared?'RETRY SIGN-IN':'SIGN IN';
+  $('account-signout').classList.toggle('hidden',!state.signedIn);
+  $('account-google-button').classList.toggle('hidden',state.signedIn||!state.prepared);
+  if(verifiedRuns){
+    if(!state.signedIn)cancelVerification('Sign in again to start a verified run.');
+    const authorization=playerLogin.authorization();
+    if(authorization!==verifiedAccessAuth){verifiedAccessAuth=authorization;void verifiedRuns.refreshAccess?.({enroll:!!authorization});}
+    updateVerifiedUi();
+  }
+}
+if(PLAYER_AUTH_CONFIG.enabled===true&&validPlayerAuthEndpoint(PLAYER_AUTH_CONFIG.endpoint)){
+  playerLogin=new GooglePlayerLogin({endpoint:PLAYER_AUTH_CONFIG.endpoint,onChange:updatePlayerLogin});
+  $('player-account').classList.remove('hidden');updatePlayerLogin(playerLogin.state());
+  $('account-prepare').addEventListener('click',()=>void playerLogin.prepare($('account-google-button')));
+  $('account-signout').addEventListener('click',()=>void playerLogin.signOut());
+}
 let renderer, rendererReady = true;
 try { renderer = createRenderer(canvas, MAPS.course.boxes); }
 catch (error) {
@@ -3208,8 +3652,34 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
+let leaderboardSource='published',leaderboardController=null;
 let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
 let pendingRunRestore=null;
+const referenceMode=new URLSearchParams(window.location?.search||'').get('referenceRun')==='1';
+let referenceRecorder=null,referenceChecking=false;
+if(playerLogin)verifiedRuns=new VerifiedRunClient({endpoint:PLAYER_AUTH_CONFIG.endpoint,authorization:()=>playerLogin.authorization(),onChange:updateVerifiedUi});
+function verifiedSelection(){return {map,revision:MAPS[map].revision||1,preset};}
+function cancelVerification(message){
+  verifiedArmed=false;verifiedConnecting=false;verifiedStartGeneration++;
+  if(verifiedRuns?.selection)verifiedRuns.cancel(message);
+}
+function updateVerifiedUi(){
+  const state=verifiedRuns?.state(),supported=(verifiedRuns?.supportsSelection?.(verifiedSelection())??supportsVerifiedRun(verifiedSelection()))&&!room?.busy&&!referenceMode;
+  $('verified-controls').classList.toggle('hidden',!verifiedRuns);
+  $('verified-prepare').disabled=!rendererReady||!supported||!!state?.busy||!!state?.active||verifiedRuns?.config?.enabled===false;
+  $('verified-prepare').textContent=state?.prepared?'START VERIFIED RUN':state?.busy?'PLEASE WAIT…':state?.privateTest?'PRIVATE VERIFIED RUN':'VERIFIED RUN';
+  $('verified-note').textContent=state?.privateTest?(!playerLogin?.state().signedIn?'Sign in in Settings to enable your private test.':!supported?'Private test: choose Bhop School / CS-style.':state.status):!supported?(verifiedRuns?.config?.beta?'Verified beta: choose Bhop School / CS-style.':'Choose a supported solo course to verify a run.'):
+    verifiedRuns?.config?.enabled===false?'Verified runs are not available yet.':
+    !playerLogin?.state().signedIn?'Sign in in Settings to start a verified run.':state?.status||'Complete the browser check to start.';
+  $('verified-challenge').classList.toggle('hidden',state?.phase!=='checking'&&state?.phase!=='prepared');
+  $('verified-status').classList.toggle('hidden',!verifiedHadRun||!playing);
+  $('verified-status').textContent=state?.status||'';
+  const sameCourse=state?.selection&&['map','revision','preset'].every(key=>state.selection[key]===verifiedSelection()[key]);
+  $('finish-verified').classList.toggle('hidden',!verifiedHadRun);$('finish-verify-again').classList.toggle('hidden',!verifiedHadRun);
+  $('finish-verified').textContent=verifiedHadRun?state?.status||'This run was not verified.':'';
+  $('again').innerHTML=verifiedHadRun?'PRACTISE AGAIN <span>↗</span>':'RUN IT AGAIN <span>↗</span>';
+  if(completed&&verifiedHadRun&&sameCourse&&state.result?.ranked===true)$('finish-time').textContent=formatLeaderboardScore(state.result.time);
+}
 try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
@@ -3292,21 +3762,29 @@ async function activateGameAudio() {
 }
 async function refreshLeaderboard() {
   const request=++leaderboardRequest, selected=MAPS[leaderboardMap||map], mode=preset;
+  leaderboardController?.abort();leaderboardController=new AbortController();
+  const selection={map:selected.id,revision:selected.revision||1,preset:mode},verified=leaderboardSource==='verified';
+  $('leaderboard-verified').disabled=!verifiedRuns||!(verifiedRuns.supportsSelection?.(selection)??supportsVerifiedRun(selection));
+  $('leaderboard-verified').setAttribute('aria-pressed',String(verified));$('leaderboard-published').setAttribute('aria-pressed',String(!verified));
+  $('leaderboard-verified').textContent=verifiedRuns?.config?.privateTest?'PRIVATE TEST':'VERIFIED';
+  $('leaderboard-footer').textContent=verified?(verifiedRuns?.config?.privateTest?'Private test scores · separate from public records.':'Verified finishes · one personal best per account.'):'Records are added by the owner.';
   $('leaderboard-title').textContent=selected.title;
   $('leaderboard-mode').textContent=PRESETS[mode].title;
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
   $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
   try {
-    const records=await loadLeaderboard(selected.id,mode,{revision:selected.revision||1});
+    const records=verified?await verifiedRuns.leaderboard(selection,{signal:leaderboardController.signal}):
+      await loadLeaderboard(selected.id,mode,{revision:selected.revision||1,signal:leaderboardController.signal});
     if(request!==leaderboardRequest)return;
     $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
-    $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
-  } catch {if(request===leaderboardRequest)$('leaderboard-status').textContent='Could not load records. Try Refresh.';}
+    $('leaderboard-status').textContent=records.length?`${records.length} ${verified?'verified':'published'} record${records.length===1?'':'s'}`:verified?'No verified records yet.':'No records yet. The owner can add the first one.';
+  } catch(error) {if(request===leaderboardRequest)$('leaderboard-status').textContent=verified&&['player-runs-disabled','leaderboards-disabled'].includes(error.message)?'Verified leaderboards are not available yet.':'Could not load records. Try Refresh.';}
 }
 function openLeaderboard(value=map) {
   const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
   if(!hasLeaderboard(selected,MAPS[selected].revision||1))return;
   leaderboardMap=selected;
+  leaderboardSource=verifiedRuns?.config?.enabled&&supportsVerifiedRun({map:selected,revision:MAPS[selected].revision||1,preset})?'verified':'published';
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
 }
@@ -3339,7 +3817,17 @@ function saveEndlessBest() {
 }
 function clearInput() { keys.clear(); pendingJump=false; }
 function spawnForPlayer(spawn){return room?.busy?roomPlayerSpawn(spawn,room.slot,boxes):spawn;}
-function reset(full=true) {
+function updateReferenceUi(message){
+  if(!referenceMode)return;
+  $('reference-status').classList.remove('hidden');
+  $('reference-status').textContent=message||(referenceRecorder?.reason?referenceRecorder.reason+' Press Q to start a new recording.':
+    referenceRecorder?.complete?'Reference recorded. Choose CHECK REFERENCE RUN below.':
+    referenceRecorder?'Reference recording · finish without resetting to a checkpoint. Q starts over.':'Reference recording requires a supported solo course.');
+  $('check-reference').classList.toggle('hidden',!referenceRecorder?.complete);
+  $('check-reference').disabled=referenceChecking;
+}
+function reset(full=true,verifiedStart=false) {
+  if(!verifiedStart){cancelVerification(full?'A new run started. Verification ended.':'Checkpoint reset ended verification. You can continue practising.');if(full)verifiedHadRun=false;}
   gameAudio?.stopAll();
   if(sourceRuntime)clearInput();
   if(full)clearSavedRun();
@@ -3357,8 +3845,14 @@ function reset(full=true) {
   if(!full) player.peakSpeed=previousPeak;
   previousDraw={...player}; accumulator=0; pendingJump=false;
   completed=false; $('finish').classList.add('hidden');
+  if(referenceMode){
+    if(full)referenceRecorder=!room?.busy&&REFERENCE_MAPS.includes(map)?new ReferenceRunRecorder(MAPS[map],preset):null;
+    else referenceRecorder?.abort('The run used a checkpoint reset.');
+    updateReferenceUi();
+  }
   knife?.equip();
   updateHud();
+  updateVerifiedUi();
 }
 function captureButtons(pending=false) {
   for(const id of ['play','continue','play-endless','play-sandbox']) $(id).disabled=!rendererReady||pending;
@@ -3375,6 +3869,7 @@ function showMain(view='home',focus=true) {
   overlay.scrollTop=0;
   updateMenuMusic();
   if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':view==='rooms'?'rooms-back':'settings-back').focus();
+  if(view==='maps'){updateVerifiedUi();void verifiedRuns?.loadConfig().catch(()=>{$('verified-note').textContent='Could not check verified run availability. Choose Verified Run to retry.';});}
 }
 function showPause() {
   menuMode='pause';overlay.dataset.menu='pause';overlay.classList.remove('hidden');
@@ -3382,6 +3877,7 @@ function showPause() {
   document.body.classList.remove('main-menu-open');updateMenuMusic();$('continue').focus();
 }
 function returnToMain(view='home') {
+  cancelVerification('Verification ended when you left the run.');
   saveEndlessBest();playing=false;lockPending=false;started=false;clearInput();
   document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);
   if(document.pointerLockElement===canvas)document.exitPointerLock();
@@ -3389,6 +3885,7 @@ function returnToMain(view='home') {
 }
 function pause() {
   if(completed) return;
+  cancelVerification('Pausing ended verification. You can continue practising.');
   saveEndlessBest();saveRunCheckpoint();playing=false;lockPending=false;clearInput();
   document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);captureButtons();
   if(started)showPause();else showMain(mainView);
@@ -3398,15 +3895,26 @@ function beginSession() {
   // Start only after the browser confirms pointer lock: the cursor stays hidden
   // and movementX/movementY keep working beyond the edges of the screen.
   if(document.pointerLockElement!==canvas) return;
+  if(verifiedArmed){
+    verifiedArmed=false;verifiedConnecting=true;lockPending=false;captureButtons(true);const generation=++verifiedStartGeneration;
+    void verifiedRuns.start(verifiedSelection()).then(ok=>{
+      if(generation!==verifiedStartGeneration)return;
+      verifiedConnecting=false;captureButtons();
+      if(ok&&document.pointerLockElement===canvas&&windowFocused&&!document.hidden)beginSession();
+      else{if(ok)cancelVerification('Mouse capture was lost. Verification ended.');if(document.pointerLockElement===canvas)document.exitPointerLock();showMain('maps');}
+    });return;
+  }
   if(!started) knife?.equip();
   lockPending=false;captureButtons();
   playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
   $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
   overlay.classList.add('hidden');document.body.classList.remove('main-menu-open');document.body.classList.add('playing');updateMenuMusic();
   saveRunCheckpoint();
+  updateVerifiedUi();
 }
 function mouseCaptureFailed() {
   if(!lockPending) return;
+  cancelVerification('Mouse capture was blocked. Prepare a new verified run to retry.');
   lockPending=false;playing=false;clearInput();captureButtons();
   overlay.classList.remove('hidden'); document.body.classList.remove('playing');
   if(started)showPause();else showMain(mainView);
@@ -3416,7 +3924,8 @@ function mouseCaptureFailed() {
   toast('Mouse capture was blocked. Check that your browser allows pointer lock.');
 }
 function play() {
-  if(!rendererReady||lockPending||!windowFocused||document.hidden)return;
+  if(!rendererReady||lockPending||verifiedConnecting||!windowFocused||document.hidden)return;
+  if(!verifiedArmed&&['prepared','checking','loading'].includes(verifiedRuns?.state().phase))cancelVerification('Solo practice started. Prepare a new verified run to verify it.');
   void activateGameAudio();
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
@@ -3514,6 +4023,7 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
 function finishRun() {
+  verifiedRuns?.finish();
   if(completed)return;
   clearSavedRun();
   gameAudio?.stopAll();
@@ -3529,6 +4039,7 @@ function finishRun() {
   $('finish-leaderboard').classList.toggle('hidden',!hasLeaderboard(map,MAPS[map].revision||1));
   gameAudio?.finish();
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
+  updateVerifiedUi();
 }
 function updateHud() {
   const s=player.ladder?Math.hypot(player.vx,player.vy,player.vz):speed(player);
@@ -3562,6 +4073,28 @@ function tick() {
     duck:keys.has('ControlLeft')||keys.has('ControlRight')||keys.has('KeyC'),
     jumpHeld:keys.has('Space'),jumpPressed:pendingJump,
   };
+  if(verifiedRuns?.state().active){
+    player.yaw=Math.atan2(Math.sin(player.yaw),Math.cos(player.yaw));
+    verifiedRuns.input({...input,yaw:player.yaw,pitch:player.pitch});
+  }
+  if(referenceRecorder&&!referenceRecorder.reason&&!referenceRecorder.complete){
+    if(room?.busy)referenceRecorder.abort('Reference recordings require a solo run.');
+    // The wire protocol uses bounded angles. Normalise before both recording
+    // and physics so the reference and replay use exactly the same values.
+    player.yaw=Math.atan2(Math.sin(player.yaw),Math.cos(player.yaw));
+    referenceRecorder.input({...input,yaw:player.yaw,pitch:player.pitch});
+    if(referenceRecorder.reason)updateReferenceUi();
+  }
+  try{tickMovement(input);}
+  finally{
+    if(referenceRecorder){
+      const wasComplete=referenceRecorder.complete,reason=referenceRecorder.reason;
+      referenceRecorder.observe(player,{time:runTime,checkpoint,completed,respawns});
+      if(wasComplete!==referenceRecorder.complete||reason!==referenceRecorder.reason)updateReferenceUi();
+    }
+  }
+}
+function tickMovement(input) {
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
   gameAudio?.movement(previousDraw,player,input);
@@ -3666,6 +4199,12 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('verified-prepare').addEventListener('click',()=>{
+  if(!verifiedRuns||room?.busy||referenceMode||!supportsVerifiedRun(verifiedSelection()))return;
+  if(!playerLogin?.state().signedIn){returnToMain('settings');return;}
+  if(verifiedRuns.state().prepared){reset(true,true);verifiedHadRun=true;verifiedArmed=true;play();}
+  else void verifiedRuns.prepare(verifiedSelection(),$('verified-challenge'));
+});
 $('continue').addEventListener('click',play);
 $('open-map-select').addEventListener('click',()=>{
   if(room?.busy){showMain('rooms');return;}
@@ -3705,7 +4244,8 @@ $('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless')
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
-$('leaderboard').addEventListener('close',()=>{leaderboardRequest++;});
+for(const source of ['published','verified'])$('leaderboard-'+source).addEventListener('click',()=>{leaderboardSource=source;void refreshLeaderboard();});
+$('leaderboard').addEventListener('close',()=>{leaderboardRequest++;leaderboardController?.abort();});
 $('skybox-select').value=skybox;renderer.setSkybox?.(skybox);
 $('skybox-select').addEventListener('change',()=>{
   skybox=normaliseSkybox($('skybox-select').value);renderer.setSkybox?.(skybox);
@@ -3739,7 +4279,19 @@ $('audio-volume').addEventListener('input',()=>{
 $('play-endless').addEventListener('click',()=>{if(lockPending)return;if(room?.busy){showMain('rooms');return;}chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>{if(playing)pause();else if(started)showPause();else showMain();});
 $('again').addEventListener('click',()=>{reset();play();});
+$('finish-verify-again').addEventListener('click',()=>{returnToMain('maps');if(playerLogin?.state().signedIn)void verifiedRuns?.prepare(verifiedSelection(),$('verified-challenge'));});
 $('finish-settings').addEventListener('click',()=>returnToMain('settings'));
+$('check-reference').addEventListener('click',async()=>{
+  if(!referenceRecorder?.complete||referenceChecking)return;
+  referenceChecking=true;updateReferenceUi('Checking this run against the local verifier…');
+  try{
+    const response=await fetch('/__verification/reference',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(referenceRecorder.export())});
+    if(!response.ok)throw Error(response.headers.get('content-type')?.includes('application/json')?(await response.json()).error:'Open the game using verification/reference-run.command to check a recording.');
+    const result=await response.json();
+    updateReferenceUi(`Reference check passed · ${result.ticks} ticks · ${format(result.time)}. Saved for the Cloudflare replay test.`);
+  }catch(error){updateReferenceUi(error.message||'The reference check failed. See the local test terminal.');}
+  finally{referenceChecking=false;$('check-reference').disabled=false;}
+});
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
 $('knife-enabled').checked=knifeEnabled;$('knife-sounds').checked=knifeSounds;
 $('knife-enabled').addEventListener('change',()=>{
@@ -3765,7 +4317,7 @@ document.addEventListener('keydown',e=>{
   if(windowFocused&&!document.hidden)menuMusic.retry();
   if(e.code==='Escape') {
     if($('leaderboard').open)return;
-    if(playing||lockPending)pause();else if(menuMode==='main'&&mainView!=='home')showMain();
+    if(playing||lockPending||verifiedConnecting)pause();else if(menuMode==='main'&&mainView!=='home')showMain();
     return;
   }
   if(!playing) return;
@@ -3780,7 +4332,7 @@ document.addEventListener('pointerlockchange',()=>{
   if(document.pointerLockElement===canvas) {
     if(lockPending) beginSession();
     else if(!playing) document.exitPointerLock();
-  } else if(playing) pause();
+  } else if(playing||verifiedConnecting) pause();
   else if(lockPending) mouseCaptureFailed();
 });
 document.addEventListener('pointerlockerror',mouseCaptureFailed);
@@ -3793,12 +4345,12 @@ document.addEventListener('mousemove',e=>{
 });
 document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump=true;}},{passive:false});
 window.addEventListener('blur',()=>{
-  windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();
+  windowFocused=false;updateMenuMusic();if(playing||lockPending||verifiedConnecting)pause();silenceBackgroundAudio();
 });
 window.addEventListener('focus',()=>{
   windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
 });
-window.addEventListener('pagehide',()=>{leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pagehide',()=>{cancelVerification('Verification ended when this page was left.');verifiedRuns?.dispose();playerLogin?.dispose();leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
 window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
@@ -3888,6 +4440,7 @@ function drawRoomLabels(camera,players){
 }
 async function startRoom(host){
   if(roomStarting||room?.busy||!rendererReady)return;
+  cancelVerification('Joining a room ended verification.');
   if(typeof globalThis.RTCPeerConnection!=='function'){$('room-status').textContent='This browser does not support multiplayer connections. Use a current desktop browser.';return;}
   const name=roomPlayerName($('room-name').value);try{localStorage.setItem('movement-lab-player-name',name);}catch{}
   roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;

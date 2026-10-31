@@ -4,7 +4,7 @@ import { createEndless } from './endless.js';
 import { createRenderer, projectWorldPoint } from './renderer.js';
 import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
-import { loadLeaderboard, leaderboardRows, hasLeaderboard } from './leaderboard.js';
+import { loadLeaderboard, leaderboardRows, hasLeaderboard, formatLeaderboardScore } from './leaderboard.js';
 import { mapPreviewSVG, createGalleryEntries, createMenuSlideshow, captureMapScreenshot } from './menu.js';
 import { MenuMusic } from './menu-music.js';
 import { loadSourceMap } from './source-map.js';
@@ -12,10 +12,35 @@ import { createSourceRuntime } from './source-runtime.js';
 import { hydrateParkourMap } from './parkour-map.js';
 import { MULTIPLAYER_CONFIG } from './multiplayer-config.js';
 import { MultiplayerRoom, ROOM_LIMIT, displayRoomCode, roomPlayerName, roomPlayerSpawn, roomPlayerTime } from './multiplayer.js';
+import { ReferenceRunRecorder, REFERENCE_MAPS } from './reference-run.js';
+import { PLAYER_AUTH_CONFIG } from './player-auth-config.js';
+import { GooglePlayerLogin, validPlayerAuthEndpoint } from './player-auth.js';
+import { VerifiedRunClient, supportsVerifiedRun } from './verified-runs.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
 const ui = Object.fromEntries(['timer','best','speed','speed-fill','motion-state','gain','hops','peak','jump-speed','progress-count','stage-name','stage-tip'].map(id=>[id,$(id)]));
+let playerLogin=null,verifiedRuns=null,verifiedArmed=false,verifiedConnecting=false,verifiedHadRun=false,verifiedStartGeneration=0,verifiedAccessAuth=null;
+function updatePlayerLogin(state){
+  $('account-status').textContent=state.status;
+  $('account-prepare').disabled=state.busy;
+  $('account-prepare').classList.toggle('hidden',state.signedIn);
+  $('account-prepare').textContent=state.prepared?'RETRY SIGN-IN':'SIGN IN';
+  $('account-signout').classList.toggle('hidden',!state.signedIn);
+  $('account-google-button').classList.toggle('hidden',state.signedIn||!state.prepared);
+  if(verifiedRuns){
+    if(!state.signedIn)cancelVerification('Sign in again to start a verified run.');
+    const authorization=playerLogin.authorization();
+    if(authorization!==verifiedAccessAuth){verifiedAccessAuth=authorization;void verifiedRuns.refreshAccess?.({enroll:!!authorization});}
+    updateVerifiedUi();
+  }
+}
+if(PLAYER_AUTH_CONFIG.enabled===true&&validPlayerAuthEndpoint(PLAYER_AUTH_CONFIG.endpoint)){
+  playerLogin=new GooglePlayerLogin({endpoint:PLAYER_AUTH_CONFIG.endpoint,onChange:updatePlayerLogin});
+  $('player-account').classList.remove('hidden');updatePlayerLogin(playerLogin.state());
+  $('account-prepare').addEventListener('click',()=>void playerLogin.prepare($('account-google-button')));
+  $('account-signout').addEventListener('click',()=>void playerLogin.signOut());
+}
 let renderer, rendererReady = true;
 try { renderer = createRenderer(canvas, MAPS.course.boxes); }
 catch (error) {
@@ -35,8 +60,34 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
+let leaderboardSource='published',leaderboardController=null;
 let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
 let pendingRunRestore=null;
+const referenceMode=new URLSearchParams(window.location?.search||'').get('referenceRun')==='1';
+let referenceRecorder=null,referenceChecking=false;
+if(playerLogin)verifiedRuns=new VerifiedRunClient({endpoint:PLAYER_AUTH_CONFIG.endpoint,authorization:()=>playerLogin.authorization(),onChange:updateVerifiedUi});
+function verifiedSelection(){return {map,revision:MAPS[map].revision||1,preset};}
+function cancelVerification(message){
+  verifiedArmed=false;verifiedConnecting=false;verifiedStartGeneration++;
+  if(verifiedRuns?.selection)verifiedRuns.cancel(message);
+}
+function updateVerifiedUi(){
+  const state=verifiedRuns?.state(),supported=(verifiedRuns?.supportsSelection?.(verifiedSelection())??supportsVerifiedRun(verifiedSelection()))&&!room?.busy&&!referenceMode;
+  $('verified-controls').classList.toggle('hidden',!verifiedRuns);
+  $('verified-prepare').disabled=!rendererReady||!supported||!!state?.busy||!!state?.active||verifiedRuns?.config?.enabled===false;
+  $('verified-prepare').textContent=state?.prepared?'START VERIFIED RUN':state?.busy?'PLEASE WAIT…':state?.privateTest?'PRIVATE VERIFIED RUN':'VERIFIED RUN';
+  $('verified-note').textContent=state?.privateTest?(!playerLogin?.state().signedIn?'Sign in in Settings to enable your private test.':!supported?'Private test: choose Bhop School / CS-style.':state.status):!supported?(verifiedRuns?.config?.beta?'Verified beta: choose Bhop School / CS-style.':'Choose a supported solo course to verify a run.'):
+    verifiedRuns?.config?.enabled===false?'Verified runs are not available yet.':
+    !playerLogin?.state().signedIn?'Sign in in Settings to start a verified run.':state?.status||'Complete the browser check to start.';
+  $('verified-challenge').classList.toggle('hidden',state?.phase!=='checking'&&state?.phase!=='prepared');
+  $('verified-status').classList.toggle('hidden',!verifiedHadRun||!playing);
+  $('verified-status').textContent=state?.status||'';
+  const sameCourse=state?.selection&&['map','revision','preset'].every(key=>state.selection[key]===verifiedSelection()[key]);
+  $('finish-verified').classList.toggle('hidden',!verifiedHadRun);$('finish-verify-again').classList.toggle('hidden',!verifiedHadRun);
+  $('finish-verified').textContent=verifiedHadRun?state?.status||'This run was not verified.':'';
+  $('again').innerHTML=verifiedHadRun?'PRACTISE AGAIN <span>↗</span>':'RUN IT AGAIN <span>↗</span>';
+  if(completed&&verifiedHadRun&&sameCourse&&state.result?.ranked===true)$('finish-time').textContent=formatLeaderboardScore(state.result.time);
+}
 try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
 try { settings=JSON.parse(localStorage.getItem('movement-lab-settings-v1')||'{}'); } catch {}
@@ -119,21 +170,29 @@ async function activateGameAudio() {
 }
 async function refreshLeaderboard() {
   const request=++leaderboardRequest, selected=MAPS[leaderboardMap||map], mode=preset;
+  leaderboardController?.abort();leaderboardController=new AbortController();
+  const selection={map:selected.id,revision:selected.revision||1,preset:mode},verified=leaderboardSource==='verified';
+  $('leaderboard-verified').disabled=!verifiedRuns||!(verifiedRuns.supportsSelection?.(selection)??supportsVerifiedRun(selection));
+  $('leaderboard-verified').setAttribute('aria-pressed',String(verified));$('leaderboard-published').setAttribute('aria-pressed',String(!verified));
+  $('leaderboard-verified').textContent=verifiedRuns?.config?.privateTest?'PRIVATE TEST':'VERIFIED';
+  $('leaderboard-footer').textContent=verified?(verifiedRuns?.config?.privateTest?'Private test scores · separate from public records.':'Verified finishes · one personal best per account.'):'Records are added by the owner.';
   $('leaderboard-title').textContent=selected.title;
   $('leaderboard-mode').textContent=PRESETS[mode].title;
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
   $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
   try {
-    const records=await loadLeaderboard(selected.id,mode,{revision:selected.revision||1});
+    const records=verified?await verifiedRuns.leaderboard(selection,{signal:leaderboardController.signal}):
+      await loadLeaderboard(selected.id,mode,{revision:selected.revision||1,signal:leaderboardController.signal});
     if(request!==leaderboardRequest)return;
     $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
-    $('leaderboard-status').textContent=records.length?`${records.length} published record${records.length===1?'':'s'}`:'No records yet. The owner can add the first one.';
-  } catch {if(request===leaderboardRequest)$('leaderboard-status').textContent='Could not load records. Try Refresh.';}
+    $('leaderboard-status').textContent=records.length?`${records.length} ${verified?'verified':'published'} record${records.length===1?'':'s'}`:verified?'No verified records yet.':'No records yet. The owner can add the first one.';
+  } catch(error) {if(request===leaderboardRequest)$('leaderboard-status').textContent=verified&&['player-runs-disabled','leaderboards-disabled'].includes(error.message)?'Verified leaderboards are not available yet.':'Could not load records. Try Refresh.';}
 }
 function openLeaderboard(value=map) {
   const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
   if(!hasLeaderboard(selected,MAPS[selected].revision||1))return;
   leaderboardMap=selected;
+  leaderboardSource=verifiedRuns?.config?.enabled&&supportsVerifiedRun({map:selected,revision:MAPS[selected].revision||1,preset})?'verified':'published';
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
 }
@@ -166,7 +225,17 @@ function saveEndlessBest() {
 }
 function clearInput() { keys.clear(); pendingJump=false; }
 function spawnForPlayer(spawn){return room?.busy?roomPlayerSpawn(spawn,room.slot,boxes):spawn;}
-function reset(full=true) {
+function updateReferenceUi(message){
+  if(!referenceMode)return;
+  $('reference-status').classList.remove('hidden');
+  $('reference-status').textContent=message||(referenceRecorder?.reason?referenceRecorder.reason+' Press Q to start a new recording.':
+    referenceRecorder?.complete?'Reference recorded. Choose CHECK REFERENCE RUN below.':
+    referenceRecorder?'Reference recording · finish without resetting to a checkpoint. Q starts over.':'Reference recording requires a supported solo course.');
+  $('check-reference').classList.toggle('hidden',!referenceRecorder?.complete);
+  $('check-reference').disabled=referenceChecking;
+}
+function reset(full=true,verifiedStart=false) {
+  if(!verifiedStart){cancelVerification(full?'A new run started. Verification ended.':'Checkpoint reset ended verification. You can continue practising.');if(full)verifiedHadRun=false;}
   gameAudio?.stopAll();
   if(sourceRuntime)clearInput();
   if(full)clearSavedRun();
@@ -184,8 +253,14 @@ function reset(full=true) {
   if(!full) player.peakSpeed=previousPeak;
   previousDraw={...player}; accumulator=0; pendingJump=false;
   completed=false; $('finish').classList.add('hidden');
+  if(referenceMode){
+    if(full)referenceRecorder=!room?.busy&&REFERENCE_MAPS.includes(map)?new ReferenceRunRecorder(MAPS[map],preset):null;
+    else referenceRecorder?.abort('The run used a checkpoint reset.');
+    updateReferenceUi();
+  }
   knife?.equip();
   updateHud();
+  updateVerifiedUi();
 }
 function captureButtons(pending=false) {
   for(const id of ['play','continue','play-endless','play-sandbox']) $(id).disabled=!rendererReady||pending;
@@ -202,6 +277,7 @@ function showMain(view='home',focus=true) {
   overlay.scrollTop=0;
   updateMenuMusic();
   if(focus) $(view==='home'?'open-map-select':view==='maps'?'maps-back':view==='rooms'?'rooms-back':'settings-back').focus();
+  if(view==='maps'){updateVerifiedUi();void verifiedRuns?.loadConfig().catch(()=>{$('verified-note').textContent='Could not check verified run availability. Choose Verified Run to retry.';});}
 }
 function showPause() {
   menuMode='pause';overlay.dataset.menu='pause';overlay.classList.remove('hidden');
@@ -209,6 +285,7 @@ function showPause() {
   document.body.classList.remove('main-menu-open');updateMenuMusic();$('continue').focus();
 }
 function returnToMain(view='home') {
+  cancelVerification('Verification ended when you left the run.');
   saveEndlessBest();playing=false;lockPending=false;started=false;clearInput();
   document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);
   if(document.pointerLockElement===canvas)document.exitPointerLock();
@@ -216,6 +293,7 @@ function returnToMain(view='home') {
 }
 function pause() {
   if(completed) return;
+  cancelVerification('Pausing ended verification. You can continue practising.');
   saveEndlessBest();saveRunCheckpoint();playing=false;lockPending=false;clearInput();
   document.body.classList.remove('playing');gameAudio?.stopAll();knife?.draw(0);captureButtons();
   if(started)showPause();else showMain(mainView);
@@ -225,15 +303,26 @@ function beginSession() {
   // Start only after the browser confirms pointer lock: the cursor stays hidden
   // and movementX/movementY keep working beyond the edges of the screen.
   if(document.pointerLockElement!==canvas) return;
+  if(verifiedArmed){
+    verifiedArmed=false;verifiedConnecting=true;lockPending=false;captureButtons(true);const generation=++verifiedStartGeneration;
+    void verifiedRuns.start(verifiedSelection()).then(ok=>{
+      if(generation!==verifiedStartGeneration)return;
+      verifiedConnecting=false;captureButtons();
+      if(ok&&document.pointerLockElement===canvas&&windowFocused&&!document.hidden)beginSession();
+      else{if(ok)cancelVerification('Mouse capture was lost. Verification ended.');if(document.pointerLockElement===canvas)document.exitPointerLock();showMain('maps');}
+    });return;
+  }
   if(!started) knife?.equip();
   lockPending=false;captureButtons();
   playing=true; started=true; clearInput(); previous=performance.now(); accumulator=0;
   $('input-note').textContent='Mouse captured. Press Esc to release it and pause.';
   overlay.classList.add('hidden');document.body.classList.remove('main-menu-open');document.body.classList.add('playing');updateMenuMusic();
   saveRunCheckpoint();
+  updateVerifiedUi();
 }
 function mouseCaptureFailed() {
   if(!lockPending) return;
+  cancelVerification('Mouse capture was blocked. Prepare a new verified run to retry.');
   lockPending=false;playing=false;clearInput();captureButtons();
   overlay.classList.remove('hidden'); document.body.classList.remove('playing');
   if(started)showPause();else showMain(mainView);
@@ -243,7 +332,8 @@ function mouseCaptureFailed() {
   toast('Mouse capture was blocked. Check that your browser allows pointer lock.');
 }
 function play() {
-  if(!rendererReady||lockPending||!windowFocused||document.hidden)return;
+  if(!rendererReady||lockPending||verifiedConnecting||!windowFocused||document.hidden)return;
+  if(!verifiedArmed&&['prepared','checking','loading'].includes(verifiedRuns?.state().phase))cancelVerification('Solo practice started. Prepare a new verified run to verify it.');
   void activateGameAudio();
   void loadKnife();void knife?.audio?.activate();
   if(completed) reset();
@@ -341,6 +431,7 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
 function finishRun() {
+  verifiedRuns?.finish();
   if(completed)return;
   clearSavedRun();
   gameAudio?.stopAll();
@@ -356,6 +447,7 @@ function finishRun() {
   $('finish-leaderboard').classList.toggle('hidden',!hasLeaderboard(map,MAPS[map].revision||1));
   gameAudio?.finish();
   $('finish').classList.remove('hidden'); $('again').focus(); updateHud();
+  updateVerifiedUi();
 }
 function updateHud() {
   const s=player.ladder?Math.hypot(player.vx,player.vy,player.vz):speed(player);
@@ -389,6 +481,28 @@ function tick() {
     duck:keys.has('ControlLeft')||keys.has('ControlRight')||keys.has('KeyC'),
     jumpHeld:keys.has('Space'),jumpPressed:pendingJump,
   };
+  if(verifiedRuns?.state().active){
+    player.yaw=Math.atan2(Math.sin(player.yaw),Math.cos(player.yaw));
+    verifiedRuns.input({...input,yaw:player.yaw,pitch:player.pitch});
+  }
+  if(referenceRecorder&&!referenceRecorder.reason&&!referenceRecorder.complete){
+    if(room?.busy)referenceRecorder.abort('Reference recordings require a solo run.');
+    // The wire protocol uses bounded angles. Normalise before both recording
+    // and physics so the reference and replay use exactly the same values.
+    player.yaw=Math.atan2(Math.sin(player.yaw),Math.cos(player.yaw));
+    referenceRecorder.input({...input,yaw:player.yaw,pitch:player.pitch});
+    if(referenceRecorder.reason)updateReferenceUi();
+  }
+  try{tickMovement(input);}
+  finally{
+    if(referenceRecorder){
+      const wasComplete=referenceRecorder.complete,reason=referenceRecorder.reason;
+      referenceRecorder.observe(player,{time:runTime,checkpoint,completed,respawns});
+      if(wasComplete!==referenceRecorder.complete||reason!==referenceRecorder.reason)updateReferenceUi();
+    }
+  }
+}
+function tickMovement(input) {
   previousDraw={...player};
   step(player,input,boxes,PRESETS[preset]); pendingJump=false;
   gameAudio?.movement(previousDraw,player,input);
@@ -493,6 +607,12 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 $('play').addEventListener('click',play);
+$('verified-prepare').addEventListener('click',()=>{
+  if(!verifiedRuns||room?.busy||referenceMode||!supportsVerifiedRun(verifiedSelection()))return;
+  if(!playerLogin?.state().signedIn){returnToMain('settings');return;}
+  if(verifiedRuns.state().prepared){reset(true,true);verifiedHadRun=true;verifiedArmed=true;play();}
+  else void verifiedRuns.prepare(verifiedSelection(),$('verified-challenge'));
+});
 $('continue').addEventListener('click',play);
 $('open-map-select').addEventListener('click',()=>{
   if(room?.busy){showMain('rooms');return;}
@@ -532,7 +652,8 @@ $('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless')
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
-$('leaderboard').addEventListener('close',()=>{leaderboardRequest++;});
+for(const source of ['published','verified'])$('leaderboard-'+source).addEventListener('click',()=>{leaderboardSource=source;void refreshLeaderboard();});
+$('leaderboard').addEventListener('close',()=>{leaderboardRequest++;leaderboardController?.abort();});
 $('skybox-select').value=skybox;renderer.setSkybox?.(skybox);
 $('skybox-select').addEventListener('change',()=>{
   skybox=normaliseSkybox($('skybox-select').value);renderer.setSkybox?.(skybox);
@@ -566,7 +687,19 @@ $('audio-volume').addEventListener('input',()=>{
 $('play-endless').addEventListener('click',()=>{if(lockPending)return;if(room?.busy){showMain('rooms');return;}chooseMap('endless');play();});
 $('menu-button').addEventListener('click',()=>{if(playing)pause();else if(started)showPause();else showMain();});
 $('again').addEventListener('click',()=>{reset();play();});
+$('finish-verify-again').addEventListener('click',()=>{returnToMain('maps');if(playerLogin?.state().signedIn)void verifiedRuns?.prepare(verifiedSelection(),$('verified-challenge'));});
 $('finish-settings').addEventListener('click',()=>returnToMain('settings'));
+$('check-reference').addEventListener('click',async()=>{
+  if(!referenceRecorder?.complete||referenceChecking)return;
+  referenceChecking=true;updateReferenceUi('Checking this run against the local verifier…');
+  try{
+    const response=await fetch('/__verification/reference',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(referenceRecorder.export())});
+    if(!response.ok)throw Error(response.headers.get('content-type')?.includes('application/json')?(await response.json()).error:'Open the game using verification/reference-run.command to check a recording.');
+    const result=await response.json();
+    updateReferenceUi(`Reference check passed · ${result.ticks} ticks · ${format(result.time)}. Saved for the Cloudflare replay test.`);
+  }catch(error){updateReferenceUi(error.message||'The reference check failed. See the local test terminal.');}
+  finally{referenceChecking=false;$('check-reference').disabled=false;}
+});
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>choosePreset(b.dataset.preset)));
 $('knife-enabled').checked=knifeEnabled;$('knife-sounds').checked=knifeSounds;
 $('knife-enabled').addEventListener('change',()=>{
@@ -592,7 +725,7 @@ document.addEventListener('keydown',e=>{
   if(windowFocused&&!document.hidden)menuMusic.retry();
   if(e.code==='Escape') {
     if($('leaderboard').open)return;
-    if(playing||lockPending)pause();else if(menuMode==='main'&&mainView!=='home')showMain();
+    if(playing||lockPending||verifiedConnecting)pause();else if(menuMode==='main'&&mainView!=='home')showMain();
     return;
   }
   if(!playing) return;
@@ -607,7 +740,7 @@ document.addEventListener('pointerlockchange',()=>{
   if(document.pointerLockElement===canvas) {
     if(lockPending) beginSession();
     else if(!playing) document.exitPointerLock();
-  } else if(playing) pause();
+  } else if(playing||verifiedConnecting) pause();
   else if(lockPending) mouseCaptureFailed();
 });
 document.addEventListener('pointerlockerror',mouseCaptureFailed);
@@ -620,12 +753,12 @@ document.addEventListener('mousemove',e=>{
 });
 document.addEventListener('wheel',e=>{if(playing){e.preventDefault();pendingJump=true;}},{passive:false});
 window.addEventListener('blur',()=>{
-  windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();
+  windowFocused=false;updateMenuMusic();if(playing||lockPending||verifiedConnecting)pause();silenceBackgroundAudio();
 });
 window.addEventListener('focus',()=>{
   windowFocused=true;knife?.audio?.setMuted(!knifeSounds||!!document.hidden);updateMenuMusic();
 });
-window.addEventListener('pagehide',()=>{leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
+window.addEventListener('pagehide',()=>{cancelVerification('Verification ended when this page was left.');verifiedRuns?.dispose();playerLogin?.dispose();leaveRoom('Room closed when this page was left.');saveEndlessBest();saveRunCheckpoint();windowFocused=false;updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();});
 window.addEventListener('pageshow',()=>{windowFocused=document.hasFocus?.()??true;knife?.audio?.setMuted(!knifeSounds||!windowFocused||!!document.hidden);updateMenuMusic();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){updateMenuMusic();if(playing||lockPending)pause();silenceBackgroundAudio();}
@@ -715,6 +848,7 @@ function drawRoomLabels(camera,players){
 }
 async function startRoom(host){
   if(roomStarting||room?.busy||!rendererReady)return;
+  cancelVerification('Joining a room ended verification.');
   if(typeof globalThis.RTCPeerConnection!=='function'){$('room-status').textContent='This browser does not support multiplayer connections. Use a current desktop browser.';return;}
   const name=roomPlayerName($('room-name').value);try{localStorage.setItem('movement-lab-player-name',name);}catch{}
   roomStarting=true;$('room-host').disabled=true;$('room-join').disabled=true;
