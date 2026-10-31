@@ -117,6 +117,8 @@ For local play, use `npm run dev` (or the existing private preview helper): enab
 
 Menu details use hover/focus hints. Crosshair and movement-sound settings start collapsed, while errors, loading messages and run status remain visible.
 
+Game source lives in `dist/`. `npm run build` embeds its JavaScript and CSS in `index.html` and `movement-lab.html`, and copies the assets needed by the public site. The separate root JavaScript files support the knife's lazy module imports. Edit game source in `dist/`, then rebuild; the verified leaderboards live on the server.
+
 ## Credits
 
 bhop_lego is by **Tony Montana**, with original textures by **Man Walker**. See the [map credits and license](maps/CREDITS.md), [movement sound credits](sounds/sources.json), and [music credits](music/sources.json).

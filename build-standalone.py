@@ -11,7 +11,10 @@ from music_catalog import write_catalog
 write_catalog(root)
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
 modules = ('map-rules.js', 'geometry.js', 'endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'room-map.js', 'source-map.js', 'source-runtime.js', 'players.js', 'gallery-renderer.js', 'renderer.js', 'game-audio.js', 'ranked-courses.js', 'leaderboard.js', 'menu.js', 'music-catalog.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'reference-run.js', 'player-auth-config.js', 'player-auth.js', 'verified-runs.js', 'app.js')
-for filename in ('index.html', 'style.css', *modules):
+# The public HTML embeds the game modules and CSS. Only the knife's lazy
+# module imports need separate JavaScript files at the repository root.
+runtime_modules = ('renderer.js', 'skybox.js', 'lighting.js', 'signs.js', 'players.js', 'geometry.js', 'gallery-renderer.js', 'map-rules.js')
+for filename in runtime_modules:
     (root / filename).write_text((dist / filename).read_text())
 for filename in ('favicon.ico', 'favicon.svg'):
     shutil.copyfile(dist / filename, root / filename)
@@ -33,11 +36,6 @@ html = html.replace('<link rel="stylesheet" href="style.css">', '<style>\n' + cs
 html = html.replace('<script type="module" src="app.js"></script>', '<script type="module">\n' + '\n'.join(pieces) + '\n</script>')
 target = root / 'movement-lab.html'
 target.write_text(html)
-# Owner-edited leaderboard text files are authoritative at the repository root.
-# A code rebuild must never replace published records with an older dist copy.
-if (dist / 'leaderboards').exists():
-    shutil.rmtree(dist / 'leaderboards')
-shutil.copytree(root / 'leaderboards', dist / 'leaderboards')
 # Serve the same complete build at the public entry point. Course code cannot
 # come from an older cached module while the menu comes from a newer HTML file.
 (root / 'index.html').write_text(html)

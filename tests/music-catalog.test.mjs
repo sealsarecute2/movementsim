@@ -25,7 +25,7 @@ test('folder discovery adds and removes supported songs, encodes filenames, igno
 test('generated catalog JavaScript escapes HTML-breaking song titles',async()=>{
  const path=await fixture();try{
   await writeFile(join(path,'music/test.mp3'),'song');await writeFile(join(path,'music/sources.json'),JSON.stringify({tracks:[{file:'test.mp3',title:'</script><script>bad()</script>'}]}));update(path);
-  const source=await readFile(join(path,'music-catalog.js'),'utf8');assert.ok(!source.includes('</script>'));assert.ok(source.includes('\\u003c'));
+  const source=await readFile(join(path,'dist/music-catalog.js'),'utf8');assert.ok(!source.includes('</script>'));assert.ok(source.includes('\\u003c'));
   assert.equal(JSON.parse(await readFile(join(path,'music/playlist.json'),'utf8')).tracks[0].title,'</script><script>bad()</script>');
  }finally{await rm(path,{recursive:true,force:true});}
 });
@@ -33,7 +33,7 @@ test('the normal build keeps root music authoritative and removes stale preview 
  const path=await fixture();try{
   await mkdir(join(path,'tools'));await cp(script,join(path,'tools/music_catalog.py'));await cp(join(root,'build-standalone.py'),join(path,'build-standalone.py'));await mkdir(join(path,'dist'));
   for(const name of await readdir(join(root,'dist')))if(/\.(js|html|css|ico|svg)$/.test(name))await cp(join(root,'dist',name),join(path,'dist',name));
-  for(const directory of ['butterfly','vendor','sounds','maps','music'])await mkdir(join(path,'dist',directory));await mkdir(join(path,'leaderboards'));
+  for(const directory of ['butterfly','vendor','sounds','maps','music'])await mkdir(join(path,'dist',directory));
   await writeFile(join(path,'music/new.wav'),'owner audio');await writeFile(join(path,'dist/music/stale.mp3'),'stale preview');
   const result=spawnSync('python3',[join(path,'build-standalone.py')],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
   assert.equal(await readFile(join(path,'music/new.wav'),'utf8'),'owner audio');assert.equal(await readFile(join(path,'dist/music/new.wav'),'utf8'),'owner audio');assert.ok(!(await readdir(join(path,'dist/music'))).includes('stale.mp3'));

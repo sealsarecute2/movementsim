@@ -1,3 +1,0 @@
-# bhop_kitsune — revision 3, without wall and roof shortcuts
-# One clean run per line: player name | MM:SS.mmm or seconds | classic or practice
-# Stage portals are part of the route. Checkpoint respawns do not count as clean runs.

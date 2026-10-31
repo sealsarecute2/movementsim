@@ -47,7 +47,7 @@ def write_catalog(root):
     for folder in [root, root / 'dist']:
         (folder / 'music').mkdir(parents=True, exist_ok=True)
         (folder / 'music' / 'playlist.json').write_text(payload, encoding='utf-8')
-        (folder / 'music-catalog.js').write_text(module, encoding='utf-8')
+    (root / 'dist' / 'music-catalog.js').write_text(module, encoding='utf-8')
     return catalog
 
 if __name__ == '__main__':

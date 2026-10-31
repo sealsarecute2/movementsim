@@ -31,7 +31,7 @@ jobs:
         id: save
         shell: bash
         run: |
-          git add music/playlist.json dist/music/playlist.json music-catalog.js dist/music-catalog.js
+          git add music/playlist.json dist/music/playlist.json dist/music-catalog.js
           if git diff --cached --quiet; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
             exit 0
