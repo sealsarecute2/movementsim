@@ -327,10 +327,6 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 .verified-challenge { margin-top:.75rem; min-height:1px; }
 .verified-status { position:fixed; top:5rem; left:var(--edge,2rem); z-index:30; max-width:min(34rem,calc(100vw - 4rem)); margin:0; padding:.55rem .8rem; background:#10181eed; border:1px solid #54676c; color:#c4e6e8; font-size:11px; line-height:1.5; pointer-events:none; }
 .finish-verified { color:#a8d7cd; }
-.leaderboard-sources { display:flex; gap:.5rem; margin:.75rem 0 1rem; }
-.leaderboard-sources button { border:1px solid #34404b; border-radius:5px; background:transparent; padding:.6rem .9rem; color:#a6b7c5; font:inherit; font-size:11px; cursor:pointer; }
-.leaderboard-sources button[aria-pressed="true"] { background:#25343d; border-color:#7cacae; color:#e2f0f1; }
-.leaderboard-sources button:disabled { opacity:.4; cursor:default; }
 #account-google-button { margin:.75rem 0; min-height:40px; }
 .account-profile { margin:1rem 0; }
 .account-profile > label { font-size:10px; letter-spacing:.12em; color:#a6b7c5; }
@@ -411,6 +407,7 @@ body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visib
             <div id="verified-challenge" class="verified-challenge hidden"></div>
           </section>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
+          <button id="verify-endless" class="text-button" type="button">VERIFIED ENDLESS RUN ↗</button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
         </section>
@@ -494,7 +491,7 @@ body:not(.playing) .room-leaderboard,body:not(.playing) .verified-status { visib
     </main>
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><p id="finish-verified" class="finish-verified hidden" role="status" aria-live="polite"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-verify-again" class="text-button hidden">NEW VERIFIED RUN</button><button id="check-reference" class="text-button hidden">CHECK REFERENCE RUN</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
-  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-sources" role="group" aria-label="Record source"><button id="leaderboard-published" type="button" aria-pressed="true">PUBLISHED</button><button id="leaderboard-verified" type="button" aria-pressed="false">VERIFIED</button></div><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
+  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Top five verified players · one best per account.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module">
 // Untextured convex solids shared by the importer, renderer and player hull.
 // A curved brush is a polygonal solid; its original facets stay intact.
@@ -2658,32 +2655,13 @@ function createGameAudio(options = {}) {
   return new GameAudio({ ...options, context: new Context() });
 }
 
-function parseLeaderboard(text, { preset = 'classic', endless = false } = {}) {
-  const best = new Map();
-  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const fields = line.split('|').map(field => field.trim());
-    if (fields.length < 2 || fields.length > 3) continue;
-    const [rawName, score, mode = 'classic'] = fields;
-    if (!rawName || mode.toLowerCase() !== preset) continue;
-    let value;
-    if (endless) {
-      if (!/^\d+$/.test(score)) continue;
-      value = Number(score);
-    } else if (/^\d+(?:\.\d{1,3})?$/.test(score)) value = Number(score);
-    else {
-      const parts = /^(\d+):([0-5]\d)(?:\.(\d{1,3}))?$/.exec(score);
-      if (!parts) continue;
-      value = Number(parts[1]) * 60 + Number(parts[2]) + Number((parts[3] || '').padEnd(3, '0')) / 1000;
-    }
-    if (!Number.isFinite(value) || value <= 0 || (endless && !Number.isSafeInteger(value))) continue;
-    const name = [...rawName.normalize('NFC')].slice(0, 40).join('');
-    const key = name.toLowerCase(), previous = best.get(key);
-    if (!previous || (endless ? value > previous.value : value < previous.value)) best.set(key, { name, value });
-  }
-  return [...best.values()].sort((a, b) => (endless ? b.value - a.value : a.value - b.value) || a.name.localeCompare(b.name));
-}
+const LEADERBOARD_LIMIT=5;
+const RANKED_ENDLESS_SEED=0x51ea15e;
+const RANKED_COURSES=Object.freeze([
+  ['course',1],['bhop-school',1],['ladder-run',1],['bhop_lego',2],['bhop_kitsune',3],['endless',3],
+].flatMap(([map,revision])=>['classic','practice'].map(preset=>Object.freeze({map,revision,preset}))));
+const rankedCourseAllowed=selection=>!!selection&&RANKED_COURSES.some(course=>['map','revision','preset'].every(key=>course[key]===selection[key]));
+
 
 function formatLeaderboardScore(value, endless = false) {
   if (endless) return `${value.toLocaleString('en-CA')} u`;
@@ -2693,30 +2671,10 @@ function formatLeaderboardScore(value, endless = false) {
 
 function leaderboardRows(records, endless = false) {
   const escape = text => text.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-  return records.slice(0, 100).map((entry, i) => `<tr><td>${i + 1}</td><td>${escape(entry.name)}</td><td>${formatLeaderboardScore(entry.value, endless)}</td></tr>`).join('');
+  return records.slice(0, LEADERBOARD_LIMIT).map((entry, i) => `<tr><td>${i + 1}</td><td>${escape(entry.name)}</td><td>${formatLeaderboardScore(entry.value, endless)}</td></tr>`).join('');
 }
 
-const LEADERBOARD_FILES = Object.freeze({
-  course: {revision:1,file:'course.txt'},
-  'bhop-school': {revision:1,file:'bhop-school.txt'},
-  'ladder-run': {revision:1,file:'ladder-run.txt'},
-  endless: {revision:3,file:'endless-v3.txt',endless:true},
-  bhop_lego: {revision:2,file:'bhop_lego-v2.txt'},
-  bhop_kitsune: {revision:3,file:'bhop_kitsune-v3.txt'},
-});
-
-function hasLeaderboard(courseId, revision=1) {
-  return Object.hasOwn(LEADERBOARD_FILES,courseId)&&LEADERBOARD_FILES[courseId].revision===revision;
-}
-
-async function loadLeaderboard(courseId, preset, { fetcher = globalThis.fetch, signal, revision=1 } = {}) {
-  if (!hasLeaderboard(courseId,revision) || !['classic', 'practice'].includes(preset)) throw new Error('Invalid leaderboard');
-  const response = await fetcher(`leaderboards/${LEADERBOARD_FILES[courseId].file}?v=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store', signal });
-  if (!response.ok) throw new Error('Leaderboard unavailable');
-  const text = await response.text();
-  if (text.length > 200000) throw new Error('Leaderboard file is too large');
-  return parseLeaderboard(text, { preset,endless:!!LEADERBOARD_FILES[courseId].endless });
-}
+function hasLeaderboard(courseId,revision=1){return RANKED_COURSES.some(course=>course.map===courseId&&course.revision===revision);}
 
 // Render the actual collision geometry as a compact, horizontal top-down route.
 function mapPreviewSVG(map) {
@@ -3466,8 +3424,8 @@ class GooglePlayerLogin {
     this.status='Sign in to your Movement Lab account.';this.onChange(this.state());}
 }
 
-const VERIFIED_COURSES=Object.freeze({course:1,'bhop-school':1,'ladder-run':1,bhop_lego:2,bhop_kitsune:3});
-function supportsVerifiedRun(selection){return !!selection&&VERIFIED_COURSES[selection.map]===selection.revision&&['classic','practice'].includes(selection.preset);}
+const VERIFIED_COURSES=Object.freeze(Object.fromEntries(RANKED_COURSES.map(course=>[course.map,course.revision])));
+const supportsVerifiedRun=rankedCourseAllowed;
 const movementVerifiedId=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
 const movementVerifiedMessage=code=>({
   'server-full':'All verified run slots are busy. Try again shortly.',
@@ -3488,7 +3446,7 @@ const movementVerifiedMessage=code=>({
   'private-test-account-mismatch':'Private testing is linked to another Google account. Sign in with the account used to set it up.',
   'private-test-course-only':'Private testing is available on Bhop School / CS-style.',
   'private-test-unavailable':'Could not enable private testing. Keep the local test server running and try signing in again.',
-  'course-not-ranked':'Verified beta: choose Bhop School / CS-style.',
+  'course-not-ranked':'Choose a bundled scored map and its current revision.',
 }[code]||'Verification lost its connection. You can continue practising.');
 let movementTurnstileScript=null;
 function loadMovementTurnstile(){
@@ -3545,11 +3503,11 @@ class VerifiedRunClient {
         const config=await this.request('/v1/player/config',{authorization:this.authorization()});
         if(typeof config.enabled!=='boolean'||config.ranked!==config.enabled||config.tickRate!==256||config.ruleset!=='verified-v1'||
           (config.enabled&&(!/^[A-Za-z0-9_-]{20,256}$/.test(config.siteKey)||/^\d+x0{10,}/.test(config.siteKey))))throw Error('verification-unavailable');
-        if(config.courses!==undefined&&(!Array.isArray(config.courses)||!config.courses.length||config.courses.length>10||!config.courses.every(supportsVerifiedRun)))throw Error('verification-unavailable');
+        if(config.courses!==undefined&&(!Array.isArray(config.courses)||!config.courses.length||config.courses.length>16||!config.courses.every(supportsVerifiedRun)))throw Error('verification-unavailable');
         if(config.privateTest===true&&(!Array.isArray(config.courses)||config.courses.length!==1||config.courses[0].map!=='bhop-school'||config.courses[0].revision!==1||config.courses[0].preset!=='classic'))throw Error('verification-unavailable');
         this.config=config;this.status=config.privateTest?
           config.enabled?'Private test ready · Bhop School / CS-style.':'Sign in through Settings to enable private testing.':
-          config.enabled?(config.beta?'Verified beta · Bhop School / CS-style. Sign in, then complete the browser check.':'Sign in, then complete the browser check to verify a run.'):'Verified runs are not available yet.';
+          config.enabled?'Sign in, then complete the browser check. Only the top five reach the leaderboard.':'Verified runs are not available yet.';
         if(!config.enabled)this.phase='unavailable';this.emit();return config;
       }finally{this.configRequest=null;}
     })();return this.configRequest;
@@ -3609,7 +3567,8 @@ class VerifiedRunClient {
       if(generation!==this.generation){if(movementVerifiedId(run.runId))void this.cancelRemote(run.runId,authorization);return false;}
       if(!movementVerifiedId(run.runId)||typeof run.ticket!=='string'||run.ticket.length>2048||run.ranked!==true||
         run.socketPath!==`/v1/player/runs/${run.runId}/socket`||!Number.isSafeInteger(run.expiresAt)||run.expiresAt<=this.now()||
-        run.selection?.map!==selection.map||run.selection?.revision!==selection.revision||run.selection?.preset!==selection.preset||!!run.privateTest!==!!this.config.privateTest){
+        run.selection?.map!==selection.map||run.selection?.revision!==selection.revision||run.selection?.preset!==selection.preset||!!run.privateTest!==!!this.config.privateTest||
+        (selection.map==='endless'&&run.seed!==RANKED_ENDLESS_SEED)){
         if(movementVerifiedId(run.runId))void this.cancelRemote(run.runId,authorization);throw Error('revision-mismatch');
       }
       this.#run={id:run.runId};this.#runAuth=authorization;this.frames=[];this.sentTicks=0;this.seq=0;this.phase='connecting';
@@ -3632,12 +3591,18 @@ class VerifiedRunClient {
       }
       if(value.type==='state')return;
       if(value.type!=='ended'||!['active','finishing'].includes(this.phase)||typeof value.reason!=='string')throw Error();
-      this.clearTimer();this.result={completed:value.completed===true,time:value.time,checkpoint:value.checkpoint,reason:value.reason,ranked:false,scoreStatus:value.scoreStatus};
-      const saved=value.ranked===true&&value.reason==='completed'&&value.completed===true&&value.invalid===null&&
-        Number.isFinite(value.time)&&value.time>0&&value.time<=600&&value.scoreStatus==='saved'&&value.score?.saved===true;
+      const endless=this.selection?.map==='endless';
+      const clean=endless?((value.reason==='respawn'&&value.invalid==='respawn')||(value.reason==='run-expired'&&value.invalid===null))&&Number.isFinite(value.distance)&&value.distance>=1&&value.distance<=1e9:
+        value.reason==='completed'&&value.completed===true&&value.invalid===null;
+      const eligible=clean&&Number.isFinite(value.time)&&value.time>0&&value.time<=600;
+      this.clearTimer();this.result={completed:value.completed===true,time:value.time,distance:endless?Math.floor(value.distance):undefined,checkpoint:value.checkpoint,reason:value.reason,ranked:false,verified:false,scoreStatus:value.scoreStatus};
+      const saved=eligible&&value.ranked===true&&value.scoreStatus==='saved'&&value.score?.saved===true;
       if(saved){this.result.ranked=true;this.result.personalBest=value.score.personalBest===true;this.phase='saved';
-        this.status=this.config.privateTest?'Private test verified · score saved.':this.result.personalBest?'Verified · new global personal best saved.':'Verified · run accepted. Your faster personal best is kept.';this.#runAuth=null;}
-      else if(value.reason==='completed'&&value.completed===true&&value.scoreStatus==='pending'){
+        this.result.verified=true;
+        this.status=this.config.privateTest?'Private test verified · score saved.':this.result.personalBest?'Verified · top-five record saved.':'Verified · your better ranked personal best is kept.';this.#runAuth=null;}
+      else if(eligible&&value.verified===true&&value.scoreStatus==='outside-top-five'&&value.score?.outsideTopFive===true){
+        this.result.verified=true;this.phase='ended';this.status='Verified finish · outside the top five. No leaderboard entry added.';this.#runAuth=null;
+      }else if(eligible&&value.scoreStatus==='pending'){
         this.phase='pending';this.status='Finished. Your verified score is waiting to save.';this.pollResult(generation,0);
       }else{this.phase='ended';this.status=value.reason==='completed'?'Finished. The score was not saved.':'Verification ended. You can continue practising.';this.#runAuth=null;}
       this.emit();
@@ -3687,8 +3652,10 @@ class VerifiedRunClient {
   async leaderboard(selection,{signal}={}){
     if(!supportsVerifiedRun(selection))throw Error('invalid-board');
     const data=await this.request(`/v1/leaderboards/${selection.map}/${selection.preset}?revision=${selection.revision}`,{signal,authorization:this.config?.privateTest?this.authorization():undefined});
-    if(data.map!==selection.map||data.preset!==selection.preset||data.revision!==selection.revision||data.ruleset!=='verified-v1'||!Array.isArray(data.records)||data.records.length>100)throw Error('invalid-board');
-    if(!data.records.every(row=>typeof row.name==='string'&&row.name.length<=40&&Number.isFinite(row.value)&&row.value>0&&row.value<=600&&movementVerifiedId(row.runId)))throw Error('invalid-board');
+    const endless=selection.map==='endless';
+    if(data.map!==selection.map||data.preset!==selection.preset||data.revision!==selection.revision||data.ruleset!==(endless?'verified-endless-v1':'verified-v1')||!Array.isArray(data.records)||data.records.length>LEADERBOARD_LIMIT)throw Error('invalid-board');
+    if(!data.records.every(row=>typeof row.name==='string'&&row.name.length<=40&&Number.isFinite(row.value)&&row.value>0&&
+      (endless?Number.isSafeInteger(row.value)&&row.value<=1e9:row.value<=600)&&movementVerifiedId(row.runId)))throw Error('invalid-board');
     return data.records;
   }
 }
@@ -3744,7 +3711,7 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
-let leaderboardSource='published',leaderboardController=null;
+let leaderboardController=null;
 let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
 let pendingRunRestore=null;
 const referenceMode=new URLSearchParams(window.location?.search||'').get('referenceRun')==='1';
@@ -3760,9 +3727,9 @@ function updateVerifiedUi(){
   $('verified-controls').classList.toggle('hidden',!verifiedRuns);
   $('verified-prepare').disabled=!rendererReady||!supported||!!state?.busy||!!state?.active||verifiedRuns?.config?.enabled===false;
   $('verified-prepare').textContent=state?.prepared?'START VERIFIED RUN':state?.busy?'PLEASE WAIT…':state?.privateTest?'PRIVATE VERIFIED RUN':'VERIFIED RUN';
-  $('verified-note').textContent=state?.privateTest?(!playerLogin?.state().signedIn?'Sign in in Settings to enable your private test.':!supported?'Private test: choose Bhop School / CS-style.':state.status):!supported?(verifiedRuns?.config?.beta?'Verified beta: choose Bhop School / CS-style.':'Choose a supported solo course to verify a run.'):
+  $('verified-note').textContent=state?.privateTest?(!playerLogin?.state().signedIn?'Sign in in Settings to enable your private test.':!supported?'Private test: choose Bhop School / CS-style.':state.status):!supported?'Choose a supported solo scored map to verify a run.':
     verifiedRuns?.config?.enabled===false?'Verified runs are not available yet.':
-    !playerLogin?.state().signedIn?'Sign in in Settings to start a verified run.':state?.status||'Complete the browser check to start.';
+    !playerLogin?.state().signedIn?'Sign in in Settings to start a verified run.':(MAPS[map].endless&&state?.phase==='idle'?'Verified Endless uses a shared route. Your first fall banks the distance; pausing cancels. Limit: 10 minutes.':state?.status||'Complete the browser check to start.');
   $('verified-challenge').classList.toggle('hidden',state?.phase!=='checking'&&state?.phase!=='prepared');
   $('verified-status').classList.toggle('hidden',!verifiedHadRun||!playing);
   $('verified-status').textContent=state?.status||'';
@@ -3770,7 +3737,8 @@ function updateVerifiedUi(){
   $('finish-verified').classList.toggle('hidden',!verifiedHadRun);$('finish-verify-again').classList.toggle('hidden',!verifiedHadRun);
   $('finish-verified').textContent=verifiedHadRun?state?.status||'This run was not verified.':'';
   $('again').innerHTML=verifiedHadRun?'PRACTISE AGAIN <span>↗</span>':'RUN IT AGAIN <span>↗</span>';
-  if(completed&&verifiedHadRun&&sameCourse&&state.result?.ranked===true)$('finish-time').textContent=formatLeaderboardScore(state.result.time);
+  if(verifiedHadRun&&sameCourse&&MAPS[map].endless&&state.result&&['saved','pending','outside-top-five'].includes(state.result.scoreStatus)&&!completed)finishRun();
+  if(completed&&verifiedHadRun&&sameCourse&&(state.result?.verified===true||state.result?.ranked===true))$('finish-time').textContent=formatLeaderboardScore(MAPS[map].endless?state.result.distance:state.result.time,!!MAPS[map].endless);
 }
 try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
@@ -3855,28 +3823,24 @@ async function activateGameAudio() {
 async function refreshLeaderboard() {
   const request=++leaderboardRequest, selected=MAPS[leaderboardMap||map], mode=preset;
   leaderboardController?.abort();leaderboardController=new AbortController();
-  const selection={map:selected.id,revision:selected.revision||1,preset:mode},verified=leaderboardSource==='verified';
-  $('leaderboard-verified').disabled=!verifiedRuns||!(verifiedRuns.supportsSelection?.(selection)??supportsVerifiedRun(selection));
-  $('leaderboard-verified').setAttribute('aria-pressed',String(verified));$('leaderboard-published').setAttribute('aria-pressed',String(!verified));
-  $('leaderboard-verified').textContent=verifiedRuns?.config?.privateTest?'PRIVATE TEST':'VERIFIED';
-  $('leaderboard-footer').textContent=verified?(verifiedRuns?.config?.privateTest?'Private test scores · separate from public records.':'Verified finishes · one personal best per account.'):'Records are added by the owner.';
+  const selection={map:selected.id,revision:selected.revision||1,preset:mode};
+  $('leaderboard-footer').textContent=verifiedRuns?.config?.privateTest?'Private test · top five · separate from public records.':'Top five verified players · one best per account.';
   $('leaderboard-title').textContent=selected.title;
   $('leaderboard-mode').textContent=PRESETS[mode].title;
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
   $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
   try {
-    const records=verified?await verifiedRuns.leaderboard(selection,{signal:leaderboardController.signal}):
-      await loadLeaderboard(selected.id,mode,{revision:selected.revision||1,signal:leaderboardController.signal});
+    if(!verifiedRuns)throw Error('leaderboards-disabled');
+    const records=await verifiedRuns.leaderboard(selection,{signal:leaderboardController.signal});
     if(request!==leaderboardRequest)return;
     $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
-    $('leaderboard-status').textContent=records.length?`${records.length} ${verified?'verified':'published'} record${records.length===1?'':'s'}`:verified?'No verified records yet.':'No records yet. The owner can add the first one.';
-  } catch(error) {if(request===leaderboardRequest)$('leaderboard-status').textContent=verified&&['player-runs-disabled','leaderboards-disabled'].includes(error.message)?'Verified leaderboards are not available yet.':'Could not load records. Try Refresh.';}
+    $('leaderboard-status').textContent=records.length?`${records.length} / 5 verified players`:'No verified records yet. Finish a verified run to set the first score.';
+  } catch(error) {if(request===leaderboardRequest)$('leaderboard-status').textContent=['player-runs-disabled','leaderboards-disabled'].includes(error.message)?'Verified leaderboards are not available yet.':'Could not load records. Try Refresh.';}
 }
 function openLeaderboard(value=map) {
   const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
   if(!hasLeaderboard(selected,MAPS[selected].revision||1))return;
   leaderboardMap=selected;
-  leaderboardSource=verifiedRuns?.config?.enabled&&supportsVerifiedRun({map:selected,revision:MAPS[selected].revision||1,preset})?'verified':'published';
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
 }
@@ -3926,7 +3890,7 @@ function reset(full=true,verifiedStart=false) {
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
-    endless=createEndless(room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
+    endless=createEndless(verifiedStart?RANKED_ENDLESS_SEED:room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
   const previousPeak=player.peakSpeed;
   player=createPlayer(spawnForPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]));
@@ -4123,10 +4087,11 @@ function finishRun() {
   knife?.draw(0);
   if(document.pointerLockElement===canvas) document.exitPointerLock();
   const key=recordKey(), old=bests[key], clean=respawns===0;
-  const isPB=clean&&(!Number.isFinite(old)||runTime<old);
-  if(isPB) { bests[key]=runTime; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
+  const isDistance=!!MAPS[map].endless,score=isDistance?Math.floor(endless?.distance||0):runTime;
+  const isPB=clean&&(!Number.isFinite(old)||(isDistance?score>old:score<old));
+  if(isPB) { bests[key]=score; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
   $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
-  $('finish-time').textContent=format(runTime);
+  $('finish-time').textContent=isDistance?formatLeaderboardScore(score,true):format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
   $('finish-leaderboard').classList.toggle('hidden',!hasLeaderboard(map,MAPS[map].revision||1));
   gameAudio?.finish();
@@ -4245,6 +4210,7 @@ function tickMovement(input) {
   if(runActive) runTime+=DT*Math.max(0,timerEnd-timerStart);
   if(finished) {finishRun();return;}
   if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
+    if(endless&&verifiedHadRun&&['active','finishing'].includes(verifiedRuns?.state().phase)){finishRun();return;}
     respawns++;reset(false);
     toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
   }
@@ -4332,11 +4298,11 @@ if(slides.length)slideshow=createMenuSlideshow({slides,maps:galleryMaps,title:$(
 $('gallery-next').addEventListener('click',()=>slideshow?.next());
 $('gallery-previous').addEventListener('click',()=>slideshow?.previous());
 $('leaderboard-button').addEventListener('click',openLeaderboard);
+$('verify-endless').addEventListener('click',()=>{if(room?.busy){showMain('rooms');return;}chooseMap('endless');showMain('maps');});
 $('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless'));
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
-for(const source of ['published','verified'])$('leaderboard-'+source).addEventListener('click',()=>{leaderboardSource=source;void refreshLeaderboard();});
 $('leaderboard').addEventListener('close',()=>{leaderboardRequest++;leaderboardController?.abort();});
 $('skybox-select').value=skybox;renderer.setSkybox?.(skybox);
 $('skybox-select').addEventListener('change',()=>{

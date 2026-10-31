@@ -181,8 +181,10 @@ export class VerifiedRun {
         try{
           const response=await this.env.SCORES.get(this.env.SCORES.idFromName(outcome.privateTest?'private-test-v1':'global-v1')).fetch(internal('record',outcome.scoreCandidate));
           if(!response.ok)throw Error('score-unavailable');
-          const receipt=await response.json();if(receipt.saved!==true)throw Error('score-unavailable');
-          outcome={...outcome,ranked:true,scoreStatus:'saved',scoreCandidate:null,score:receipt};
+          const receipt=await response.json();
+          if(receipt.saved===true)outcome={...outcome,verified:true,ranked:true,scoreStatus:'saved',scoreCandidate:null,score:receipt};
+          else if(receipt.saved===false&&receipt.outsideTopFive===true)outcome={...outcome,verified:true,ranked:false,scoreStatus:'outside-top-five',scoreCandidate:null,score:receipt};
+          else throw Error('score-unavailable');
         }catch{
           const scoreAttempts=outcome.scoreAttempts+1;
           outcome={...outcome,scoreAttempts,scoreStatus:scoreAttempts>=12?'failed':'pending'};

@@ -2,11 +2,12 @@ import {MAP_LIST,COMMUNITY_MAPS} from '../dist/course.js';
 import {hydrateParkourMap} from '../dist/parkour-map.js';
 import lego from '../dist/maps/bhop_lego.json' with {type:'json'};
 import kitsune from '../dist/maps/bhop_kitsune.json' with {type:'json'};
+import {RANKED_COURSES,rankedCourseAllowed} from '../dist/ranked-courses.js';
 
 const cache=new Map(MAP_LIST.filter(m=>m.timed||m.endless).map(m=>[m.id,m]));
 const bundled={bhop_lego:lego,bhop_kitsune:kitsune};
-export const VERIFIED_BETA_COURSES=Object.freeze([Object.freeze({map:'bhop-school',revision:1,preset:'classic'})]);
-export const betaCourseAllowed=selection=>VERIFIED_BETA_COURSES.some(course=>['map','revision','preset'].every(key=>course[key]===selection[key]));
+export const VERIFIED_BETA_COURSES=RANKED_COURSES;
+export const betaCourseAllowed=rankedCourseAllowed;
 export function trustedCourse(id){
   if(!cache.has(id)){
     const metadata=COMMUNITY_MAPS.find(m=>m.id===id);

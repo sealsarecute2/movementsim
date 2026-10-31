@@ -38,7 +38,7 @@ test('a complete human input replay produces the score candidate from trusted ti
   assert.equal(scoreFromOutcome({...init,botVerified:false},completed),null);
   assert.equal(scoreFromOutcome({...init,selection:{...init.selection,revision:99}},completed),null);
   assert.equal(scoreFromOutcome({...init,selection:{map:'course',revision:1,preset:'classic'}},completed),null);
-  assert.equal(scoreFromOutcome({...init,selection:{...init.selection,preset:'practice'}},completed),null);
+  assert.equal(scoreFromOutcome({...init,selection:{...init.selection,preset:'practice'}},completed).preset,'practice');
 });
 test('server completion saves under the authenticated account, acknowledges only after storage, and is idempotent',async()=>{
   const f=fixture();await f.ctx.storage.put('init',init);
@@ -91,4 +91,24 @@ test('private completions use the isolated score namespace even while public wri
   assert.equal(f.writes.length,1);assert.equal(f.released.length,1);
   const disabled=fixture();disabled.env.PLAYER_RUNS_ENABLED='false';disabled.env.RANKED_SUBMISSIONS_ENABLED='false';
   const stopped=await disabled.run.cleanup({...init,privateTest:true},completed);assert.equal(stopped.scoreStatus,'disabled');assert.equal(disabled.writes.length,0);
+});
+
+test('outside-top-five is a terminal verified result, frees capacity and never retries a rejected leaderboard write',async()=>{
+ const f=fixture();f.env.SCORES.get=()=>({fetch:async()=>Response.json({saved:false,outsideTopFive:true})});
+ const result=await f.run.cleanup(init,completed);assert.equal(result.verified,true);assert.equal(result.ranked,false);assert.equal(result.scoreStatus,'outside-top-five');
+ assert.equal(result.scoreCandidate,null);assert.equal(result.scoreAttempts,0);assert.equal(f.released.length,1);
+ await f.run.alarm();assert.equal((await f.ctx.storage.get('outcome')).scoreStatus,'outside-top-five');
+});
+
+test('Endless distance candidates come only from the shared-seed first fall or time limit',async()=>{
+ const {RunSimulation}=await import('../verification/simulation.js'),{trustedCourse}=await import('../verification/catalog.js'),{RANKED_ENDLESS_SEED}=await import('../dist/ranked-courses.js');
+ for(const preset of ['classic','practice']){
+  const simulation=new RunSimulation(trustedCourse('endless'),preset,RANKED_ENDLESS_SEED),frame={forward:1,side:1,yaw:0,pitch:0,walk:false,duck:false,jumpHeld:false,jumpPressed:false};
+  while(!simulation.invalid&&simulation.ticks<2000)simulation.step(frame);
+  const initial={...init,seed:RANKED_ENDLESS_SEED,selection:{map:'endless',revision:3,preset}},outcome={...simulation.state(),reason:'respawn',endedAt:startedAt+4000};
+  assert.equal(scoreFromOutcome(initial,outcome).distanceUnits,384);
+  for(const change of [{reason:'client-left'},{reason:'player-cancelled'},{reason:'input-rate'},{invalid:'invalid-physics'},{distance:NaN}])assert.equal(scoreFromOutcome(initial,{...outcome,...change}),null);
+  assert.equal(scoreFromOutcome({...initial,seed:42},outcome),null);
+  assert.equal(scoreFromOutcome(initial,{...outcome,reason:'run-expired',invalid:null,endedAt:initial.lease.expiresAt+16}).distanceUnits,384);
+ }
 });

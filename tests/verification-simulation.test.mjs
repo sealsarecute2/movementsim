@@ -81,3 +81,14 @@ test('session closes on excessive input, timeout and simulation failures, releas
  const idleSession=new VerificationSession({map:trustedCourse('course'),preset:'classic',startedAt:0,now:()=>now,onEnd:x=>ended.push(x)});
  now=5001;idleSession.advance();assert.equal(ended.at(-1).reason,'input-timeout');
 });
+
+test('each timed map and preset finishes on the same final tick and requires its final ordered checkpoint',async()=>{
+ for(const id of ['course','bhop-school','ladder-run','bhop_lego','bhop_kitsune'])for(const preset of ['classic','practice']){
+  const {app,simulation}=await pair(id,preset),map=trustedCourse(id),finish=simulation.boxes.find(box=>box.finish),checkpoint=map.spawns.length-1;
+  const player=createPlayer({x:(finish.min[0]+finish.max[0])/2,y:finish.max[1],z:(finish.min[2]+finish.max[2])/2,yaw:0});
+  simulation.player=player;simulation.active=true;simulation.time=5;simulation.checkpoint=checkpoint;simulation.runtime?.reset(checkpoint);
+  app.context.testPlayer={...player};app.read(`player={...testPlayer};runActive=true;runTime=5;checkpoint=${checkpoint};sourceRuntime?.reset(checkpoint)`);
+  simulation.step(idle);clientTick(app,idle);compare(app,simulation);assert.equal(simulation.completed,true,id+' '+preset);
+ }
+ delete MAPS.bhop_lego;delete MAPS.bhop_kitsune;
+});

@@ -9,6 +9,7 @@ import {randomUUID,randomBytes} from 'node:crypto';
 import {setTimeout as wait} from 'node:timers/promises';
 import {referenceFrames,scoredReference} from './helpers/scored-reference.mjs';
 import {VerifiedRunClient} from '../dist/verified-runs.js';
+import {RANKED_COURSES,RANKED_ENDLESS_SEED} from '../dist/ranked-courses.js';
 
 const require=createRequire(new URL('../verification/package.json',import.meta.url));
 const {Miniflare,convertV4MiniflareOptions,Response:RuntimeResponse,Log,LogLevel}=await import(require.resolve('miniflare'));
@@ -31,9 +32,9 @@ const bundle=await build({
     }};
   `},bundle:true,format:'esm',platform:'browser',target:'es2022',external:['node:*'],write:false,
 });
-function runtime({persist,vars={},botSuccess=true,botHostname='localhost'}={}){
+function runtime({persist,vars={},botSuccess=true,botHostname='localhost',script=bundle.outputFiles[0].text}={}){
   const mf=new Miniflare(convertV4MiniflareOptions({
-    name:'score-runtime-test',modules:true,script:bundle.outputFiles[0].text,cf:false,log:new Log(LogLevel.ERROR),
+    name:'score-runtime-test',modules:true,script,cf:false,log:new Log(LogLevel.ERROR),
     compatibilityDate:'2026-10-29',compatibilityFlags:['nodejs_compat'],
     bindings:{GOOGLE_LOGIN_ENABLED:'true',GOOGLE_CLIENT_ID:'123-runtime.apps.googleusercontent.com',PLAYER_RUNS_ENABLED:'true',RANKED_SUBMISSIONS_ENABLED:'true',PLAYER_AUTH_KEY:secret,
       TURNSTILE_SITE_KEY:'runtime-site-key-fixture-123456789',TURNSTILE_SECRET_KEY:'runtime-secret-key-fixture-123456789',
@@ -80,12 +81,12 @@ test('real SQLite keeps the fastest personal best, separates boards, bounds read
     const rows=(await (await f.call(boardPath)).json()).records;
     assert.equal(rows.length,1);assert.equal(rows[0].runId,faster.runId);assert.equal(rows[0].timeNs,14000000000);
     const practice=await (await f.call('/__test/score/board',{body:{map:'bhop-school',preset:'practice',revision:1}})).json();assert.equal(practice.records[0].timeNs,12000000000);
-    assert.equal((await f.call('/v1/leaderboards/bhop-school/practice?revision=1')).status,400);
+    assert.equal((await f.call('/v1/leaderboards/bhop-school/practice?revision=1')).status,200);
     assert.equal((await f.call('/v1/leaderboards/bhop-school/classic?revision=99')).status,409);
     await f.mf.dispose();f=runtime({persist});
     assert.equal((await (await f.call(boardPath)).json()).records[0].runId,faster.runId);
     for(let i=0;i<105;i++)await f.call('/__test/score/record',{body:record(randomBytes(32).toString('base64url'),15000000000+i)});
-    const top=await (await f.call(boardPath)).json();assert.equal(top.records.length,100);assert.equal(top.records[0].runId,faster.runId);
+    const top=await (await f.call(boardPath)).json();assert.equal(top.records.length,5);assert.equal(top.records[0].runId,faster.runId);
     assert.ok(top.records.every((r,i)=>!i||r.timeNs>=top.records[i-1].timeNs));
   }finally{await f.mf.dispose();await rm(persist,{recursive:true,force:true});}
 });
@@ -253,24 +254,22 @@ test('private enrollment needs owner proof plus a real session and is bound atom
   }finally{await f.mf.dispose();await rm(persist,{recursive:true,force:true});}
 });
 
-test('public beta accepts a signed Pages session for only Bhop School classic and rejects unsupported courses before admission',{timeout:30000},async()=>{
-  const pages='https://sealsarecute2.github.io',f=runtime({vars:{ALLOWED_ORIGINS:origin+','+pages},botHostname:'sealsarecute2.github.io'});
-  try{
-    const config=await (await f.call('/v1/player/config',{headers:{origin:pages}})).json();
-    assert.equal(config.enabled,true);assert.equal(config.beta,true);assert.equal(config.privateTest,undefined);
-    assert.deepEqual(config.courses,[{map:'bhop-school',revision:1,preset:'classic'}]);
-    const player=await f.session(pages),headers={origin:pages};
-    for(const body of [{...selection,map:'course'},{...selection,map:'ladder-run'},{...selection,map:'bhop_lego'},{...selection,map:'bhop_kitsune'},{...selection,preset:'practice'}]){
-      const response=await f.call('/v1/player/runs',{body,token:player.token,headers});assert.equal(response.status,400);assert.equal((await response.json()).error,'course-not-ranked');
-    }
-    assert.equal((await (await f.call('/v1/status',{token:ownerKey})).json()).active,0);
-    const denied=await f.call('/v1/leaderboards/course/classic?revision=1',{headers});assert.equal(denied.status,400);
-    const preflight=await f.call('/v1/player/runs',{method:'OPTIONS',headers:{...headers,'access-control-request-method':'POST','access-control-request-headers':'authorization,content-type'}});assert.equal(preflight.status,204);
-    const response=await f.call('/v1/player/runs',{body:selection,token:player.token,headers});assert.equal(response.status,201);
-    const run=await response.json();assert.equal(run.ranked,true);assert.equal(run.privateTest,false);
-    assert.equal((await f.call('/v1/player/runs/'+run.runId+'/cancel',{method:'POST',token:player.token,headers})).status,200);
-    assert.equal((await (await f.call('/v1/status',{token:ownerKey})).json()).active,0);
-  }finally{await f.mf.dispose();}
+test('every bundled scored map and preset has a public board and authenticated admission, while imports and Sandbox stay closed',{timeout:30000},async()=>{
+ const pages='https://sealsarecute2.github.io',f=runtime({vars:{ALLOWED_ORIGINS:origin+','+pages},botHostname:'sealsarecute2.github.io'});
+ try{
+  const headers={origin:pages},config=await (await f.call('/v1/player/config',{headers})).json();
+  assert.deepEqual(config.courses,RANKED_COURSES);assert.equal(config.leaderboardLimit,5);assert.equal(config.endlessSeed,RANKED_ENDLESS_SEED);
+  const player=await f.session(pages);
+  for(const [index,course] of RANKED_COURSES.entries()){
+   const player=await f.session(pages),headers={origin:pages,'x-test-network':'203.0.113.'+(index+2)};
+   const board=await f.call(`/v1/leaderboards/${course.map}/${course.preset}?revision=${course.revision}`,{headers});assert.equal(board.status,200);
+   const response=await f.call('/v1/player/runs',{body:{...selection,map:course.map,preset:course.preset},token:player.token,headers});assert.equal(response.status,201,course.map);
+   const run=await response.json();assert.equal(run.ranked,true);if(course.map==='endless')assert.equal(run.seed,RANKED_ENDLESS_SEED);
+   assert.equal((await f.call('/v1/player/runs/'+run.runId+'/cancel',{method:'POST',token:player.token,headers})).status,200);
+  }
+  for(const map of ['free','local-map','unknown'])assert.equal((await f.call('/v1/player/runs',{body:{...selection,map},token:player.token,headers})).status,400);
+  assert.equal((await (await f.call('/v1/status',{token:ownerKey})).json()).active,0);
+ }finally{await f.mf.dispose();}
 });
 
 test('unique usernames are authenticated, case-insensitive and update existing scores without changing their times',{timeout:30000},async()=>{
@@ -317,4 +316,67 @@ test('persistent logins and usernames survive runtime restart, keep 30-second ru
     assert.equal((await f.call('/v1/auth/profile',{body:{username:'stolen_name'},token:a.token})).status,401);
     assert.equal((await f.call('/__test/score/profile',{body:{accountId:a.accountId}})).status,200,'Logout preserves the account profile.');
   }finally{await f.mf.dispose();await rm(persist,{recursive:true,force:true});}
+});
+
+test('top-five admission is atomic, ties retain earlier entries, retries stay rejected and accounts have one row',{timeout:30000},async()=>{
+ const f=runtime();
+ try{
+  const accounts=Array.from({length:12},()=>randomBytes(32).toString('base64url'));
+  const submit=value=>f.call('/__test/score/record',{body:value});
+  for(let i=0;i<5;i++)assert.equal((await (await submit(record(accounts[i],(10+i)*1e9))).json()).saved,true);
+  const rejected=record(accounts[5],14e9);let receipt=await (await submit(rejected)).json();assert.equal(receipt.saved,false);assert.equal(receipt.outsideTopFive,true);
+  const entrants=[record(accounts[6],8e9),record(accounts[7],9e9),record(accounts[8],7e9)];
+  const concurrent=await Promise.all(entrants.map(submit));assert.ok(concurrent.every(r=>r.status===200));
+  const rows=(await (await f.call(boardPath)).json()).records;assert.equal(rows.length,5);assert.deepEqual(rows.map(r=>r.timeNs),[7e9,8e9,9e9,10e9,11e9]);
+  for(let i=0;i<3;i++)assert.equal((await (await submit(rejected)).json()).outsideTopFive,true);
+  await submit(record(accounts[0],6e9));const updated=(await (await f.call(boardPath)).json()).records;
+  assert.equal(updated.length,5);assert.equal(updated.filter(r=>r.playerId===accounts[0]).length,1);assert.equal(updated[0].timeNs,6e9);
+  assert.equal((await (await submit(record(accounts[0],50e9))).json()).personalBest,false);
+ }finally{await f.mf.dispose();}
+});
+
+test('Endless boards rank longest distance, separate presets and reject timed-score or invalid distance data',{timeout:30000},async()=>{
+ const f=runtime();
+ try{
+  const make=(distanceUnits,preset='classic')=>({...record(randomBytes(32).toString('base64url'),30e9),map:'endless',revision:3,ruleset:'verified-endless-v1',preset,distanceUnits});
+  for(const distance of [100,200,300,400,500,50,600])assert.equal((await f.call('/__test/score/record',{body:make(distance)})).status,200);
+  const rows=(await (await f.call('/v1/leaderboards/endless/classic?revision=3')).json()).records;assert.deepEqual(rows.map(r=>r.value),[600,500,400,300,200]);
+  assert.equal((await f.call('/__test/score/record',{body:make(5000,'practice')})).status,200);
+  assert.equal((await (await f.call('/v1/leaderboards/endless/practice?revision=3')).json()).records.length,1);
+  for(const change of [{distanceUnits:-1},{distanceUnits:1.5},{distanceUnits:Infinity},{ruleset:'verified-v1'},{revision:2}])assert.equal((await f.call('/__test/score/record',{body:{...make(999),...change}})).status,400);
+ }finally{await f.mf.dispose();}
+});
+
+test('a real input-only Endless fall saves server distance and releases its slot',{timeout:15000},async()=>{
+ const f=runtime();let socket;
+ try{
+  const player=await f.session(),response=await f.call('/v1/player/runs',{body:{...selection,map:'endless'},token:player.token});assert.equal(response.status,201);
+  const run=await response.json(),upgrade=await f.call(run.socketPath,{headers:{upgrade:'websocket','sec-websocket-protocol':'movementlab-v1,ticket.'+run.ticket}});assert.equal(upgrade.status,101);socket=upgrade.webSocket;
+  let resolveEnd;const ended=new Promise(resolve=>{resolveEnd=resolve;});socket.addEventListener('message',event=>{const value=JSON.parse(event.data);if(value.type==='ended')resolveEnd(value);});socket.accept();
+  const frame={forward:1,side:1,yaw:0,pitch:0,walk:false,duck:false,jumpHeld:false,jumpPressed:false},start=performance.now();
+  for(let firstTick=0;firstTick<715;firstTick+=16){const count=Math.min(16,715-firstTick);await wait(Math.max(0,start+(firstTick+count)*1000/256-performance.now()));socket.send(JSON.stringify({seq:firstTick/16,firstTick,frames:Array.from({length:count},()=>frame)}));}
+  const outcome=await ended;assert.equal(outcome.reason,'respawn');assert.equal(outcome.verified,true);assert.equal(outcome.ranked,true);assert.equal(outcome.scoreStatus,'saved');
+  const board=await (await f.call('/v1/leaderboards/endless/classic?revision=3')).json();assert.equal(board.records[0].value,384);assert.equal(board.records[0].playerId,player.accountId);
+  assert.equal((await (await f.call('/v1/status',{token:ownerKey})).json()).active,0);
+ }finally{socket?.close();await f.mf.dispose();}
+});
+
+test('adding Endless storage preserves a database created by the previous public release',{timeout:30000},async()=>{
+ const persist=await mkdtemp(join(tmpdir(),'movementsim-legacy-scores-')),best=record(randomBytes(32).toString('base64url'));
+ const legacy=await build({stdin:{sourcefile:'legacy-score-test.js',resolveDir:fileURLToPath(new URL('../verification/',import.meta.url)),contents:`
+  export {AdmissionCoordinator,VerifiedRun,PlayerSessions} from './worker.js';
+  export class VerifiedScores {
+   constructor(ctx){this.sql=ctx.storage.sql;this.sql.exec('CREATE TABLE IF NOT EXISTS personal_bests (board_id TEXT NOT NULL,account_id TEXT NOT NULL,time_ns INTEGER NOT NULL CHECK(time_ns>0),run_id TEXT NOT NULL,achieved_at INTEGER NOT NULL,PRIMARY KEY(board_id,account_id),UNIQUE(run_id))');}
+   async fetch(request){const b=await request.json();this.sql.exec('INSERT INTO personal_bests VALUES(?,?,?,?,?)','verified-v1:bhop-school:1:classic',b.accountId,b.timeNs,b.runId,b.achievedAt);return Response.json({saved:true});}
+  }
+  export default {fetch(request,env){return env.SCORES.get(env.SCORES.idFromName('global-v1')).fetch(request);}};
+ `},bundle:true,format:'esm',platform:'browser',target:'es2022',external:['node:*'],write:false});
+ let f=runtime({persist,script:legacy.outputFiles[0].text});
+ try{
+  assert.equal((await f.call('/seed',{body:best})).status,200);await f.mf.dispose();f=runtime({persist});
+  const rows=(await (await f.call(boardPath)).json()).records;assert.equal(rows.length,1);assert.equal(rows[0].runId,best.runId);assert.equal(rows[0].timeNs,best.timeNs);
+  const distance={...record(randomBytes(32).toString('base64url')),map:'endless',revision:3,ruleset:'verified-endless-v1',distanceUnits:500};
+  assert.equal((await f.call('/__test/score/record',{body:distance})).status,200);
+  assert.equal((await (await f.call(boardPath)).json()).records[0].runId,best.runId);
+ }finally{await f.mf.dispose();await rm(persist,{recursive:true,force:true});}
 });

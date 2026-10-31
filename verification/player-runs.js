@@ -4,6 +4,7 @@ import {scoreBoard} from './score-store.js';
 import {verifyBot,turnstileConfigured} from './bot-check.js';
 import {privateTestingEnabled,privateTestOrigin,privateTesterAllowed,enrollPrivateTester} from './private-access.js';
 import {VERIFIED_BETA_COURSES,betaCourseAllowed} from './catalog.js';
+import {RANKED_ENDLESS_SEED,LEADERBOARD_LIMIT} from '../dist/ranked-courses.js';
 
 const internal=(path,body)=>new Request('https://internal/'+path,{method:'POST',body:JSON.stringify(body)});
 const coordinator=env=>env.ADMISSION.get(env.ADMISSION.idFromName('global-v1'));
@@ -58,7 +59,7 @@ export async function handlePlayerRuns(request,env){
       catch(error){if(!(error instanceof PlayerAuthError)||error.status!==401)return reply({error:'private-test-unavailable'},503);}
     }
     const enabled=(rankedEnabled(env)||privateMode&&tester)&&env.GOOGLE_LOGIN_ENABLED==='true'&&turnstileConfigured(env);
-    return reply({enabled,ranked:enabled,siteKey:enabled?env.TURNSTILE_SITE_KEY:null,tickRate:256,ruleset:'verified-v1',courses:VERIFIED_BETA_COURSES,beta:!privateMode,
+    return reply({enabled,ranked:enabled,siteKey:enabled?env.TURNSTILE_SITE_KEY:null,tickRate:256,ruleset:'verified-v1',courses:privateMode?[{map:'bhop-school',revision:1,preset:'classic'}]:VERIFIED_BETA_COURSES,beta:!privateMode,leaderboardLimit:LEADERBOARD_LIMIT,endlessSeed:RANKED_ENDLESS_SEED,
       ...(privateMode?{privateTest:true,requiresEnrollment:signedIn&&!tester}:{})});
   }
   if((env.PLAYER_RUNS_ENABLED!=='true'&&!privateMode)||env.GOOGLE_LOGIN_ENABLED!=='true'||!configuredSecret(env.PLAYER_AUTH_KEY)||
@@ -110,11 +111,11 @@ export async function handlePlayerRuns(request,env){
     player=player||await authenticatePlayer(request,env);
     if(match)return wrap(await runObject(env,match[1]).fetch(internal(match[2]==='cancel'?'player-cancel':'player-status',{accountId:player.accountId,privateTest:privateMode})));
     const {selection,turnstileToken}=await selectionBody(request);
-    if(!betaCourseAllowed(selection))return reply({error:privateMode?'private-test-course-only':'course-not-ranked'},400);
+    if(!betaCourseAllowed(selection)||privateMode&&(selection.map!=='bhop-school'||selection.preset!=='classic'))return reply({error:privateMode?'private-test-course-only':'course-not-ranked'},400);
     await verifyBot(turnstileToken,{env,origin,address});
     const response=await coordinator(env).fetch(internal('acquire',{accountId:player.accountId,networkKey:net,kind:'player'}));
     if(!response.ok)return wrap(response);
-    const lease=await response.json(),seed=crypto.getRandomValues(new Uint32Array(1))[0],scoreEligible=rankedEnabled(env)||privateMode;
+    const lease=await response.json(),seed=selection.map==='endless'?RANKED_ENDLESS_SEED:crypto.getRandomValues(new Uint32Array(1))[0],scoreEligible=rankedEnabled(env)||privateMode;
     try{
       const allocated=await runObject(env,lease.id).fetch(internal('init',{lease,selection,seed,kind:'player',origin,scoreEligible,botVerified:true,privateTest:privateMode}));
       if(!allocated.ok)throw Error('allocation-failed');

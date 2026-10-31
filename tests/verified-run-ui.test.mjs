@@ -23,7 +23,6 @@ function fixture(){
     async leaderboard(){return [{name:'Player <safe>',value:6.5}];}
   }
   const app=boot({},'',null,{PlayerLoginClass:Login,VerifiedRunClass:Runs,fetch:async()=>({ok:true,text:async()=>'Published owner | 20'})});
-  app.context.loadLeaderboard=async()=>[{name:'Published owner',value:20}];
   async function connect(){
     await app.element('verified-prepare').fire('click');await next();
     app.element('verified-prepare').fire('click');assert.equal(app.requests(),1);app.lock();assert.equal(app.read('playing'),false);resolveStart();await next();assert.equal(app.read('playing'),true);
@@ -52,11 +51,14 @@ test('the finish screen waits for a server acknowledgement and displays its auth
   assert.equal(f.app.element('finish-verify-again').classList.contains('hidden'),false);
   f.app.element('again').fire('click');assert.equal(f.app.read('verifiedHadRun'),false);assert.equal(f.client.phase,'idle');
 });
-test('verified and owner-published records remain selectable and escape player labels',async()=>{
-  const f=fixture();f.app.element('leaderboard-button').fire('click');await next();
-  assert.match(f.app.element('leaderboard-rows').innerHTML,/Player &lt;safe&gt;/);
-  assert.match(f.app.element('leaderboard-status').textContent,/verified record/);
-  f.app.element('leaderboard-published').fire('click');await next();
-  assert.match(f.app.element('leaderboard-rows').innerHTML,/Published owner/);
-  assert.equal(f.app.element('leaderboard-footer').textContent,'Records are added by the owner.');
+test('the single verified leaderboard escapes player labels and has no manual source selector',async()=>{
+ const f=fixture();f.app.element('leaderboard-button').fire('click');await next();
+ assert.match(f.app.element('leaderboard-rows').innerHTML,/Player &lt;safe&gt;/);assert.match(f.app.element('leaderboard-status').textContent,/1 \/ 5 verified players/);
+ assert.equal(f.app.element('leaderboard-published'),null);assert.match(f.app.element('leaderboard-footer').textContent,/Top five/);
+});
+test('verified Endless uses the shared seed and finishes on its first fall without cancelling the pending save',async()=>{
+ const f=fixture();f.app.read('chooseMap("endless")');await f.connect();
+ f.app.read('player.y=-100000; tick()');assert.equal(f.app.read('completed'),true);assert.equal(f.client.phase,'finishing');
+ assert.equal(f.app.read('respawns'),0);assert.match(f.app.element('finish-time').textContent,/ u$/);
+ f.client.result={verified:true,ranked:true,distance:1234,time:12,scoreStatus:'saved'};f.client.phase='saved';f.client.emit();assert.equal(f.app.element('finish-time').textContent,'1,234 u');
 });

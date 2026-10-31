@@ -1,6 +1,7 @@
 import {validPlayerAuthEndpoint} from './player-auth.js';
-export const VERIFIED_COURSES=Object.freeze({course:1,'bhop-school':1,'ladder-run':1,bhop_lego:2,bhop_kitsune:3});
-export function supportsVerifiedRun(selection){return !!selection&&VERIFIED_COURSES[selection.map]===selection.revision&&['classic','practice'].includes(selection.preset);}
+import {RANKED_COURSES,rankedCourseAllowed,LEADERBOARD_LIMIT,RANKED_ENDLESS_SEED} from './ranked-courses.js';
+export const VERIFIED_COURSES=Object.freeze(Object.fromEntries(RANKED_COURSES.map(course=>[course.map,course.revision])));
+export const supportsVerifiedRun=rankedCourseAllowed;
 const movementVerifiedId=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
 const movementVerifiedMessage=code=>({
   'server-full':'All verified run slots are busy. Try again shortly.',
@@ -21,7 +22,7 @@ const movementVerifiedMessage=code=>({
   'private-test-account-mismatch':'Private testing is linked to another Google account. Sign in with the account used to set it up.',
   'private-test-course-only':'Private testing is available on Bhop School / CS-style.',
   'private-test-unavailable':'Could not enable private testing. Keep the local test server running and try signing in again.',
-  'course-not-ranked':'Verified beta: choose Bhop School / CS-style.',
+  'course-not-ranked':'Choose a bundled scored map and its current revision.',
 }[code]||'Verification lost its connection. You can continue practising.');
 let movementTurnstileScript=null;
 function loadMovementTurnstile(){
@@ -78,11 +79,11 @@ export class VerifiedRunClient {
         const config=await this.request('/v1/player/config',{authorization:this.authorization()});
         if(typeof config.enabled!=='boolean'||config.ranked!==config.enabled||config.tickRate!==256||config.ruleset!=='verified-v1'||
           (config.enabled&&(!/^[A-Za-z0-9_-]{20,256}$/.test(config.siteKey)||/^\d+x0{10,}/.test(config.siteKey))))throw Error('verification-unavailable');
-        if(config.courses!==undefined&&(!Array.isArray(config.courses)||!config.courses.length||config.courses.length>10||!config.courses.every(supportsVerifiedRun)))throw Error('verification-unavailable');
+        if(config.courses!==undefined&&(!Array.isArray(config.courses)||!config.courses.length||config.courses.length>16||!config.courses.every(supportsVerifiedRun)))throw Error('verification-unavailable');
         if(config.privateTest===true&&(!Array.isArray(config.courses)||config.courses.length!==1||config.courses[0].map!=='bhop-school'||config.courses[0].revision!==1||config.courses[0].preset!=='classic'))throw Error('verification-unavailable');
         this.config=config;this.status=config.privateTest?
           config.enabled?'Private test ready · Bhop School / CS-style.':'Sign in through Settings to enable private testing.':
-          config.enabled?(config.beta?'Verified beta · Bhop School / CS-style. Sign in, then complete the browser check.':'Sign in, then complete the browser check to verify a run.'):'Verified runs are not available yet.';
+          config.enabled?'Sign in, then complete the browser check. Only the top five reach the leaderboard.':'Verified runs are not available yet.';
         if(!config.enabled)this.phase='unavailable';this.emit();return config;
       }finally{this.configRequest=null;}
     })();return this.configRequest;
@@ -142,7 +143,8 @@ export class VerifiedRunClient {
       if(generation!==this.generation){if(movementVerifiedId(run.runId))void this.cancelRemote(run.runId,authorization);return false;}
       if(!movementVerifiedId(run.runId)||typeof run.ticket!=='string'||run.ticket.length>2048||run.ranked!==true||
         run.socketPath!==`/v1/player/runs/${run.runId}/socket`||!Number.isSafeInteger(run.expiresAt)||run.expiresAt<=this.now()||
-        run.selection?.map!==selection.map||run.selection?.revision!==selection.revision||run.selection?.preset!==selection.preset||!!run.privateTest!==!!this.config.privateTest){
+        run.selection?.map!==selection.map||run.selection?.revision!==selection.revision||run.selection?.preset!==selection.preset||!!run.privateTest!==!!this.config.privateTest||
+        (selection.map==='endless'&&run.seed!==RANKED_ENDLESS_SEED)){
         if(movementVerifiedId(run.runId))void this.cancelRemote(run.runId,authorization);throw Error('revision-mismatch');
       }
       this.#run={id:run.runId};this.#runAuth=authorization;this.frames=[];this.sentTicks=0;this.seq=0;this.phase='connecting';
@@ -165,12 +167,18 @@ export class VerifiedRunClient {
       }
       if(value.type==='state')return;
       if(value.type!=='ended'||!['active','finishing'].includes(this.phase)||typeof value.reason!=='string')throw Error();
-      this.clearTimer();this.result={completed:value.completed===true,time:value.time,checkpoint:value.checkpoint,reason:value.reason,ranked:false,scoreStatus:value.scoreStatus};
-      const saved=value.ranked===true&&value.reason==='completed'&&value.completed===true&&value.invalid===null&&
-        Number.isFinite(value.time)&&value.time>0&&value.time<=600&&value.scoreStatus==='saved'&&value.score?.saved===true;
+      const endless=this.selection?.map==='endless';
+      const clean=endless?((value.reason==='respawn'&&value.invalid==='respawn')||(value.reason==='run-expired'&&value.invalid===null))&&Number.isFinite(value.distance)&&value.distance>=1&&value.distance<=1e9:
+        value.reason==='completed'&&value.completed===true&&value.invalid===null;
+      const eligible=clean&&Number.isFinite(value.time)&&value.time>0&&value.time<=600;
+      this.clearTimer();this.result={completed:value.completed===true,time:value.time,distance:endless?Math.floor(value.distance):undefined,checkpoint:value.checkpoint,reason:value.reason,ranked:false,verified:false,scoreStatus:value.scoreStatus};
+      const saved=eligible&&value.ranked===true&&value.scoreStatus==='saved'&&value.score?.saved===true;
       if(saved){this.result.ranked=true;this.result.personalBest=value.score.personalBest===true;this.phase='saved';
-        this.status=this.config.privateTest?'Private test verified · score saved.':this.result.personalBest?'Verified · new global personal best saved.':'Verified · run accepted. Your faster personal best is kept.';this.#runAuth=null;}
-      else if(value.reason==='completed'&&value.completed===true&&value.scoreStatus==='pending'){
+        this.result.verified=true;
+        this.status=this.config.privateTest?'Private test verified · score saved.':this.result.personalBest?'Verified · top-five record saved.':'Verified · your better ranked personal best is kept.';this.#runAuth=null;}
+      else if(eligible&&value.verified===true&&value.scoreStatus==='outside-top-five'&&value.score?.outsideTopFive===true){
+        this.result.verified=true;this.phase='ended';this.status='Verified finish · outside the top five. No leaderboard entry added.';this.#runAuth=null;
+      }else if(eligible&&value.scoreStatus==='pending'){
         this.phase='pending';this.status='Finished. Your verified score is waiting to save.';this.pollResult(generation,0);
       }else{this.phase='ended';this.status=value.reason==='completed'?'Finished. The score was not saved.':'Verification ended. You can continue practising.';this.#runAuth=null;}
       this.emit();
@@ -220,8 +228,10 @@ export class VerifiedRunClient {
   async leaderboard(selection,{signal}={}){
     if(!supportsVerifiedRun(selection))throw Error('invalid-board');
     const data=await this.request(`/v1/leaderboards/${selection.map}/${selection.preset}?revision=${selection.revision}`,{signal,authorization:this.config?.privateTest?this.authorization():undefined});
-    if(data.map!==selection.map||data.preset!==selection.preset||data.revision!==selection.revision||data.ruleset!=='verified-v1'||!Array.isArray(data.records)||data.records.length>100)throw Error('invalid-board');
-    if(!data.records.every(row=>typeof row.name==='string'&&row.name.length<=40&&Number.isFinite(row.value)&&row.value>0&&row.value<=600&&movementVerifiedId(row.runId)))throw Error('invalid-board');
+    const endless=selection.map==='endless';
+    if(data.map!==selection.map||data.preset!==selection.preset||data.revision!==selection.revision||data.ruleset!==(endless?'verified-endless-v1':'verified-v1')||!Array.isArray(data.records)||data.records.length>LEADERBOARD_LIMIT)throw Error('invalid-board');
+    if(!data.records.every(row=>typeof row.name==='string'&&row.name.length<=40&&Number.isFinite(row.value)&&row.value>0&&
+      (endless?Number.isSafeInteger(row.value)&&row.value<=1e9:row.value<=600)&&movementVerifiedId(row.runId)))throw Error('invalid-board');
     return data.records;
   }
 }

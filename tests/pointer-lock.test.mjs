@@ -386,7 +386,7 @@ test('the chosen checkpoint sound, movement toggle and volume persist independen
   assert.equal(restored.element('audio-volume').value,40);assert.equal(restored.element('knife-sounds').checked,true);
 });
 test('leaderboard opens for the selected course, safely renders cloud records, and remains separate from local personal bests',async()=>{
-  const app=boot();app.read('loadLeaderboard=async()=>[{name:"<Seal>",value:12.345}]');
+  const app=boot();app.read('verifiedRuns={state:()=>({}),finish(){},leaderboard:async()=>[{name:"<Seal>",value:12.345}]}');
   app.element('leaderboard-button').fire('click');await app.read('refreshLeaderboard()');
   assert.equal(app.element('leaderboard').open,true);assert.equal(app.element('leaderboard-title').textContent,'Starter course');
   assert.match(app.element('leaderboard-rows').innerHTML,/&lt;Seal&gt;/);assert.match(app.element('leaderboard-rows').innerHTML,/00:12.345/);
@@ -400,8 +400,8 @@ test('audio choices and cloud leaderboards remain usable without WebGL while pla
   assert.match(app.element('menu-description').textContent,/still available/);
   app.element('checkpoint-sound').value='glass';await app.element('checkpoint-sound').fire('change');
   assert.equal(app.read('checkpointSound'),'glass');
-  app.read('loadLeaderboard=async()=>[]');app.element('leaderboard-button').fire('click');await app.read('refreshLeaderboard()');
-  assert.equal(app.element('leaderboard').open,true);assert.match(app.element('leaderboard-status').textContent,/No records yet/);
+  app.read('verifiedRuns={state:()=>({}),finish(){},leaderboard:async()=>[]}');app.element('leaderboard-button').fire('click');await app.read('refreshLeaderboard()');
+  assert.equal(app.element('leaderboard').open,true);assert.match(app.element('leaderboard-status').textContent,/No verified records yet/);
   app.element('play').fire('click');assert.equal(app.requests(),0);assert.equal(app.read('playing'),false);
 });
 test('entering the finish plays one victory cue after stopping movement sounds, and reset cancels it',()=>{
@@ -548,7 +548,7 @@ test('returning from Endless saves distance and clears the route for the next ru
 });
 test('all scored native maps have boards and Endless opens a distance board without changing the course',async()=>{
  const app=boot();app.element('open-map-select').fire('click');
- app.read('loadLeaderboard=async()=>[{name:"Seal",value:12345}]');
+ app.read('verifiedRuns={state:()=>({}),finish(){},leaderboard:async()=>[{name:"Seal",value:12345}]}');
  for(const id of ['course','bhop-school','ladder-run']){app.read(`chooseMap('${id}');openLeaderboard()`);assert.equal(app.element('leaderboard-button').disabled,false);assert.equal(app.element('leaderboard').open,true);app.element('leaderboard-close').fire('click');}
  app.element('endless-leaderboard').fire('click');await app.read('refreshLeaderboard()');
  assert.equal(app.read('map'),'ladder-run');assert.equal(app.element('leaderboard-title').textContent,'Endless');assert.equal(app.element('leaderboard-score').textContent,'DISTANCE');assert.match(app.element('leaderboard-rows').innerHTML,/12,345 u/);
@@ -670,7 +670,7 @@ test('the menu contains 15 slideshow entries with later sections and both commun
 });
 test('bhop_lego exposes its leaderboard from map selection and the finish screen in both modes',async()=>{
  const app=boot({},'',null,{fetch:greyFetch});app.context.leaderboardCalls=[];
- app.read('loadLeaderboard=async(id,mode,options)=>{leaderboardCalls.push({id,mode,revision:options.revision});return [{name:"<Seal>",value:154.567}];}');
+ app.read('verifiedRuns={state:()=>({}),finish(){},leaderboard:async(selection)=>{leaderboardCalls.push({id:selection.map,mode:selection.preset,revision:selection.revision});return [{name:"<Seal>",value:154.567}];}}');
  try {
   await app.context.selectCommunityMap(course.COMMUNITY_MAPS[0]);
   assert.equal(app.element('leaderboard-button').disabled,false);

@@ -89,9 +89,13 @@ Press **E** for another attempt from that checkpoint, or **Q** for a fresh run. 
 
 Refreshing the page restores your timed or community-map run at its checkpoint, paused. Click **Continue** to resume. Keep the same tab open: this is temporary progress. Restarting, changing maps or physics, or finishing clears the previous run. Endless keeps your best distance in your browser.
 
-All timed courses and both community maps have Published leaderboards with separate CS-style and Bhop practice rankings. Select a map and click **Leaderboard**, or open it after finishing. **Endless leaderboard** ranks distance, highest first. Published records are added by the owner; an ordinary practice finish does not publish your score. [Leaderboard information](leaderboards/README.md).
+Every bundled timed course and Endless has a **top-five verified leaderboard**, with separate CS-style and Bhop practice rankings. Each account can hold one place per map and mode. Times rank fastest first; Endless ranks longest distance first. Scores outside the top five are verified but do not create leaderboard entries. Manual leaderboards have been removed.
 
-The **Verified Run beta** supports Bhop School / CS-style. Sign in through Settings, select that map and mode, choose **Verified Run**, complete the browser check, then choose **Start Verified Run**. The server calculates the time and saves accepted personal bests to the Verified leaderboard. Pausing or resetting ends verification; ordinary practice can continue. Choose a unique username in Settings for your public leaderboard entries. Your login stays saved on this browser until you sign out; private test scores stay separate. [Beta scope and server details](verification/BETA.md).
+Sign in through Settings, select a course, choose **Verified Run**, complete the browser check, then choose **Start Verified Run**. The server replays your controls and calculates the result; the browser cannot submit a time or position. Pausing or resetting cancels verification. Ordinary practice keeps local bests without publishing them.
+
+For Endless, choose **Verified Endless Run**. Everyone plays the same generated route. Your first fall banks the distance, with a ten-minute maximum; pausing or resetting cancels the attempt. Sandbox and local map imports have no global rankings.
+
+Choose a unique username in Settings for your public records. Your login stays saved on this browser until you sign out. Existing private test scores stay separate. [Server and leaderboard details](verification/BETA.md).
 
 ## Make it comfortable
 

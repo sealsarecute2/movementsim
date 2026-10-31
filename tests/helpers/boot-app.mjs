@@ -17,6 +17,7 @@ import { MULTIPLAYER_CONFIG } from '../../dist/multiplayer-config.js';
 import { PLAYER_AUTH_CONFIG } from '../../dist/player-auth-config.js';
 import * as playerAuthModule from '../../dist/player-auth.js';
 import * as verifiedRunModule from '../../dist/verified-runs.js';
+import * as rankedModule from '../../dist/ranked-courses.js';
 const markup=readFileSync(new URL('../../dist/index.html',import.meta.url),'utf8');
 const elementIds=new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
 
@@ -49,7 +50,7 @@ export function boot(stored = {}, search = '', renderError = null, sourceOptions
     play(){this.plays++;this.paused=false;return Promise.resolve();},pause(){this.pauses++;this.paused=true;}};
   class TestMenuMusic extends musicModule.MenuMusic {constructor(options){super({...options,createAudio:()=>musicAudio});}}
   const session=sourceOptions.session||new Map();
-  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,...parkourModule,...multiplayerModule,...referenceModule,...playerAuthModule,...verifiedRunModule,MULTIPLAYER_CONFIG,PLAYER_AUTH_CONFIG:sourceOptions.playerAuthConfig||PLAYER_AUTH_CONFIG,GooglePlayerLogin:sourceOptions.PlayerLoginClass||playerAuthModule.GooglePlayerLogin,VerifiedRunClient:sourceOptions.VerifiedRunClass||verifiedRunModule.VerifiedRunClient,projectWorldPoint,MenuMusic:TestMenuMusic,document,window,
+  const context=vm.createContext({...physics,...course,...endlessModule,...audioModule,...leaderboardModule,...skyboxModule,...menuModule,...musicModule,...sourceRuntimeModule,...parkourModule,...multiplayerModule,...referenceModule,...playerAuthModule,...verifiedRunModule,...rankedModule,MULTIPLAYER_CONFIG,PLAYER_AUTH_CONFIG:sourceOptions.playerAuthConfig||PLAYER_AUTH_CONFIG,GooglePlayerLogin:sourceOptions.PlayerLoginClass||playerAuthModule.GooglePlayerLogin,VerifiedRunClient:sourceOptions.VerifiedRunClass||verifiedRunModule.VerifiedRunClient,projectWorldPoint,MenuMusic:TestMenuMusic,document,window,
     AbortController,fetch:sourceOptions.fetch,loadSourceMap:sourceOptions.load,crypto:globalThis.crypto,
     RTCPeerConnection:sourceOptions.RTCPeerConnection,MultiplayerRoom:sourceOptions.RoomClass||multiplayerModule.MultiplayerRoom,
     sessionStorage:{getItem:key=>session.get(key)||null,setItem:(key,value)=>session.set(key,value),removeItem:key=>session.delete(key)},

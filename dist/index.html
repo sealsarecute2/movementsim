@@ -74,6 +74,7 @@
             <div id="verified-challenge" class="verified-challenge hidden"></div>
           </section>
           <button id="play-endless" type="button"><span><strong>ENDLESS</strong><small>No finish line. Checkpoints every 8 blocks.</small></span><b>∞</b></button>
+          <button id="verify-endless" class="text-button" type="button">VERIFIED ENDLESS RUN ↗</button>
           <button id="endless-leaderboard" class="text-button" type="button">ENDLESS LEADERBOARD ↗</button>
           <p id="input-note" class="input-note" role="status">Choose a map, then Start Course. Esc pauses.</p>
         </section>
@@ -157,7 +158,7 @@
     </main>
   </div>
   <div id="finish" class="finish hidden" role="dialog" aria-modal="true" aria-labelledby="finish-title"><div><span class="eyebrow" id="finish-course">COURSE COMPLETE</span><h2 id="finish-title">Clean finish.</h2><strong id="finish-time">00:00.000</strong><p id="finish-note"></p><p id="finish-verified" class="finish-verified hidden" role="status" aria-live="polite"></p><button id="again" class="play">RUN IT AGAIN <span>↗</span></button><button id="finish-verify-again" class="text-button hidden">NEW VERIFIED RUN</button><button id="check-reference" class="text-button hidden">CHECK REFERENCE RUN</button><button id="finish-leaderboard" class="text-button">View leaderboard</button><button id="finish-settings" class="text-button">Settings &amp; main menu</button></div></div>
-  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-sources" role="group" aria-label="Record source"><button id="leaderboard-published" type="button" aria-pressed="true">PUBLISHED</button><button id="leaderboard-verified" type="button" aria-pressed="false">VERIFIED</button></div><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Records are added by the owner.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
+  <dialog id="leaderboard" class="leaderboard-dialog" aria-labelledby="leaderboard-title"><div class="leaderboard-heading"><span class="eyebrow">LEADERBOARD</span><button id="leaderboard-close" type="button" aria-label="Close leaderboard">✕</button></div><h2 id="leaderboard-title">Starter course</h2><p id="leaderboard-mode">CS-style</p><div class="leaderboard-table"><table><thead><tr><th scope="col">RANK</th><th scope="col">PLAYER</th><th id="leaderboard-score" scope="col">TIME</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div><p id="leaderboard-status" role="status">Loading records…</p><footer><span id="leaderboard-footer">Top five verified players · one best per account.</span><button id="leaderboard-refresh" type="button">Refresh</button></footer></dialog>
   <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import { createEndless } from './endless.js';
 import { createRenderer, projectWorldPoint } from './renderer.js';
 import { normaliseSkybox } from './skybox.js';
 import { CHECKPOINT_CHIMES, createGameAudio } from './game-audio.js';
-import { loadLeaderboard, leaderboardRows, hasLeaderboard, formatLeaderboardScore } from './leaderboard.js';
+import { leaderboardRows, hasLeaderboard, formatLeaderboardScore } from './leaderboard.js';
 import { mapPreviewSVG, createGalleryEntries, createMenuSlideshow, captureMapScreenshot } from './menu.js';
 import { MenuMusic } from './menu-music.js';
 import { loadSourceMap } from './source-map.js';
@@ -16,6 +16,7 @@ import { ReferenceRunRecorder, REFERENCE_MAPS } from './reference-run.js';
 import { PLAYER_AUTH_CONFIG } from './player-auth-config.js';
 import { GooglePlayerLogin, validPlayerAuthEndpoint } from './player-auth.js';
 import { VerifiedRunClient, supportsVerifiedRun } from './verified-runs.js';
+import { RANKED_ENDLESS_SEED } from './ranked-courses.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('world'), overlay = $('overlay'), keys = new Set();
@@ -67,7 +68,7 @@ let knife = null, knifeLoad = null, knifeEnabled = true, knifeSounds = true;
 let gameAudio = null, movementSounds = true, checkpointSound = 'pulse', audioVolume = .65;
 let windowFocused=document.hasFocus?.()??true,musicEnabled=false,musicVolume=.35;
 let fpsWindowStart = null, fpsFrames = 0, leaderboardRequest = 0, leaderboardMap = null;
-let leaderboardSource='published',leaderboardController=null;
+let leaderboardController=null;
 let room=null,roomStarting=false,roomApplyingCourse=false,roomUiAt=-Infinity;
 let pendingRunRestore=null;
 const referenceMode=new URLSearchParams(window.location?.search||'').get('referenceRun')==='1';
@@ -83,9 +84,9 @@ function updateVerifiedUi(){
   $('verified-controls').classList.toggle('hidden',!verifiedRuns);
   $('verified-prepare').disabled=!rendererReady||!supported||!!state?.busy||!!state?.active||verifiedRuns?.config?.enabled===false;
   $('verified-prepare').textContent=state?.prepared?'START VERIFIED RUN':state?.busy?'PLEASE WAIT…':state?.privateTest?'PRIVATE VERIFIED RUN':'VERIFIED RUN';
-  $('verified-note').textContent=state?.privateTest?(!playerLogin?.state().signedIn?'Sign in in Settings to enable your private test.':!supported?'Private test: choose Bhop School / CS-style.':state.status):!supported?(verifiedRuns?.config?.beta?'Verified beta: choose Bhop School / CS-style.':'Choose a supported solo course to verify a run.'):
+  $('verified-note').textContent=state?.privateTest?(!playerLogin?.state().signedIn?'Sign in in Settings to enable your private test.':!supported?'Private test: choose Bhop School / CS-style.':state.status):!supported?'Choose a supported solo scored map to verify a run.':
     verifiedRuns?.config?.enabled===false?'Verified runs are not available yet.':
-    !playerLogin?.state().signedIn?'Sign in in Settings to start a verified run.':state?.status||'Complete the browser check to start.';
+    !playerLogin?.state().signedIn?'Sign in in Settings to start a verified run.':(MAPS[map].endless&&state?.phase==='idle'?'Verified Endless uses a shared route. Your first fall banks the distance; pausing cancels. Limit: 10 minutes.':state?.status||'Complete the browser check to start.');
   $('verified-challenge').classList.toggle('hidden',state?.phase!=='checking'&&state?.phase!=='prepared');
   $('verified-status').classList.toggle('hidden',!verifiedHadRun||!playing);
   $('verified-status').textContent=state?.status||'';
@@ -93,7 +94,8 @@ function updateVerifiedUi(){
   $('finish-verified').classList.toggle('hidden',!verifiedHadRun);$('finish-verify-again').classList.toggle('hidden',!verifiedHadRun);
   $('finish-verified').textContent=verifiedHadRun?state?.status||'This run was not verified.':'';
   $('again').innerHTML=verifiedHadRun?'PRACTISE AGAIN <span>↗</span>':'RUN IT AGAIN <span>↗</span>';
-  if(completed&&verifiedHadRun&&sameCourse&&state.result?.ranked===true)$('finish-time').textContent=formatLeaderboardScore(state.result.time);
+  if(verifiedHadRun&&sameCourse&&MAPS[map].endless&&state.result&&['saved','pending','outside-top-five'].includes(state.result.scoreStatus)&&!completed)finishRun();
+  if(completed&&verifiedHadRun&&sameCourse&&(state.result?.verified===true||state.result?.ranked===true))$('finish-time').textContent=formatLeaderboardScore(MAPS[map].endless?state.result.distance:state.result.time,!!MAPS[map].endless);
 }
 try{pendingRunRestore=JSON.parse(sessionStorage.getItem('movement-lab-run-v1')||'null');}catch{}
 try { bests=JSON.parse(localStorage.getItem('movement-lab-bests-v1')||'{}'); } catch {}
@@ -178,28 +180,24 @@ async function activateGameAudio() {
 async function refreshLeaderboard() {
   const request=++leaderboardRequest, selected=MAPS[leaderboardMap||map], mode=preset;
   leaderboardController?.abort();leaderboardController=new AbortController();
-  const selection={map:selected.id,revision:selected.revision||1,preset:mode},verified=leaderboardSource==='verified';
-  $('leaderboard-verified').disabled=!verifiedRuns||!(verifiedRuns.supportsSelection?.(selection)??supportsVerifiedRun(selection));
-  $('leaderboard-verified').setAttribute('aria-pressed',String(verified));$('leaderboard-published').setAttribute('aria-pressed',String(!verified));
-  $('leaderboard-verified').textContent=verifiedRuns?.config?.privateTest?'PRIVATE TEST':'VERIFIED';
-  $('leaderboard-footer').textContent=verified?(verifiedRuns?.config?.privateTest?'Private test scores · separate from public records.':'Verified finishes · one personal best per account.'):'Records are added by the owner.';
+  const selection={map:selected.id,revision:selected.revision||1,preset:mode};
+  $('leaderboard-footer').textContent=verifiedRuns?.config?.privateTest?'Private test · top five · separate from public records.':'Top five verified players · one best per account.';
   $('leaderboard-title').textContent=selected.title;
   $('leaderboard-mode').textContent=PRESETS[mode].title;
   $('leaderboard-score').textContent=selected.endless?'DISTANCE':'TIME';
   $('leaderboard-rows').innerHTML='';$('leaderboard-status').textContent='Loading records…';
   try {
-    const records=verified?await verifiedRuns.leaderboard(selection,{signal:leaderboardController.signal}):
-      await loadLeaderboard(selected.id,mode,{revision:selected.revision||1,signal:leaderboardController.signal});
+    if(!verifiedRuns)throw Error('leaderboards-disabled');
+    const records=await verifiedRuns.leaderboard(selection,{signal:leaderboardController.signal});
     if(request!==leaderboardRequest)return;
     $('leaderboard-rows').innerHTML=leaderboardRows(records,!!selected.endless);
-    $('leaderboard-status').textContent=records.length?`${records.length} ${verified?'verified':'published'} record${records.length===1?'':'s'}`:verified?'No verified records yet.':'No records yet. The owner can add the first one.';
-  } catch(error) {if(request===leaderboardRequest)$('leaderboard-status').textContent=verified&&['player-runs-disabled','leaderboards-disabled'].includes(error.message)?'Verified leaderboards are not available yet.':'Could not load records. Try Refresh.';}
+    $('leaderboard-status').textContent=records.length?`${records.length} / 5 verified players`:'No verified records yet. Finish a verified run to set the first score.';
+  } catch(error) {if(request===leaderboardRequest)$('leaderboard-status').textContent=['player-runs-disabled','leaderboards-disabled'].includes(error.message)?'Verified leaderboards are not available yet.':'Could not load records. Try Refresh.';}
 }
 function openLeaderboard(value=map) {
   const selected=typeof value==='string'&&Object.hasOwn(MAPS,value)?value:map;
   if(!hasLeaderboard(selected,MAPS[selected].revision||1))return;
   leaderboardMap=selected;
-  leaderboardSource=verifiedRuns?.config?.enabled&&supportsVerifiedRun({map:selected,revision:MAPS[selected].revision||1,preset})?'verified':'published';
   if(playing)pause();
   $('leaderboard').showModal();void refreshLeaderboard();
 }
@@ -249,7 +247,7 @@ function reset(full=true,verifiedStart=false) {
   if(full)saveEndlessBest();
   if(full) { checkpoint=0; runTime=0; runActive=false; respawns=0; }
   if(MAPS[map].endless&&(full||!endless)) {
-    endless=createEndless(room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
+    endless=createEndless(verifiedStart?RANKED_ENDLESS_SEED:room?.busy?room.course?.seed:undefined);boxes=endless.boxes;renderer.setBoxes(boxes);
   }
   const previousPeak=player.peakSpeed;
   player=createPlayer(spawnForPlayer(endless?endless.spawn:MAPS[map].spawns[checkpoint]||MAPS[map].spawns[0]));
@@ -446,10 +444,11 @@ function finishRun() {
   knife?.draw(0);
   if(document.pointerLockElement===canvas) document.exitPointerLock();
   const key=recordKey(), old=bests[key], clean=respawns===0;
-  const isPB=clean&&(!Number.isFinite(old)||runTime<old);
-  if(isPB) { bests[key]=runTime; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
+  const isDistance=!!MAPS[map].endless,score=isDistance?Math.floor(endless?.distance||0):runTime;
+  const isPB=clean&&(!Number.isFinite(old)||(isDistance?score>old:score<old));
+  if(isPB) { bests[key]=score; try {localStorage.setItem('movement-lab-bests-v1',JSON.stringify(bests));} catch {} }
   $('finish-course').textContent=MAPS[map].title.toUpperCase()+' COMPLETE';
-  $('finish-time').textContent=format(runTime);
+  $('finish-time').textContent=isDistance?formatLeaderboardScore(score,true):format(runTime);
   $('finish-note').textContent=`${isPB?'New personal best. ':''}${Math.round(player.peakSpeed)} u/s peak · ${respawns} respawn${respawns===1?'':'s'}. ${clean?'Clean runs count toward your best.':'Checkpoint-assisted run. Finish without respawning to set a best.'}`;
   $('finish-leaderboard').classList.toggle('hidden',!hasLeaderboard(map,MAPS[map].revision||1));
   gameAudio?.finish();
@@ -568,6 +567,7 @@ function tickMovement(input) {
   if(runActive) runTime+=DT*Math.max(0,timerEnd-timerStart);
   if(finished) {finishRun();return;}
   if(player.y<Math.min(...boxes.map(b=>b.max[1]))-550) {
+    if(endless&&verifiedHadRun&&['active','finishing'].includes(verifiedRuns?.state().phase)){finishRun();return;}
     respawns++;reset(false);
     toast(MAPS[map].timed||endless?'BACK AT CHECKPOINT — TIMER CONTINUES':'BACK ON THE PRACTICE FLOOR');
   }
@@ -655,11 +655,11 @@ if(slides.length)slideshow=createMenuSlideshow({slides,maps:galleryMaps,title:$(
 $('gallery-next').addEventListener('click',()=>slideshow?.next());
 $('gallery-previous').addEventListener('click',()=>slideshow?.previous());
 $('leaderboard-button').addEventListener('click',openLeaderboard);
+$('verify-endless').addEventListener('click',()=>{if(room?.busy){showMain('rooms');return;}chooseMap('endless');showMain('maps');});
 $('endless-leaderboard').addEventListener('click',()=>openLeaderboard('endless'));
 $('finish-leaderboard').addEventListener('click',openLeaderboard);
 $('leaderboard-close').addEventListener('click',()=>$('leaderboard').close());
 $('leaderboard-refresh').addEventListener('click',()=>void refreshLeaderboard());
-for(const source of ['published','verified'])$('leaderboard-'+source).addEventListener('click',()=>{leaderboardSource=source;void refreshLeaderboard();});
 $('leaderboard').addEventListener('close',()=>{leaderboardRequest++;leaderboardController?.abort();});
 $('skybox-select').value=skybox;renderer.setSkybox?.(skybox);
 $('skybox-select').addEventListener('change',()=>{

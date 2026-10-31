@@ -114,7 +114,19 @@ test('public beta course configuration restricts the button and rejects preparin
   f.client.fetcher=async(url,options)=>url.endsWith('/v1/player/config')?Response.json({enabled:true,ranked:true,beta:true,tickRate:256,ruleset:'verified-v1',siteKey:'production-site-key-fixture-123456',courses:[selection]}):original(url,options);
   await f.client.loadConfig();assert.equal(f.client.supportsSelection(selection),true);
   for(const choice of [{...selection,map:'course'},{...selection,preset:'practice'}]){
-    assert.equal(f.client.supportsSelection(choice),false);assert.equal(await f.client.prepare(choice,{}),false);assert.match(f.client.state().status,/Bhop School/);
+    assert.equal(f.client.supportsSelection(choice),false);assert.equal(await f.client.prepare(choice,{}),false);assert.match(f.client.state().status,/bundled scored map/);
   }
   assert.equal(f.sockets.length,0);f.client.dispose();
+});
+
+test('a verified finish outside the top five is acknowledged without pretending the time was saved',async()=>{
+ const f=fixture(),socket=await f.start();f.client.finish();
+ socket.message({type:'ended',reason:'completed',completed:true,invalid:null,time:15,checkpoint:3,verified:true,ranked:false,scoreStatus:'outside-top-five',score:{saved:false,outsideTopFive:true}});
+ assert.equal(f.client.state().result.verified,true);assert.equal(f.client.state().result.ranked,false);assert.equal(f.client.state().result.time,15);assert.equal(f.client.state().phase,'ended');assert.match(f.client.state().status,/outside the top five/);f.client.dispose();
+});
+test('all twelve scored selections are supported, and an Endless fall can confirm a distance record',async()=>{
+ const f=fixture(),socket=await f.start();f.client.selection={map:'endless',revision:3,preset:'classic'};
+ socket.message({type:'ended',reason:'respawn',completed:false,invalid:'respawn',time:15,distance:1234.9,verified:true,ranked:true,scoreStatus:'saved',score:{saved:true,personalBest:true}});
+ assert.equal(f.client.state().result.verified,true);assert.equal(f.client.state().result.distance,1234);assert.equal(f.client.state().phase,'saved');f.client.dispose();
+ assert.equal(supportsVerifiedRun({map:'endless',revision:3,preset:'classic'}),true);assert.equal(supportsVerifiedRun({map:'free',revision:1,preset:'classic'}),false);
 });
