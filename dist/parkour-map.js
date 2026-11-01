@@ -165,6 +165,17 @@ export function hydrateParkourMap(data) {
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');
   const map={...data,greybox:true};
   if(data.movementEntities)map.movementEntities=normalizeMovementEntities(data.movementEntities);
+  if(data.textureMeshes!==undefined){
+    if(!Array.isArray(data.textureMeshes)||data.textureMeshes.length>64)throw Error('Invalid imported textures.');
+    let assets=0,geometry=0;
+    map.textureMeshes=data.textureMeshes.map(entry=>{
+      if(!entry||typeof entry.material!=='string'||entry.material.length>256||!['png','jpeg','webp','vtf'].includes(entry.type)||
+        typeof entry.image!=='string'||typeof entry.vertices!=='string'||!/^[a-zA-Z0-9+/]*={0,2}$/.test(entry.image)||!/^[a-zA-Z0-9+/]*={0,2}$/.test(entry.vertices))throw Error('Invalid imported texture asset.');
+      assets+=entry.image.length*3/4;geometry+=entry.vertices.length*3/4;
+      if(assets>8*1024*1024||geometry>5*1024*1024||entry.vertices.length%4)throw Error('Imported textures are too large.');
+      return {material:entry.material,type:entry.type,image:entry.image,vertices:entry.vertices};
+    });
+  }
   for(const field of ['killboxes','teleports','boosts'])if(data[field]!==undefined){
     if(!Array.isArray(data[field])||data[field].length>4096)throw Error('Too many movement triggers.');
     map[field]=data[field].map(value=>{

@@ -10,10 +10,10 @@ sys.path.insert(0, str(root / 'tools'))
 from music_catalog import write_catalog
 write_catalog(root)
 # Keep the repository root directly usable by static hosts such as GitHub Pages.
-modules = ('map-rules.js', 'geometry.js', 'endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'room-map.js', 'source-map.js', 'source-runtime.js', 'players.js', 'gallery-renderer.js', 'renderer.js', 'game-audio.js', 'ranked-courses.js', 'leaderboard.js', 'menu.js', 'music-catalog.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'reference-run.js', 'player-auth-config.js', 'player-auth.js', 'verified-runs.js', 'app.js')
+modules = ('map-rules.js', 'geometry.js', 'endless.js', 'course.js', 'physics.js', 'skybox.js', 'lighting.js', 'signs.js', 'parkour-map.js', 'room-map.js', 'source-textures.js', 'source-map.js', 'source-runtime.js', 'players.js', 'gallery-renderer.js', 'source-texture-renderer.js', 'renderer.js', 'game-audio.js', 'ranked-courses.js', 'leaderboard.js', 'menu.js', 'music-catalog.js', 'menu-music.js', 'multiplayer-config.js', 'multiplayer.js', 'reference-run.js', 'player-auth-config.js', 'player-auth.js', 'verified-runs.js', 'app.js')
 # The public HTML embeds the game modules and CSS. Only the knife's lazy
 # module imports need separate JavaScript files at the repository root.
-runtime_modules = ('renderer.js', 'skybox.js', 'lighting.js', 'signs.js', 'players.js', 'geometry.js', 'gallery-renderer.js', 'map-rules.js')
+runtime_modules = ('renderer.js', 'source-texture-renderer.js', 'source-textures.js', 'skybox.js', 'lighting.js', 'signs.js', 'players.js', 'geometry.js', 'gallery-renderer.js', 'map-rules.js')
 for filename in runtime_modules:
     (root / filename).write_text((dist / filename).read_text())
 for filename in ('favicon.ico', 'favicon.svg'):

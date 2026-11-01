@@ -3,6 +3,7 @@
 import { makeParkourMap, makeImportedGeometryMap } from './parkour-map.js';
 import { makeConvexBrush } from './geometry.js';
 import { defaultKillHeight } from './map-rules.js';
+import { collectSourceTextures } from './source-textures.js';
 const sourceText = new TextDecoder('windows-1252');
 const sourcePoint = v => [v[0], v[2], -v[1]];
 const sourceVector = s => (s || '0 0 0').trim().split(/\s+/).map(Number);
@@ -47,8 +48,12 @@ export async function unpackSourceArchive(input) {
 
 export async function loadSourceMap(input,options={}) {
   const bytes=await unpackSourceArchive(input);
-  const map=parseSourceBsp(bytes,{...options,geometryOnly:true});
-  return options.stageTargets?makeParkourMap(map):makeImportedGeometryMap(map);
+  const map=parseSourceBsp(bytes,{...options,geometryOnly:!options.includeTextures});
+  const playable=options.stageTargets?makeParkourMap(map):makeImportedGeometryMap(map);
+  if(options.includeTextures){
+    playable.textureMeshes=await collectSourceTextures(input,map.pak,map.mesh.map(batch=>({...batch,material:map.materials[batch.material]?.name||''})));
+  }
+  return playable;
 }
 
 export function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,entryTarget=null,stageTargets=null,resetTargets=null,exitTargets=null,stageTitles=null,finishTarget='end',routeSurfacesOnly=false,routeBands=null,geometryOnly=false}={}) {

@@ -399,7 +399,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   $('map-description').textContent=selected.description;
   $('map-info').dataset.help=selected.description||'';
   $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
-  $('map-credit').textContent=selected.community?(boxes.sourceMap?.importedGeometry?'Local import · original brush shapes · untextured geometry.':`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
+  $('map-credit').textContent=selected.community?(boxes.sourceMap?.importedGeometry?(boxes.sourceMap?.textureMeshes?.length?'Local import · original brush shapes · optional textures.':'Local import · original brush shapes · untextured geometry.'):`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
   if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=!hasLeaderboard(selected.id,selected.revision||1);
@@ -435,13 +435,13 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
     }
     if(generation!==sourceLoadGeneration)return;
     status.textContent=`Preparing ${metadata.title}…`;
-    const imported=metadata.geometry&&!file?hydrateParkourMap(input):await loadSourceMap(input,metadata);
+    const imported=metadata.geometry&&!file?hydrateParkourMap(input):await loadSourceMap(input,{...metadata,includeTextures:!!file&&$('source-map-textures').checked});
     if(generation!==sourceLoadGeneration)return;
     MAPS[metadata.id]={id:metadata.id,title:metadata.title,revision:imported.revision||metadata.revision||1,timed:imported.greybox?imported.finishPad!==null:!!imported.finish,community:true,author:metadata.author,source:metadata.source,
       description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'An imported map with its original solid brush shapes.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
     chooseMap(metadata.id,true,restore);
     if(restore)restoreSavedRun(pendingRunRestore);pendingRunRestore=null;
-    status.textContent=`${metadata.title} ready.`;
+    status.textContent=`${metadata.title} ready.${file&&$('source-map-textures').checked?imported.textureMeshes?.length?` ${imported.textureMeshes.length} texture materials loaded.`:' No embedded textures found; using grey materials.':''}`;
   } catch(error){if(generation===sourceLoadGeneration&&error.name!=='AbortError')status.textContent=error.message||'Could not load this map. Choose another file or select the map to retry.';}
   finally{if(generation===sourceLoadGeneration||!sourceLoadController||sourceLoadController===controller)$('import-source-map').disabled=false;}
 }
@@ -802,7 +802,8 @@ async function uploadRoomMap(file){
     const isJson=/\.json$/i.test(file.name);
     if(file.size>(isJson?ROOM_MAP_MAX_BYTES:180*1024*1024))throw Error(isJson?'Map JSON must be smaller than 16 MB.':'Map files must be smaller than 180 MB.');
     const title=file.name.replace(/\.(bsp|zip|json)$/i,'').slice(0,80)||'Custom map';
-    const imported=isJson?hydrateParkourMap(JSON.parse(await file.text())):await loadSourceMap(await file.arrayBuffer(),{id:'local-map',title});
+    const includeTextures=$('room-map-textures').checked;
+    const imported=isJson?hydrateParkourMap({...JSON.parse(await file.text()),...(includeTextures?{}:{textureMeshes:undefined})}):await loadSourceMap(await file.arrayBuffer(),{id:'local-map',title,includeTextures});
     const prepared=await prepareCustomRoomMap(imported,title);
     if(generation!==roomUploadGeneration)return false;
     roomMapUpload=prepared;
@@ -810,7 +811,7 @@ async function uploadRoomMap(file){
     roomCourses.push({id:prepared.id,title:prepared.descriptor.title,revision:1,custom:prepared.descriptor});
     $('room-map').innerHTML=roomCourses.map(course=>`<option value="${course.id}">${escapeRoomText(course.title)}</option>`).join('');
     $('room-map').value=prepared.id;
-    $('room-map-status').textContent=prepared.descriptor.title+' ready · '+(prepared.bytes.length/1048576).toFixed(2)+' MB';
+    $('room-map-status').textContent=prepared.descriptor.title+' ready · '+(prepared.bytes.length/1048576).toFixed(2)+' MB'+($('room-map-textures').checked&&!isJson?(imported.textureMeshes?.length?' · '+imported.textureMeshes.length+' textured materials':' · no bundled textures'):'');
     return true;
   }catch(error){if(generation===roomUploadGeneration)$('room-map-status').textContent=error.message||'Could not read this map. Try another file.';return false;}
   finally{if(generation===roomUploadGeneration){roomUploadLoading=false;updateRoomUi();}}

@@ -3,6 +3,7 @@ import { sampleSceneLight, projectPlayerShadow } from './lighting.js';
 import { buildSignMesh } from './signs.js';
 import { buildRemotePlayerMesh } from './players.js';
 import { isShapedBrush, convexFaces, buildBrushMesh } from './geometry.js';
+import { createSourceTextureRenderer } from './source-texture-renderer.js';
 import { GALLERY_SHADOW_VERTEX, GALLERY_SHADOW_FRAGMENT, GALLERY_SHADOW_GLSL, galleryShadowMatrix, galleryShadowNormalMatrix, galleryCaptureSize, createGalleryTarget } from './gallery-renderer.js';
 
 // The setting is horizontal FOV at 4:3; both cameras use this vertical lens.
@@ -133,6 +134,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     skybox=next;
   }
   let vertices = [], count = 0, currentBoxes = boxes,signMeshes=[];
+  let textureRenderer=null;
   let glowCount = 0, glowKey = '';
   function setGlow(target) {
     const key=target?(isShapedBrush(target)?target:[...target.min,...target.max].join(',')):'';
@@ -182,6 +184,8 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
   }
   function setBoxes(next) {
     currentBoxes = next; vertices=[];signMeshes=[];
+    if(next.sourceMap?.textureMeshes?.length&&!textureRenderer)textureRenderer=createSourceTextureRenderer(gl);
+    textureRenderer?.set(next.sourceMap?.textureMeshes||[]);
     for(const b of next) {
       if(b.sign||b.signPost){
         const opaque=vertices;vertices=[];addBox(b,b.sign?[.08,.12,.16]:[.16,.20,.24]);
@@ -268,6 +272,7 @@ export function createRenderer(canvas, boxes, {now=()=>performance.now()}={}) {
     bindGeometry(buffer);
     gl.uniform1f(u.uOpacity,1);
     gl.drawArrays(gl.TRIANGLES,0,count);
+    textureRenderer?.draw(p,scaleX,f,height,pipeline,()=>bindGeometry(buffer));
     if(remotePlayers.length){
       const mesh=buildRemotePlayerMesh(remotePlayers);
       gl.uniform1f(u.uTargetActive,0);gl.uniform1f(u.uShadowOpacity,0);

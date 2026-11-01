@@ -27,6 +27,7 @@ function roomMapData(map,title){
     stages:map.stages.map(stage=>Object.fromEntries(['title','tip','target','resetTarget'].filter(k=>typeof stage[k]==='string').map(k=>[k,stage[k].slice(0,k==='tip'?512:120)]))),
     checkpointPads:[...map.checkpointPads],finishPad:map.finishPad,sectionFalls:[...map.sectionFalls]};
   if(map.finishArea)result.finishArea=box(map.finishArea);
+  if(map.textureMeshes?.length)result.textureMeshes=map.textureMeshes.map(({material,type,image,vertices})=>({material,type,image,vertices}));
   for(const key of ['portals','boosts','teleports','killboxes','movementEntities'])if(map[key]!==undefined)result[key]=map[key];
   return result;
 }

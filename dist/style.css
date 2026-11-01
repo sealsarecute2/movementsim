@@ -248,6 +248,9 @@ summary, .segmented button, #map-select, .sound-choice select, .crosshair-top se
 
 .map-grid.single-map { grid-template-columns: minmax(0, 1fr); }
 .map-grid.single-map .map-preview { height: 7rem; }
+.texture-option { display:flex; align-items:center; gap:.55rem; margin:.45rem 0 .8rem; font-size:.68rem; letter-spacing:.025em; color:#aebcc8; cursor:pointer; width:fit-content; }
+.texture-option input { width:1rem; height:1rem; accent-color:#a6d9ff; cursor:pointer; }
+.texture-option span { color:#6f8595; }
 .community-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1.25rem 0 .65rem; }
 .community-heading h3 { margin:0; color:#81919d; font-size:.7rem; letter-spacing:.16em; }
 .community-heading button { padding:.4rem 0; font-size:.65rem; color:#a8bdcc; }
