@@ -19,7 +19,7 @@ import {boot} from './helpers/boot-app.mjs';
 class AppRoom {
  constructor(options){this.options=options;this.active=false;this.busy=false;this.status='';this.code='ABCDEFGHJKLM';this.ping=42.4;}
  async start({host,name,course:selection}){
-  this.host=host;this.slot=host?0:1;this.course=host?selection:{id:'bhop_kitsune',revision:3,preset:'practice'};this.name=name;
+  this.host=host;this.slot=host?0:1;this.course=host?selection:{id:'bhop_kitsune',revision:4,preset:'practice'};this.name=name;
   this.busy=true;if(!host)await this.options.onCourse(this.course);
   this.active=true;this.status='Connected';this.options.onChange();
  }

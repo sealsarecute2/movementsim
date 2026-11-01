@@ -16,7 +16,7 @@ function exercise(map,feature='route',preset='practice'){
 test('benchmark uses all six scored maps and excludes Sandbox and arbitrary uploads',()=>{
  assert.deepEqual(maps.map(m=>m.id),['course','bhop-school','ladder-run','endless','bhop_lego','bhop_kitsune']);
  assert.equal(maps.find(m=>m.id==='bhop_lego').boxes.length,428);
- assert.equal(maps.find(m=>m.id==='bhop_kitsune').boxes.length,956);
+ assert.equal(maps.find(m=>m.id==='bhop_kitsune').boxes.length,1324);
 });
 test('bounded input drives grounded and airborne movement on every scored map in both physics modes',()=>{
  for(const map of maps)for(const preset of ['classic','practice']){

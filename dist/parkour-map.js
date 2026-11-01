@@ -31,7 +31,7 @@ export function makeParkourMap(source) {
     let block={min:[original.min[0],Math.max(original.min[1],original.max[1]-120),original.min[2]],max:[...original.max]};
     const limit=routeLimit(original);
     if(limit){block.min[2]=Math.max(block.min[2],limit.minZ);block.max[2]=Math.min(block.max[2],limit.maxZ);}
-    if(isShapedBrush(original))block=makeConvexBrush([...original.planes,...(limit?boxPlanes({min:[original.min[0],original.min[1],block.min[2]],max:[original.max[0],original.max[1],block.max[2]]}):[])]);
+    if(isShapedBrush(original))block=makeConvexBrush([...original.planes,...(limit?boxPlanes({min:[original.min[0],block.min[1],block.min[2]],max:[original.max[0],original.max[1],block.max[2]]}):[])]);
     blocks.push(block);originalToBlock.set(original,block);return block;
   };
   // Keep stairs, beams and ordinary final-stage platforms too. Their tops sit
@@ -45,6 +45,9 @@ export function makeParkourMap(source) {
     const x=(original.min[0]+original.max[0])/2,z=(original.min[2]+original.max[2])/2;
     const width=original.max[0]-original.min[0],depth=original.max[2]-original.min[2];
     const maximum=source.exitTargets?1024:512;
+    // Thin trim brushes around landing pads are visual borders, not landing
+    // surfaces. They significantly inflate collision cost on the full route.
+    if(source.routeSurfacesOnly&&(width<=4.1||depth<=4.1))continue;
     if(!((width<=maximum&&depth<=maximum)||(Math.min(width,depth)<=96&&Math.max(width,depth)<=2048))||!original.planes.some(p=>p.normal[1]>.7))continue;
     if(source.exitTargets&&source.stages.some((stage,i)=>{
       const spawn=source.spawns[i],exit=source.destinations.get(source.exitTargets[i]);if(!exit)return false;
@@ -91,7 +94,9 @@ export function makeParkourMap(source) {
   });
   // Put the starting pad first, matching native timer and preview conventions.
   blocks.splice(blocks.indexOf(checkpointPads[0]),1);blocks.unshift(checkpointPads[0]);
-  const sectionFalls=spawns.map((spawn,i)=>Math.min(spawn.y,(portals.length?source.destinations.get(source.exitTargets[i]):spawns[i+1]||source.finish||spawn).y,...anchors.filter(a=>a.target===resetTarget(source.stages[i])).map(a=>a.y))-256);
+  // The curated Kitsune route deliberately descends more than 256 units
+  // below several exit markers. Reset only below the actual hop sequence.
+  const sectionFalls=spawns.map((spawn,i)=>Math.min(spawn.y,(portals.length?source.destinations.get(source.exitTargets[i]):spawns[i+1]||source.finish||spawn).y,...anchors.filter(a=>a.target===resetTarget(source.stages[i])).map(a=>a.y))-(source.routeSurfacesOnly?448:256));
   const nearEntry=t=>source.exitTargets?source.spawns.findIndex(s=>s.x>=t.min[0]&&s.x<=t.max[0]&&s.z>=t.min[2]&&s.z<=t.max[2]&&Math.abs(s.y-t.min[1])<96):-1;
   const boosts=source.triggers.filter(t=>t.classname==='trigger_push'&&t.StartDisabled!=='1'&&(nearEntry(t)>=0||basins.some(b=>{
     const x=(t.min[0]+t.max[0])/2,z=(t.min[2]+t.max[2])/2;return x>=b.min[0]&&x<=b.max[0]&&z>=b.min[2]&&z<=b.max[2]&&t.min[1]>=b.min[1]&&t.min[1]-b.max[1]<128;

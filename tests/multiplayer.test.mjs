@@ -7,7 +7,7 @@ import {projectWorldPoint} from '../dist/renderer.js';
 import {MAP_LIST} from '../dist/course.js';
 import {createPlayer,step,PRESETS} from '../dist/physics.js';
 
-const courses=[{id:'course'},{id:'endless',revision:3},{id:'bhop_kitsune',revision:3}];
+const courses=[{id:'course'},{id:'endless',revision:3},{id:'bhop_kitsune',revision:4}];
 const course={id:'course',revision:1,preset:'practice'};
 const state=(changes={})=>({x:0,y:0,z:100,yaw:0,pitch:0,duckAmount:0,time:0,checkpoint:0,distance:0,paused:false,completed:false,...changes});
 const flush=()=>new Promise(resolve=>setImmediate(resolve));

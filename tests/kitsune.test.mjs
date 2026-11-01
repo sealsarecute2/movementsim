@@ -9,7 +9,7 @@ import {createPlayer,step,support,PRESETS} from '../dist/physics.js';
 const load=()=>hydrateParkourMap(JSON.parse(readFileSync(new URL('../dist/maps/bhop_kitsune.json',import.meta.url),'utf8')));
 test('Kitsune includes six main stages, five portals and an ending while the original archive stays intact',()=>{
  const map=load();assert.equal(map.spawns.length,6);assert.equal(map.portals.length,5);assert.equal(map.boosts.length,6);assert.notEqual(map.finishPad,null);
- assert.equal(map.revision,3);assert.ok(map.boxes.length>500&&map.boxes.length<1500);assert.ok(map.boxes.every(b=>b.max[1]-b.min[1]<=120));
+ assert.equal(map.revision,4);assert.ok(map.boxes.length>950&&map.boxes.length<1600);assert.ok(map.boxes.every(b=>b.max[1]-b.min[1]<=120+1e-5));
  const archive=readFileSync(new URL('../dist/maps/bhop_kitsune.zip',import.meta.url));assert.equal(createHash('md5').update(archive).digest('hex'),'36f2da19ae5918b8b95d6d74a08fb405');
  for(const file of ['bhop_kitsune.zip','bhop_kitsune.json','bhop_kitsune.svg'])assert.deepEqual(readFileSync(new URL('../maps/'+file,import.meta.url)),readFileSync(new URL('../dist/maps/'+file,import.meta.url)));
 });
@@ -36,6 +36,18 @@ test('Kitsune keeps the approach floors and all three levels of the final jumpin
  const map=load();
  for(const spawn of map.spawns.slice(0,5))assert.ok(support(createPlayer({x:-1500+spawn.x+2096,y:spawn.y-164,z:spawn.z}),map.boxes));
  for(const point of [{x:440,y:7958,z:-10232},{x:616,y:7550,z:-10232},{x:440,y:7102,z:-10232}])assert.ok(support(createPlayer(point),map.boxes),JSON.stringify(point));
+});
+test('Kitsune preserves the original mid-course stepping stones and keeps fall resets below them',()=>{
+ const map=load();
+ // These original BSP stones were missing from the previous published cache,
+ // leaving large unjumpable gaps through several sections.
+ for(const [x,y,z] of [
+  [-512,1840,-1856],[-384,1816,-2048],[0,1760,-2048],[384,1824,-2048],
+  [16,4232,-5120],[448,4224,-5120],
+  [0,5592,-6784],[464,5440,-6784],[300,6792,-8448],
+ ])assert.ok(support(createPlayer({x,y,z}),map.boxes),`Missing original landing stone at ${x},${y},${z}`);
+ assert.ok(map.sectionFalls[3]<5440-72,'Green resets before the legitimate landing');
+ assert.ok(map.sectionFalls[4]<6792-72,'Purple resets before the legitimate landing');
 });
 test('every Kitsune checkpoint has grounded support, standing clearance and a local collision window',()=>{
  const map=load();
