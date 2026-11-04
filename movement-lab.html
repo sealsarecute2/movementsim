@@ -526,6 +526,8 @@ function defaultKillHeight(boxes){
 // A curved brush is a polygonal solid; its original facets stay intact.
 const GEOMETRY_EPS = 1e-5;
 const geometryFaces = new WeakMap();
+const geometryCollisionPlanes = new WeakMap();
+const MAX_BRUSH_PLANES = 512;
 const geometryDot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const geometryCross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const isShapedBrush = box => !!box.planes?.some(p=>p.normal.some(n=>Math.abs(n)>GEOMETRY_EPS&&Math.abs(n)<1-GEOMETRY_EPS));
@@ -566,7 +568,8 @@ function convexFaces(box) {
 }
 
 function makeConvexBrush(input) {
-  if(!Array.isArray(input)||input.length<4||input.length>512)throw Error('Unsupported collision shape.');
+  if(!Array.isArray(input)||input.length<4)throw Error('Unsupported collision shape.');
+  if(input.length>MAX_BRUSH_PLANES)throw Error(`A brush exceeds the ${MAX_BRUSH_PLANES}-plane limit.`);
   const planes=[];
   for(const p of input) {
     if(!p||!Array.isArray(p.normal)||p.normal.length!==3||!p.normal.every(Number.isFinite)||!Number.isFinite(p.distance))throw Error('Invalid collision planes.');
@@ -587,21 +590,28 @@ function makeConvexBrush(input) {
     for(const face of faces)for(const point of face.points)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
     // Hull/brush edge bevels make the swept square player exact at corners.
     // Reconstruct them too when a rotated model has no world-axis bevels.
+    // Keep derived planes out of the saved shape so hydration stays bounded.
+    const collisionPlanes=planes.slice();
     const points=faces.flatMap(f=>f.points);
     const addAxis=normal=>{
       const length=Math.hypot(...normal);if(length<1e-7)return;
       normal=normal.map(n=>n/length);
-      if(planes.some(p=>normal.every((n,i)=>Math.abs(n-p.normal[i])<1e-6)))return;
-      planes.push({normal,distance:Math.max(...points.map(p=>geometryDot(p,normal)))});
+      if(collisionPlanes.some(p=>normal.every((n,i)=>Math.abs(n-p.normal[i])<1e-6)))return;
+      collisionPlanes.push({normal,distance:Math.max(...points.map(p=>geometryDot(p,normal)))});
     };
     for(let i=0;i<3;i++)for(const sign of [-1,1])addAxis([0,1,2].map(j=>i===j?sign:0));
     for(const face of faces)for(let i=0;i<face.points.length;i++) {
       const edge=face.points[(i+1)%face.points.length].map((v,j)=>v-face.points[i][j]);
       for(const axis of [[1,0,0],[0,1,0],[0,0,1]]){const n=geometryCross(edge,axis);addAxis(n);addAxis(n.map(v=>-v));}
     }
+    geometryCollisionPlanes.set(planes,collisionPlanes);
   }
   if(min.some((n,i)=>!Number.isFinite(n)||!Number.isFinite(max[i])||max[i]-n<GEOMETRY_EPS))throw Error('The map contains an empty collision shape.');
   brush.min=min;brush.max=max;return brush;
+}
+
+function brushCollisionPlanes(box) {
+  return geometryCollisionPlanes.get(box.planes)??box.planes;
 }
 
 function hullPlaneDistance(plane,height=72,radius=16) {
@@ -611,7 +621,7 @@ function hullPlaneDistance(plane,height=72,radius=16) {
 function brushHullOverlap(player,box,height=72,radius=16) {
   const p=[player.x,player.y,player.z];
   if(p.some((v,i)=>v+(i===1?height:radius)<=box.min[i]+GEOMETRY_EPS||v-(i===1?0:radius)>=box.max[i]-GEOMETRY_EPS))return false;
-  return !box.planes||box.planes.every(plane=>geometryDot(p,plane.normal)<hullPlaneDistance(plane,height,radius)-GEOMETRY_EPS);
+  return !box.planes||brushCollisionPlanes(box).every(plane=>geometryDot(p,plane.normal)<hullPlaneDistance(plane,height,radius)-GEOMETRY_EPS);
 }
 
 // The highest actual contact under a hull, including sloping tops. Side and
@@ -619,12 +629,13 @@ function brushHullOverlap(player,box,height=72,radius=16) {
 function brushSurface(box,x,z,radius=16,height=72,minUp=.7) {
   if(x+radius<=box.min[0]+GEOMETRY_EPS||x-radius>=box.max[0]-GEOMETRY_EPS||z+radius<=box.min[2]+GEOMETRY_EPS||z-radius>=box.max[2]-GEOMETRY_EPS)return null;
   if(!box.planes)return {height:box.max[1],normal:[0,1,0]};
+  const planes=brushCollisionPlanes(box);
   let y=Infinity,normal=null;
-  for(const plane of box.planes)if(plane.normal[1]>GEOMETRY_EPS) {
+  for(const plane of planes)if(plane.normal[1]>GEOMETRY_EPS) {
     const top=(hullPlaneDistance(plane,height,radius)-x*plane.normal[0]-z*plane.normal[2])/plane.normal[1];
     if(top<y){y=top;normal=plane.normal;}
   }
-  if(!normal||normal[1]<minUp||!Number.isFinite(y)||box.planes.some(plane=>x*plane.normal[0]+y*plane.normal[1]+z*plane.normal[2]>hullPlaneDistance(plane,height,radius)+.0001))return null;
+  if(!normal||normal[1]<minUp||!Number.isFinite(y)||planes.some(plane=>x*plane.normal[0]+y*plane.normal[1]+z*plane.normal[2]>hullPlaneDistance(plane,height,radius)+.0001))return null;
   return {height:y,normal};
 }
 
@@ -1026,7 +1037,7 @@ function sweep(p, delta, boxes, includeLadders = false) {
     if(b.ladder&&!includeLadders)continue;
     if(b.planes) {
       let enter=-Infinity,leave=1,normal=null,valid=true;
-      for(const plane of b.planes) {
+      for(const plane of brushCollisionPlanes(b)) {
         const n=plane.normal,start=p.x*n[0]+p.y*n[1]+p.z*n[2]-planeExtent(plane,height),motion=delta[0]*n[0]+delta[1]*n[1]+delta[2]*n[2];
         // Touching a surface while moving along/away from it is not entry.
         // Otherwise coplanar brush seams act like invisible vertical walls.
@@ -1711,7 +1722,7 @@ const finiteMapVector=value=>Array.isArray(value)&&value.length===3&&value.every
 function validateMovementVolume(volume){
   if(!volume||!finiteMapVector(volume.min)||!finiteMapVector(volume.max)||volume.min.some((n,i)=>n>=volume.max[i]))throw Error('Invalid movement trigger.');
   const result={min:[...volume.min],max:[...volume.max]};
-  if(volume.planes){if(!Array.isArray(volume.planes)||volume.planes.length>128)throw Error('Invalid trigger planes.');result.planes=makeConvexBrush(volume.planes).planes;}
+  if(volume.planes)result.planes=makeConvexBrush(volume.planes).planes;
   return result;
 }
 function validateMovementDestination(value){
@@ -1736,7 +1747,7 @@ function hydrateParkourMap(data) {
   const solids=data.finishArea?[...data.boxes,data.finishArea]:data.boxes;
   for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Math.abs(n)<=1e7&&Number.isFinite(box.max[i])&&Math.abs(box.max[i])<=1e7&&n<box.max[i]))throw Error('Invalid parkour block.');
   // Reconstruct cached geometry after JSON/session restore and validate planes.
-  for(const box of solids)if(box.planes){if(!Array.isArray(box.planes)||box.planes.length>128)throw Error('Too many brush planes.');const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
+  for(const box of solids)if(box.planes)Object.assign(box,makeConvexBrush(box.planes));
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');
@@ -2069,7 +2080,8 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
   }
   function collisionBrush(index,modelIndex=0,trigger=false) {
     const brush=brushes[index];if(!brush||!trigger&&(brush.contents&0x1000b)===0)return null;
-    if(brush.first<0||brush.count<4||brush.count>512||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
+    if(brush.first<0||brush.count<4||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
+    if(brush.count>MAX_BRUSH_PLANES)throw Error(`A brush exceeds the ${MAX_BRUSH_PLANES}-plane limit.`);
     const brushSides=sides.slice(brush.first,brush.first+brush.count);
     const offset=modelOffset(modelIndex),boundary=brushSides.map(s=>{
       const p=planes[s.plane];if(!p)throw Error('Invalid collision planes.');
@@ -2162,7 +2174,7 @@ function parseSourceBsp(input,{id='local-map',title='Imported map',revision=2,en
 function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
   let enter=0,exit=1;
   if(box.planes){
-    for(const plane of box.planes){
+    for(const plane of brushCollisionPlanes(box)){
       const n=plane.normal,start=from.x*n[0]+from.y*n[1]+from.z*n[2]-hullPlaneDistance(plane,height,radius);
       const delta=(to.x-from.x)*n[0]+(to.y-from.y)*n[1]+(to.z-from.z)*n[2];
       if(Math.abs(delta)<1e-9){if(start>0)return null;}

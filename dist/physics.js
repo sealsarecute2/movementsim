@@ -2,7 +2,7 @@
 import {isMapSolid} from './map-rules.js';
 // Projected air acceleration follows the model in Valve's public Source SDK.
 // CS2 subtick timing / landing penalties are approximated, not engine-identical.
-import { hullPlaneDistance, brushHullOverlap, brushSurface } from './geometry.js';
+import { brushCollisionPlanes, hullPlaneDistance, brushHullOverlap, brushSurface } from './geometry.js';
 export const DT = 1 / 256;
 export const RULES = Object.freeze({
   gravity: 800, jump: 301.993377, accelerate: 5.5, airAccelerate: 12,
@@ -95,7 +95,7 @@ function sweep(p, delta, boxes, includeLadders = false) {
     if(b.ladder&&!includeLadders)continue;
     if(b.planes) {
       let enter=-Infinity,leave=1,normal=null,valid=true;
-      for(const plane of b.planes) {
+      for(const plane of brushCollisionPlanes(b)) {
         const n=plane.normal,start=p.x*n[0]+p.y*n[1]+p.z*n[2]-planeExtent(plane,height),motion=delta[0]*n[0]+delta[1]*n[1]+delta[2]*n[2];
         // Touching a surface while moving along/away from it is not entry.
         // Otherwise coplanar brush seams act like invisible vertical walls.

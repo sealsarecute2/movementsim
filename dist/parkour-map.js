@@ -139,7 +139,7 @@ const finiteMapVector=value=>Array.isArray(value)&&value.length===3&&value.every
 function validateMovementVolume(volume){
   if(!volume||!finiteMapVector(volume.min)||!finiteMapVector(volume.max)||volume.min.some((n,i)=>n>=volume.max[i]))throw Error('Invalid movement trigger.');
   const result={min:[...volume.min],max:[...volume.max]};
-  if(volume.planes){if(!Array.isArray(volume.planes)||volume.planes.length>128)throw Error('Invalid trigger planes.');result.planes=makeConvexBrush(volume.planes).planes;}
+  if(volume.planes)result.planes=makeConvexBrush(volume.planes).planes;
   return result;
 }
 function validateMovementDestination(value){
@@ -164,7 +164,7 @@ export function hydrateParkourMap(data) {
   const solids=data.finishArea?[...data.boxes,data.finishArea]:data.boxes;
   for(const box of solids)if(!Array.isArray(box.min)||!Array.isArray(box.max)||box.min.length!==3||box.max.length!==3||!box.min.every((n,i)=>Number.isFinite(n)&&Math.abs(n)<=1e7&&Number.isFinite(box.max[i])&&Math.abs(box.max[i])<=1e7&&n<box.max[i]))throw Error('Invalid parkour block.');
   // Reconstruct cached geometry after JSON/session restore and validate planes.
-  for(const box of solids)if(box.planes){if(!Array.isArray(box.planes)||box.planes.length>128)throw Error('Too many brush planes.');const shape=makeConvexBrush(box.planes);Object.assign(box,shape);}
+  for(const box of solids)if(box.planes)Object.assign(box,makeConvexBrush(box.planes));
   for(const spawn of data.spawns)if(!['x','y','z','yaw'].every(k=>Number.isFinite(spawn[k])))throw Error('Invalid checkpoint spawn.');
   if(!Array.isArray(data.checkpointPads)||data.checkpointPads.length!==data.spawns.length||data.checkpointPads.some(i=>!Number.isInteger(i)||!data.boxes[i])||data.finishPad!==null&&(!Number.isInteger(data.finishPad)||!data.boxes[data.finishPad]))throw Error('Invalid checkpoint platform.');
   if(data.portals&&(!Array.isArray(data.portals)||data.portals.some(p=>!Number.isInteger(p.from)||p.from<0||p.to!==p.from+1||p.to>=data.spawns.length||!Number.isInteger(p.exitPad)||!data.boxes[p.exitPad]||![p.min,p.max].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite))||p.min.some((n,i)=>n>=p.max[i]))))throw Error('Invalid stage connection.');

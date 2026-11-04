@@ -1,9 +1,9 @@
 // Interpret movement entities only; map strings are never executable code.
-import { brushCheckpointVolumes, hullPlaneDistance } from './geometry.js';
+import { brushCheckpointVolumes, brushCollisionPlanes, hullPlaneDistance } from './geometry.js';
 export function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
   let enter=0,exit=1;
   if(box.planes){
-    for(const plane of box.planes){
+    for(const plane of brushCollisionPlanes(box)){
       const n=plane.normal,start=from.x*n[0]+from.y*n[1]+from.z*n[2]-hullPlaneDistance(plane,height,radius);
       const delta=(to.x-from.x)*n[0]+(to.y-from.y)*n[1]+(to.z-from.z)*n[2];
       if(Math.abs(delta)<1e-9){if(start>0)return null;}

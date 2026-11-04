@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {loadSourceMap,parseSourceBsp} from '../dist/source-map.js';
 import {makeConvexBrush,boxPlanes,brushSurface} from '../dist/geometry.js';
 import {createPlayer,step,PRESETS,support} from '../dist/physics.js';
+import {hydrateParkourMap} from '../dist/parkour-map.js';
+import {prepareCustomRoomMap,decodeCustomRoomMap} from '../dist/room-map.js';
+import {createSourceRuntime} from '../dist/source-runtime.js';
 // Small actual BSP binary fixtures exercise the complete upload parser. All
 // authored coordinates here use the simulator axes; the writer converts them.
 const toSource=v=>[v[0],-v[2],v[1]];
@@ -34,6 +37,26 @@ function bspFixture(brushes,{spawn=[0,8,0],entity=null,entities=[]}={}) {
 }
 const floor=()=>boxPlanes({min:[-3000,-120,-3000],max:[3000,-100,3000]});
 const sloping=()=>[...boxPlanes({min:[-256,-100,-128],max:[256,128,128]}),{normal:[-.25,1,0],distance:0}];
+
+test('detailed BSP brushes and trigger volumes survive solo import, save restore, and room transfer',async()=>{
+ const sides=256,tilt=.2;
+ const planes=[{normal:[0,1,0],distance:64},{normal:[0,-1,0],distance:64},...Array.from({length:sides},(_,i)=>{
+  const angle=i*2*Math.PI/sides;
+  return {normal:[Math.cos(angle),0,Math.sin(angle)],distance:768};
+ })].map(({normal:[x,y,z],distance})=>({normal:[x,y*Math.cos(tilt)-z*Math.sin(tilt),y*Math.sin(tilt)+z*Math.cos(tilt)],distance}));
+ const bsp=bspFixture([floor(),planes,planes],{spawn:[0,75,0],entity:{classname:'trigger_hurt',damage:'1000',origin:'4000 0 0'}});
+ const imported=await loadSourceMap(bsp,{includeTextures:true});
+ const restored=hydrateParkourMap(JSON.parse(JSON.stringify(imported,(key,value)=>key==='sourceMap'?undefined:value)));
+ const packet=await prepareCustomRoomMap(imported),guest=await decodeCustomRoomMap(packet.bytes,packet.descriptor);
+ for(const map of [imported,restored,guest]){
+  assert.equal(map.boxes[0].planes.length,planes.length);
+  const player=createPlayer(map.spawns[0]);
+  assert.ok(support(player,map.boxes));
+  assert.equal(brushSurface(map.boxes[0],750,750),null);
+  const target={...player,x:4000,y:0,z:0};
+  assert.ok(createSourceRuntime(map).step(target,{...target,x:3000},1/256).some(event=>event.type==='respawn'));
+ }
+});
 
 test('uploading a BSP preserves sloping and large geometry and chooses the actual starting surface',async()=>{
  const map=await loadSourceMap(bspFixture([floor(),sloping()],{spawn:[0,12,0]}));

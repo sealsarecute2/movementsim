@@ -1,7 +1,7 @@
 // Read original Source 1 maps without rewriting or executing their contents.
 // Binary structures: ValveSoftware/source-sdk-2013/src/public/bspfile.h.
 import { makeParkourMap, makeImportedGeometryMap } from './parkour-map.js';
-import { makeConvexBrush } from './geometry.js';
+import { makeConvexBrush, MAX_BRUSH_PLANES } from './geometry.js';
 import { defaultKillHeight } from './map-rules.js';
 import { collectSourceTextures } from './source-textures.js';
 const sourceText = new TextDecoder('windows-1252');
@@ -102,7 +102,8 @@ export function parseSourceBsp(input,{id='local-map',title='Imported map',revisi
   }
   function collisionBrush(index,modelIndex=0,trigger=false) {
     const brush=brushes[index];if(!brush||!trigger&&(brush.contents&0x1000b)===0)return null;
-    if(brush.first<0||brush.count<4||brush.count>512||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
+    if(brush.first<0||brush.count<4||brush.first+brush.count>sides.length)throw Error('Invalid collision brush.');
+    if(brush.count>MAX_BRUSH_PLANES)throw Error(`A brush exceeds the ${MAX_BRUSH_PLANES}-plane limit.`);
     const brushSides=sides.slice(brush.first,brush.first+brush.count);
     const offset=modelOffset(modelIndex),boundary=brushSides.map(s=>{
       const p=planes[s.plane];if(!p)throw Error('Invalid collision planes.');

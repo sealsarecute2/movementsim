@@ -2,6 +2,8 @@
 // A curved brush is a polygonal solid; its original facets stay intact.
 const GEOMETRY_EPS = 1e-5;
 const geometryFaces = new WeakMap();
+const geometryCollisionPlanes = new WeakMap();
+export const MAX_BRUSH_PLANES = 512;
 const geometryDot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const geometryCross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 export const isShapedBrush = box => !!box.planes?.some(p=>p.normal.some(n=>Math.abs(n)>GEOMETRY_EPS&&Math.abs(n)<1-GEOMETRY_EPS));
@@ -42,7 +44,8 @@ export function convexFaces(box) {
 }
 
 export function makeConvexBrush(input) {
-  if(!Array.isArray(input)||input.length<4||input.length>512)throw Error('Unsupported collision shape.');
+  if(!Array.isArray(input)||input.length<4)throw Error('Unsupported collision shape.');
+  if(input.length>MAX_BRUSH_PLANES)throw Error(`A brush exceeds the ${MAX_BRUSH_PLANES}-plane limit.`);
   const planes=[];
   for(const p of input) {
     if(!p||!Array.isArray(p.normal)||p.normal.length!==3||!p.normal.every(Number.isFinite)||!Number.isFinite(p.distance))throw Error('Invalid collision planes.');
@@ -63,21 +66,28 @@ export function makeConvexBrush(input) {
     for(const face of faces)for(const point of face.points)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
     // Hull/brush edge bevels make the swept square player exact at corners.
     // Reconstruct them too when a rotated model has no world-axis bevels.
+    // Keep derived planes out of the saved shape so hydration stays bounded.
+    const collisionPlanes=planes.slice();
     const points=faces.flatMap(f=>f.points);
     const addAxis=normal=>{
       const length=Math.hypot(...normal);if(length<1e-7)return;
       normal=normal.map(n=>n/length);
-      if(planes.some(p=>normal.every((n,i)=>Math.abs(n-p.normal[i])<1e-6)))return;
-      planes.push({normal,distance:Math.max(...points.map(p=>geometryDot(p,normal)))});
+      if(collisionPlanes.some(p=>normal.every((n,i)=>Math.abs(n-p.normal[i])<1e-6)))return;
+      collisionPlanes.push({normal,distance:Math.max(...points.map(p=>geometryDot(p,normal)))});
     };
     for(let i=0;i<3;i++)for(const sign of [-1,1])addAxis([0,1,2].map(j=>i===j?sign:0));
     for(const face of faces)for(let i=0;i<face.points.length;i++) {
       const edge=face.points[(i+1)%face.points.length].map((v,j)=>v-face.points[i][j]);
       for(const axis of [[1,0,0],[0,1,0],[0,0,1]]){const n=geometryCross(edge,axis);addAxis(n);addAxis(n.map(v=>-v));}
     }
+    geometryCollisionPlanes.set(planes,collisionPlanes);
   }
   if(min.some((n,i)=>!Number.isFinite(n)||!Number.isFinite(max[i])||max[i]-n<GEOMETRY_EPS))throw Error('The map contains an empty collision shape.');
   brush.min=min;brush.max=max;return brush;
+}
+
+export function brushCollisionPlanes(box) {
+  return geometryCollisionPlanes.get(box.planes)??box.planes;
 }
 
 export function hullPlaneDistance(plane,height=72,radius=16) {
@@ -87,7 +97,7 @@ export function hullPlaneDistance(plane,height=72,radius=16) {
 export function brushHullOverlap(player,box,height=72,radius=16) {
   const p=[player.x,player.y,player.z];
   if(p.some((v,i)=>v+(i===1?height:radius)<=box.min[i]+GEOMETRY_EPS||v-(i===1?0:radius)>=box.max[i]-GEOMETRY_EPS))return false;
-  return !box.planes||box.planes.every(plane=>geometryDot(p,plane.normal)<hullPlaneDistance(plane,height,radius)-GEOMETRY_EPS);
+  return !box.planes||brushCollisionPlanes(box).every(plane=>geometryDot(p,plane.normal)<hullPlaneDistance(plane,height,radius)-GEOMETRY_EPS);
 }
 
 // The highest actual contact under a hull, including sloping tops. Side and
@@ -95,12 +105,13 @@ export function brushHullOverlap(player,box,height=72,radius=16) {
 export function brushSurface(box,x,z,radius=16,height=72,minUp=.7) {
   if(x+radius<=box.min[0]+GEOMETRY_EPS||x-radius>=box.max[0]-GEOMETRY_EPS||z+radius<=box.min[2]+GEOMETRY_EPS||z-radius>=box.max[2]-GEOMETRY_EPS)return null;
   if(!box.planes)return {height:box.max[1],normal:[0,1,0]};
+  const planes=brushCollisionPlanes(box);
   let y=Infinity,normal=null;
-  for(const plane of box.planes)if(plane.normal[1]>GEOMETRY_EPS) {
+  for(const plane of planes)if(plane.normal[1]>GEOMETRY_EPS) {
     const top=(hullPlaneDistance(plane,height,radius)-x*plane.normal[0]-z*plane.normal[2])/plane.normal[1];
     if(top<y){y=top;normal=plane.normal;}
   }
-  if(!normal||normal[1]<minUp||!Number.isFinite(y)||box.planes.some(plane=>x*plane.normal[0]+y*plane.normal[1]+z*plane.normal[2]>hullPlaneDistance(plane,height,radius)+.0001))return null;
+  if(!normal||normal[1]<minUp||!Number.isFinite(y)||planes.some(plane=>x*plane.normal[0]+y*plane.normal[1]+z*plane.normal[2]>hullPlaneDistance(plane,height,radius)+.0001))return null;
   return {height:y,normal};
 }
 
