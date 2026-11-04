@@ -1,40 +1,28 @@
 import {base64ToBytes,decodeVtf} from './source-textures.js';
 
+// Derive a face normal for lighting without changing saved or shared map data.
+function sourceTextureVertices(bytes){
+  const packed=new Float32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/4);
+  if(!packed.every(Number.isFinite))return null;
+  const vertices=new Float32Array(packed.length/6*9);
+  for(let i=0,j=0;i<packed.length;i+=18){
+    const ax=packed[i+6]-packed[i],ay=packed[i+7]-packed[i+1],az=packed[i+8]-packed[i+2];
+    const bx=packed[i+12]-packed[i],by=packed[i+13]-packed[i+1],bz=packed[i+14]-packed[i+2];
+    const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+    const length=Math.hypot(nx,ny,nz)||1;
+    for(let k=i;k<i+18;k+=6,j+=9){
+      for(let component=0;component<6;component++)vertices[j+component]=packed[k+component];
+      vertices[j+6]=nx/length;vertices[j+7]=ny/length;vertices[j+8]=nz/length;
+    }
+  }
+  return vertices;
+}
+
 // A separate pass overlays supported embedded material images on BSP faces.
 // Collision stays in the usual untextured brush renderer, and missing materials
 // leave the existing grey geometry untouched.
-export function createSourceTextureRenderer(gl){
-  const vertex=`attribute vec3 aPosition;attribute vec2 aUv;attribute float aShade;
-    uniform vec3 uEye;uniform vec2 uAngles;uniform vec2 uScale;
-    varying vec2 vUv;varying float vShade;varying float vDistance;
-    void main(){
-      vec3 p=aPosition-uEye;
-      float cy=cos(uAngles.x),sy=sin(uAngles.x),cp=cos(uAngles.y),sp=sin(uAngles.y);
-      float right=p.x*cy+p.z*sy,forward=p.x*sy-p.z*cy;
-      float up=p.y*cp-forward*sp,depth=forward*cp+p.y*sp;
-      gl_Position=vec4(right*uScale.x,up*uScale.y,1.0001*depth-2.0001,depth);
-      vUv=aUv;vShade=aShade;vDistance=length(p);
-    }`;
-  const fragment=`precision mediump float;
-    uniform sampler2D uImage;varying vec2 vUv;varying float vShade;varying float vDistance;
-    void main(){
-      vec4 texel=texture2D(uImage,vUv);
-      if(texel.a<0.15)discard;
-      float fade=1.0-smoothstep(1700.0,6500.0,vDistance);
-      gl_FragColor=vec4(texel.rgb*max(0.35,vShade)*fade,1.0);
-    }`;
-  const compile=(type,source)=>{
-    const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
-    if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));
-    return shader;
-  };
-  const program=gl.createProgram(),v=compile(gl.VERTEX_SHADER,vertex),f=compile(gl.FRAGMENT_SHADER,fragment);
-  gl.attachShader(program,v);gl.attachShader(program,f);gl.linkProgram(program);
-  gl.deleteShader(v);gl.deleteShader(f);
-  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
-  const attributes=[['aPosition',3,0],['aUv',2,12],['aShade',1,20]]
-    .map(([name,count,offset])=>({loc:gl.getAttribLocation(program,name),count,offset}));
-  const uniforms=Object.fromEntries(['uEye','uAngles','uScale','uImage'].map(name=>[name,gl.getUniformLocation(program,name)]));
+export function createSourceTextureRenderer(gl,pipeline){
+  const {program,attributes,uniforms}=pipeline;
   let resources=[],revision=0;
   function dispose(){
     revision++;
@@ -61,9 +49,11 @@ export function createSourceTextureRenderer(gl){
       try{
         const bytes=base64ToBytes(entry.vertices);
         if(bytes.length<72||bytes.length%72)continue;
+        const vertices=sourceTextureVertices(bytes);
+        if(!vertices)continue;
         const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-        gl.bufferData(gl.ARRAY_BUFFER,bytes,gl.STATIC_DRAW);
-        const resource={buffer,texture:null,count:bytes.length/24,revision};
+        gl.bufferData(gl.ARRAY_BUFFER,vertices,gl.STATIC_DRAW);
+        const resource={buffer,texture:null,count:vertices.length/9,revision};
         resources.push(resource);
         if(entry.type==='vtf'){
           const decoded=decodeVtf(base64ToBytes(entry.image));
@@ -77,22 +67,20 @@ export function createSourceTextureRenderer(gl){
       }catch{ /* Unsupported material: keep the untextured geometry. */ }
     }
   }
-  function draw(player,scaleX,scaleY,height,worldPipeline,bindWorld){
+  function draw(worldPipeline,setFrameUniforms,bindWorld){
     if(!resources.some(r=>r.texture))return;
     const active=gl.getParameter(gl.ACTIVE_TEXTURE);
     for(const attribute of worldPipeline.attributes)gl.disableVertexAttribArray(attribute.loc);
     gl.useProgram(program);
     for(const attribute of attributes)if(attribute.loc>=0)gl.enableVertexAttribArray(attribute.loc);
-    gl.uniform3f(uniforms.uEye,player.x,player.y+height,player.z);
-    gl.uniform2f(uniforms.uAngles,player.yaw,player.pitch);
-    gl.uniform2f(uniforms.uScale,scaleX,scaleY);
+    setFrameUniforms(pipeline);
     gl.uniform1i(uniforms.uImage,1);
     gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(-1,-1);
     for(const resource of resources){
       if(!resource.texture)continue;
       gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,resource.texture);
       gl.bindBuffer(gl.ARRAY_BUFFER,resource.buffer);
-      for(const a of attributes)if(a.loc>=0)gl.vertexAttribPointer(a.loc,a.count,gl.FLOAT,false,24,a.offset);
+      for(const a of attributes)if(a.loc>=0)gl.vertexAttribPointer(a.loc,a.count,gl.FLOAT,false,36,a.offset);
       gl.drawArrays(gl.TRIANGLES,0,resource.count);
     }
     gl.disable(gl.POLYGON_OFFSET_FILL);
