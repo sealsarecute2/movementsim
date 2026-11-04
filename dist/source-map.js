@@ -47,9 +47,14 @@ export async function unpackSourceArchive(input) {
 }
 
 export async function loadSourceMap(input,options={}) {
+  if(options.sha256){
+    const digest=await globalThis.crypto.subtle.digest('SHA-256',input);
+    const hash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+    if(hash!==options.sha256)throw Error('The community map download did not match its original release.');
+  }
   const bytes=await unpackSourceArchive(input);
   const map=parseSourceBsp(bytes,{...options,geometryOnly:!options.includeTextures});
-  const playable=options.stageTargets?makeParkourMap(map):makeImportedGeometryMap(map);
+  const playable=options.stageTargets&&!options.fullRoute?makeParkourMap(map):makeImportedGeometryMap(map,options);
   if(options.includeTextures){
     playable.textureMeshes=await collectSourceTextures(input,map.pak,map.mesh.map(batch=>({...batch,material:map.materials[batch.material]?.name||''})));
   }

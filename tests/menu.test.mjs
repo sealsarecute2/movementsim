@@ -23,9 +23,9 @@ test('each screenshot camera faces the actual course from above with a finite pe
     assert.ok(camera.y+64>Math.max(...map.boxes.slice(0,9).map(b=>b.max[1])));
   }
 });
-test('the expanded gallery includes 15 distinct views, all native maps and both community previews',()=>{
- const entries=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);assert.equal(entries.length,15);
- assert.equal(new Set(entries.map(e=>e.title)).size,15);
+test('the gallery includes distinct views for every native and community map',()=>{
+ const entries=createGalleryEntries(MAP_LIST,COMMUNITY_MAPS);assert.equal(entries.length,13+COMMUNITY_MAPS.length);
+ assert.equal(new Set(entries.map(e=>e.title)).size,entries.length);
  for(const map of MAP_LIST){
   const views=entries.filter(e=>e.map===map);assert.equal(views.length,map.timed?3:2);
   const cameras=views.map(e=>mapScreenshotCamera(map,e.view));assert.ok(cameras.every(c=>Object.values(c).every(Number.isFinite)));

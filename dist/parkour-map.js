@@ -115,9 +115,11 @@ export function makeParkourMap(source) {
 
 // Unknown uploads have no hand-authored route metadata. Keep their complete
 // static geometry rather than guessing which ramps, floors or pillars to drop.
-export function makeImportedGeometryMap(source) {
+export function makeImportedGeometryMap(source,{fullRoute=false,finishTrigger,surf=false}={}) {
   const boxes=source.boxes.map(b=>isShapedBrush(b)?b:{min:[...b.min],max:[...b.max]});
-  const start=safeGeometrySpawn(source.spawns[0],boxes),spawns=[start.spawn];
+  const checkpoints=(fullRoute?source.spawns:source.spawns.slice(0,1)).map(spawn=>safeGeometrySpawn(spawn,boxes));
+  const spawns=checkpoints.map(({spawn})=>spawn),start=checkpoints[0];
+  for(const [i,{box}] of checkpoints.entries())if(i)box.checkpoint=i;
   start.box.label='START';boxes.splice(boxes.indexOf(start.box),1);boxes.unshift(start.box);
   let finishPad=null,finishArea=null;
   if(source.finish){
@@ -128,10 +130,18 @@ export function makeImportedGeometryMap(source) {
       finishArea.finish=true;finishPad=boxes.indexOf(finish.box);
     }catch{/* A decorative or inaccessible destination is not a finish pad. */}
   }
+  const triggers=source.triggers||[];
+  const finishVolumes=finishTrigger?triggers.filter(trigger=>trigger.hammerid===finishTrigger):[];
+  if(finishTrigger&&!finishVolumes.length)throw Error('The original finish portal is missing.');
+  const tip=surf?'Hold A or D toward the ramp and steer with the mouse. E returns to the checkpoint.':
+    'Hold Space to hop. E returns to the checkpoint and Q restarts.';
   return hydrateParkourMap({id:source.id,title:source.title,revision:source.revision||2,importedGeometry:true,boxes,spawns,
-    stages:[{title:source.title,tip:'Original brush shapes. Space to hop; E returns to the start. Q restarts.'}],checkpointPads:[0],finishPad,finishArea,
-    sectionFalls:[defaultKillHeight(boxes)],
-    movementEntities:{entities:source.entities||[],triggers:source.triggers||[],buttons:source.buttons||[],destinations:[...(source.destinations||new Map())]}});
+    stages:fullRoute?source.stages.map(stage=>({...stage,tip})):[{title:source.title,tip:'Original brush shapes. Space to hop; E returns to the start. Q restarts.'}],
+    checkpointPads:checkpoints.map(({box})=>boxes.indexOf(box)),finishPad,finishArea,
+    ...(finishVolumes.length?{finishVolumes}:{}),
+    sectionFalls:spawns.map(()=>defaultKillHeight(boxes)),
+    movementEntities:{entities:source.entities||[],triggers:finishTrigger?triggers.filter(trigger=>trigger.hammerid!==finishTrigger):triggers,
+      buttons:source.buttons||[],destinations:[...(source.destinations||new Map())],stopOnTeleport:fullRoute}});
 }
 
 const movementEntityKeys=['classname','targetname','target','landmark','filtername','filterclass','filtertype','Negated','StartDisabled','spawnflags','damage','damagetype','hammerid','pushdir','speed',...Array.from({length:20},(_,i)=>'Filter'+String(i+1).padStart(2,'0'))];
@@ -155,7 +165,7 @@ function normalizeMovementEntities(value){
     if(e.outputs!==undefined){if(!Array.isArray(e.outputs)||e.outputs.length>32)throw Error('Too many trigger outputs.');result.outputs=e.outputs.map(o=>{if(typeof o.event!=='string'||o.event.length>40||typeof o.value!=='string'||o.value.length>512)throw Error('Invalid trigger output.');return {event:o.event,value:o.value};});}
     result.hammerid||='movement-'+index;return result;
   };
-  return {entities:value.entities.filter(e=>/^filter_/.test(e.classname)).map((e,i)=>entity(e,i)),triggers:value.triggers.map((e,i)=>entity(e,i,true)),buttons:(value.buttons||[]).map((e,i)=>entity(e,i,true)),
+  return {stopOnTeleport:value.stopOnTeleport===true,entities:value.entities.filter(e=>/^filter_/.test(e.classname)).map((e,i)=>entity(e,i)),triggers:value.triggers.map((e,i)=>entity(e,i,true)),buttons:(value.buttons||[]).map((e,i)=>entity(e,i,true)),
     destinations:value.destinations.map(entry=>{if(!Array.isArray(entry)||typeof entry[0]!=='string'||!entry[0]||entry[0].length>256)throw Error('Invalid teleport target.');return [entry[0],validateMovementDestination(entry[1])];})};
 }
 
@@ -181,7 +191,7 @@ export function hydrateParkourMap(data) {
       return {material:entry.material,type:entry.type,image:entry.image,vertices:entry.vertices};
     });
   }
-  for(const field of ['killboxes','teleports','boosts'])if(data[field]!==undefined){
+  for(const field of ['killboxes','teleports','boosts','finishVolumes'])if(data[field]!==undefined){
     if(!Array.isArray(data[field])||data[field].length>4096)throw Error('Too many movement triggers.');
     map[field]=data[field].map(value=>{
       const volume=validateMovementVolume(value);

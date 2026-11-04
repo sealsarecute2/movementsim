@@ -663,9 +663,9 @@ test('Kitsune portals save the next checkpoint without a respawn penalty or a ca
   app.document.fire('keydown',{code:'KeyE'});assert.equal(app.read('player.x'),geometry.spawns[1].x);assert.equal(app.read('respawns'),1);
  } finally {delete course.MAPS.bhop_kitsune;}
 });
-test('the menu contains 15 slideshow entries with later sections and both community previews',()=>{
- const app=boot();assert.equal(app.read('galleryMaps.length'),15);
- assert.equal((app.element('gallery-slides').innerHTML.match(/<img /g)||[]).length,15);
+test('the menu includes later sections and all community previews',()=>{
+ const app=boot();assert.equal(app.read('galleryMaps.length'),13+course.COMMUNITY_MAPS.length);
+ assert.equal((app.element('gallery-slides').innerHTML.match(/<img /g)||[]).length,app.read('galleryMaps.length'));
  assert.match(app.element('gallery-slides').innerHTML,/Final section/);assert.match(app.element('gallery-slides').innerHTML,/bhop_kitsune/);
 });
 test('bhop_lego exposes its leaderboard from map selection and the finish screen in both modes',async()=>{

@@ -43,3 +43,28 @@ test('the published cache matches local preview and needs no textures or origina
   assert.deepEqual(source,readFileSync(new URL('../maps/bhop_lego.json',import.meta.url)));
   assert.equal(map.materials,undefined);assert.equal(map.mesh,undefined);assert.ok(map.boxes.length<500);
 });
+
+test('a full-route import keeps ordered spawns and uses the final portal as a finish',async()=>{
+  const {makeImportedGeometryMap}=await import('../dist/parkour-map.js');
+  const spawn=x=>({x,y:1,z:0,yaw:0,pitch:0});
+  const entry=spawn(0),next=spawn(256);
+  const map=makeImportedGeometryMap({
+    id:'original-route',title:'Original route',spawns:[entry,next],
+    stages:[{title:'Start'},{title:'Next'}],
+    boxes:[{min:[-64,-32,-64],max:[64,0,64]},{min:[192,-32,-64],max:[320,0,64]}],
+    triggers:[
+      {classname:'trigger_teleport',hammerid:'portal',target:'NEXT',min:[80,0,-32],max:[90,96,32]},
+      {classname:'trigger_teleport',hammerid:'finish',target:'start',min:[330,0,-32],max:[340,96,32]},
+    ],
+    destinations:new Map([['start',entry],['next',next]]),
+  },{fullRoute:true,finishTrigger:'finish'});
+  const runtime=createSourceRuntime(map),end=createPlayer(spawn(335));
+  assert.deepEqual(runtime.step(end,{...end},1/256),[]);
+  const player={...createPlayer(spawn(85)),vx:800};
+  assert.equal(runtime.step(player,{...player},1/256)[0].type,'teleport');
+  assert.equal(player.x,next.x);
+  assert.equal(player.vx,0);
+  assert.deepEqual(runtime.step(player,{...player},1/256),[{type:'checkpoint',stage:1}]);
+  assert.deepEqual(runtime.step(end,{...end},1/256),[{type:'finish'}]);
+  assert.equal(end.x,335);
+});

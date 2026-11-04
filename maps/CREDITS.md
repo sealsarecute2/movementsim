@@ -27,3 +27,16 @@ The original archive remains unchanged for provenance and rebuilding. `bhop_lego
 The parkour view uses plain blocks, ordered checkpoint platforms, section-specific fall resets, and automatic boost pads. It does not emulate original Source scenery or scripts. Prepared local geometry and run progress can be kept in this browser tab's session storage for reloads and are never uploaded.
 
 ZIP decompression uses **fflate 0.8.2** by Arjun Barrett, MIT license. See `vendor/fflate-LICENSE.txt`.
+
+## bhop_emevaelx
+
+- Map by **kazman522**. [Original release](https://gamebanana.com/mods/124938).
+- Movement Lab downloads the author's original ZIP directly from GameBanana.
+
+## surf_kitsune
+
+- Map by **Arblarg**. [Original release](https://gamebanana.com/mods/122382).
+- Movement Lab downloads a BSP from a pinned mirror. Its SHA-256 matches the BSP extracted from the author's original RAR.
+
+Both maps are licensed [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/).
+Movement Lab checks the original bytes and renders their collision geometry in memory. The repository does not bundle either map.

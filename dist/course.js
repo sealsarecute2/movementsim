@@ -127,4 +127,19 @@ export const COMMUNITY_MAPS = [{
   // White descends through a narrow ramp, arch and stacked jumping pads.
   // [end X, highest route surface, half-width] excludes the surrounding shell.
   routeBands:{enterwhitemarker:[[-1696,8836,480],[-1152,8672,480],[256,8672,184],[320,8448,184],[960,8480,184],[1584,8074,480],[3000,6408,480]]},
+},{
+  id:'bhop_emevaelx',title:'bhop_emevaelx',author:'kazman522',revision:1,ranked:false,
+  archive:'https://filecache53.gamebanana.com/mods/bhop_emevalex.zip',
+  sha256:'cdc005ad563ac3416fdc28998aa1b9854d895a518c94f1e6dee910f67bcb7833',
+  thumbnail:'https://images.gamebanana.com/img/ss/mods/530-90_57fa60c132622.jpg',
+  source:'https://gamebanana.com/mods/124938',fullRoute:true,entryTarget:'S1',
+  stageTargets:['S1','S2','S3','S4','S5','S6','S7'],finishTrigger:'7773',
+},{
+  id:'surf_kitsune',title:'surf_kitsune',author:'Arblarg',revision:1,ranked:false,surf:true,
+  archive:'https://raw.githubusercontent.com/brousalis/surf-server/b539acc956eb868f86efe7ecf6e5d1b064db45e4/csgo/maps/surf_kitsune.bsp',
+  sha256:'1c0d3c7b3c08581180da3efc4512068b03023340ffd744eb0ab86c7ec214e77f',
+  thumbnail:'https://images.gamebanana.com/img/ss/mods/530-90_53290f80c0935.jpg',
+  source:'https://gamebanana.com/mods/122382',fullRoute:true,entryTarget:'start',
+  stageTargets:['start','red','orange','YELLOW','green','teal','blue','purple','pink','WHITE'],
+  stageTitles:['Lobby','Red','Orange','Yellow','Green','Teal','Blue','Purple','Pink','White'],finishTrigger:'34698',
 }];

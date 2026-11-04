@@ -363,6 +363,12 @@ function play() {
     request?.catch(mouseCaptureFailed);
   } catch { mouseCaptureFailed(); }
 }
+function updatePresetLabels() {
+  const selected=MAPS[map], title=selected.surf?'Surf':PRESETS[preset].title;
+  $('preset-badge').textContent=title.toUpperCase();
+  $('pause-map').textContent=selected.title+' / '+title;
+  $('preset-description').textContent=selected.surf?'Surf physics · uncapped speed':preset==='classic'?'Capped speed · standard air control':'Uncapped speed · strong air control';
+}
 function choosePreset(value,resetRun=true) {
   if(room?.busy&&!roomApplyingCourse){toast('LEAVE THE ROOM TO CHANGE PHYSICS');return;}
   if(!PRESETS[value]) return;
@@ -372,9 +378,7 @@ function choosePreset(value,resetRun=true) {
   if(endless)endless=null;
   preset=value;
   document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===value));
-  $('preset-badge').textContent=PRESETS[preset].title.toUpperCase();
-  $('pause-map').textContent=MAPS[map].title+' / '+PRESETS[preset].title;
-  $('preset-description').textContent=preset==='classic'?'Capped speed · standard air control':'Uncapped speed · strong air control';
+  updatePresetLabels();
   if(resetRun) reset();
   saveSettings(); updateHud();
 }
@@ -389,7 +393,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   sourceRuntime=boxes.sourceMap?createSourceRuntime(boxes.sourceMap):null;
   const selected=MAPS[map], count=selected.spawns.length-1;
   $('selected-map-title').textContent=selected.title;
-  $('pause-map').textContent=selected.title+' / '+PRESETS[preset].title;
+  updatePresetLabels();
   document.querySelectorAll('[data-map]').forEach(card=>{
     card.classList.toggle('selected',card.dataset.map===map);
     card.setAttribute('aria-pressed',String(card.dataset.map===map));
@@ -399,7 +403,7 @@ function chooseMap(value,resetRun=true,preserveSavedRun=false) {
   $('map-description').textContent=selected.description;
   $('map-info').dataset.help=selected.description||'';
   $('map-meta').textContent=selected.community?`Community map · ${selected.stages.length} sections`:selected.endless?'Infinite · 12 section types':selected.timed?`${selected.stages.length} sections · ${count} checkpoints${selected.features?.length?' · '+selected.features.join(' / '):''}`:'Sandbox · free movement';
-  $('map-credit').textContent=selected.community?(boxes.sourceMap?.importedGeometry?(boxes.sourceMap?.textureMeshes?.length?'Local import · original brush shapes · optional textures.':'Local import · original brush shapes · untextured geometry.'):`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
+  $('map-credit').textContent=selected.community?(selected.originalRoute?`Map: ${selected.author}. Original layout · grey materials.`:boxes.sourceMap?.importedGeometry?(boxes.sourceMap?.textureMeshes?.length?'Local import · original brush shapes · optional textures.':'Local import · original brush shapes · untextured geometry.'):`Map: ${selected.author||'local import'}. Parkour platforms only · plain blocks · ordered checkpoints.`):'';
   $('map-source-link').classList.toggle('hidden',!selected.source);
   if(selected.source)$('map-source-link').href=selected.source;
   $('leaderboard-button').disabled=!hasLeaderboard(selected.id,selected.revision||1);
@@ -437,8 +441,11 @@ async function selectCommunityMap(metadata,file=null,restore=false) {
     status.textContent=`Preparing ${metadata.title}…`;
     const imported=metadata.geometry&&!file?hydrateParkourMap(input):await loadSourceMap(input,{...metadata,includeTextures:!!file&&$('source-map-textures').checked});
     if(generation!==sourceLoadGeneration)return;
-    MAPS[metadata.id]={id:metadata.id,title:metadata.title,revision:imported.revision||metadata.revision||1,timed:imported.greybox?imported.finishPad!==null:!!imported.finish,community:true,author:metadata.author,source:metadata.source,
-      description:metadata.author?'Parkour route from the community map by '+metadata.author+'.':'An imported map with its original solid brush shapes.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
+    MAPS[metadata.id]={id:metadata.id,title:metadata.title,revision:imported.revision||metadata.revision||1,timed:imported.greybox?imported.finishPad!==null||!!imported.finishVolumes?.length:!!imported.finish,
+      community:true,author:metadata.author,source:metadata.source,originalRoute:metadata.fullRoute,surf:metadata.surf,
+      description:metadata.surf?'Surf the original stages. Hold A or D toward the ramp.':
+        metadata.fullRoute?'Hop through seven sections. Bhop practice is recommended for the longer jumps.':
+        metadata.author?'Parkour route from the community map by '+metadata.author+'.':'An imported map with its original solid brush shapes.',boxes:imported.boxes,spawns:imported.spawns,stages:imported.stages};
     chooseMap(metadata.id,true,restore);
     if(restore)restoreSavedRun(pendingRunRestore);pendingRunRestore=null;
     status.textContent=`${metadata.title} ready.${file&&$('source-map-textures').checked?imported.textureMeshes?.length?` ${imported.textureMeshes.length} texture materials loaded.`:' No embedded textures found; using grey materials.':''}`;
@@ -518,9 +525,10 @@ function tick() {
     }
   }
 }
+const surfMovement={...PRESETS.practice,airAccelerate:150};
 function tickMovement(input) {
   previousDraw={...player};
-  step(player,input,boxes,PRESETS[preset]); pendingJump=false;
+  step(player,input,boxes,MAPS[map].surf?surfMovement:PRESETS[preset]); pendingJump=false;
   gameAudio?.movement(previousDraw,player,input);
   if(sourceRuntime){
     const first=MAPS[map].spawns[0];

@@ -3,7 +3,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {COMMUNITY_MAPS} from '../dist/course.js';
 import {loadSourceMap} from '../dist/source-map.js';
 import {mapPreviewSVG} from '../dist/menu.js';
-for(const metadata of COMMUNITY_MAPS){
+for(const metadata of COMMUNITY_MAPS.filter(map=>map.geometry)){
   const source=new URL('../dist/'+metadata.archive,import.meta.url);
   const map=await loadSourceMap(readFileSync(source),metadata);
   const data=JSON.stringify(map,(key,value)=>key==='sourceMap'?undefined:value)+'\n';

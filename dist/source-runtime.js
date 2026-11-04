@@ -22,6 +22,7 @@ export function sourceTriggerCrossing(from,to,box,height=72,radius=16) {
 
 export function createSourceRuntime(map) {
   if(map.greybox)return createParkourRuntime(map);
+  const destinations=new Map([...map.destinations].map(([name,spawn])=>[name.toLowerCase(),spawn]));
   const named=new Map();
   for(const e of [...map.entities,...map.triggers,...(map.buttons||[])])if(e.targetname){if(!named.has(e.targetname))named.set(e.targetname,[]);named.get(e.targetname).push(e);}
   let disabled,time,actorName,pending,inside,cooldown,current,finished;
@@ -81,12 +82,13 @@ export function createSourceRuntime(map) {
           const [pitch,yaw]=(trigger.pushdir||'0 0 0').split(/\s+/).map(v=>Number(v)*Math.PI/180),force=(Number(trigger.speed)||0)*dt;
           player.vx+=Math.cos(pitch)*Math.cos(yaw)*force;player.vy-=Math.sin(pitch)*force;player.vz-=Math.cos(pitch)*Math.sin(yaw)*force;
         } else if(trigger.classname==='trigger_teleport'&&!cooldown){
-          const destination=map.destinations.get(trigger.target);
+          const destination=destinations.get(trigger.target?.toLowerCase());
           if(destination){
             // Source landmark teleports retain the relative offset and angles.
-            const landmark=map.destinations.get(trigger.landmark),arrival=landmark?
+            const landmark=destinations.get(trigger.landmark?.toLowerCase()),arrival=landmark?
               {x:destination.x+player.x-landmark.x,y:destination.y+player.y-landmark.y,z:destination.z+player.z-landmark.z}:destination;
             Object.assign(player,arrival,{grounded:false,groundBox:null,ladder:null,ladderNormal:null});
+            if(map.stopOnTeleport&&!landmark)Object.assign(player,{vx:0,vy:0,vz:0});
             cooldown=.08;actorName='';pending=[];events.push({type:'teleport',target:trigger.target,destination:{x:player.x,y:player.y,z:player.z,yaw:player.yaw,pitch:player.pitch}});break;
           }
         }
@@ -132,7 +134,9 @@ function createParkourRuntime(map) {
         if(!crossing||crossing.enter<lastTime)break;
         lastTime=crossing.enter;events.push({type:'checkpoint',stage:++current});
       }
-      if(map.finishPad!==null&&current===map.spawns.length-1&&!finished&&activation(previous,player,map.finishArea||map.boxes[map.finishPad])){
+      const reachedFinish=map.finishVolumes?.some(volume=>sourceTriggerCrossing(previous,player,volume,player.ducked?54:72))||
+        map.finishPad!==null&&activation(previous,player,map.finishArea||map.boxes[map.finishPad]);
+      if(current===map.spawns.length-1&&!finished&&reachedFinish){
         finished=true;events.push({type:'finish'});return events;
       }
       if(player.y<map.sectionFalls[current]){events.push({type:'respawn',stage:current});return events;}

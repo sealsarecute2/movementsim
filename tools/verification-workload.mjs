@@ -10,7 +10,7 @@ import {createSourceRuntime} from '../dist/source-runtime.js';
 
 export function benchmarkMaps(){
   const maps=MAP_LIST.filter(m=>m.timed||m.endless);
-  for(const metadata of COMMUNITY_MAPS){
+  for(const metadata of COMMUNITY_MAPS.filter(map=>map.ranked!==false)){
     const map=hydrateParkourMap(JSON.parse(readFileSync(new URL('../dist/maps/'+metadata.id+'.json',import.meta.url),'utf8')));
     maps.push({...metadata,boxes:map.boxes,spawns:map.spawns,timed:true});
   }

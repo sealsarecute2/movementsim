@@ -14,7 +14,8 @@ test('leaderboard rendering escapes usernames and displays at most five rows',()
 });
 test('every bundled scored map has a verified board for both presets, with current revisions only',()=>{
  for(const map of [...MAP_LIST.filter(m=>m.timed||m.endless),...COMMUNITY_MAPS]){
-  assert.equal(hasLeaderboard(map.id,map.revision||1),true,map.id);
+  assert.equal(hasLeaderboard(map.id,map.revision||1),map.ranked!==false,map.id);
+  if(map.ranked===false)continue;
   for(const preset of ['classic','practice'])assert.ok(RANKED_COURSES.some(c=>c.map===map.id&&c.revision===(map.revision||1)&&c.preset===preset));
   assert.equal(hasLeaderboard(map.id,99),false);
  }
